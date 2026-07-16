@@ -160,7 +160,7 @@ Parity is the goal, but not at any price. Each of these was checked against the 
 
 \---
 
-## Beyond FSO
+## Beyond FSO...
 
 |Member||
 |-|-|
