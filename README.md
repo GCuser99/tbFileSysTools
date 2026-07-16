@@ -238,7 +238,8 @@ Along the way this turned up a **silent 2 GB bug**: files larger than 2 GB were 
 |`FileSystemObject`|COM-creatable wrapper over the above|
 |`TextStream`|Streaming text reader/writer|
 |`TextCodec`|Encoding detection, encode/decode, BOM handling|
-|`Shared`|Win32 marshalling, error mapping, stat|
+|`Shared`|shared file/folder/drive procs|
+|`WinAPI`|WinDevLib's Win32 declarations|
 |`File`, `Folder`, `Drive`|Objects|
 |`Files`, `Folders`, `Drives`|Collections|
 
