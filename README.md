@@ -233,7 +233,7 @@ The large-file and encoding claims above are measured, not asserted. The probe m
 |||
 |-|-|
 |`FileSystemTools`|The API. All the logic lives here|
-|`FileSystemObject`|COM-creatable wrapper over the above|
+|`FileSystemObject`|COM-creatable thin wrapper over the above|
 |`TextStream`|Streaming text reader/writer|
 |`TextCodec`|Encoding detection, encode/decode, BOM handling|
 |`Shared`|shared file/folder/drive procs|
