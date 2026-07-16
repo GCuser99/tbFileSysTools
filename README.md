@@ -11,7 +11,7 @@ Dim text As String
 text = FileSystemTools.TextFileToString("data.txt")     ' encoding auto-detected
 ```
 
-\---
+---
 
 ## Comparison with Scripting FSO
 
@@ -28,7 +28,7 @@ text = FileSystemTools.TextFileToString("data.txt")     ' encoding auto-detected
 
 Everything above is measured, not assumed — see [Verification](#verification).
 
-\---
+---
 
 ## Install
 
@@ -65,7 +65,7 @@ The class is a one-line delegation to the module for every member — same behav
 
 > \*\*Note:\*\* the class is deliberately named `FileSystemObject`, the same as Scripting's. In a project referencing both, qualify it — `tbFileSysTools.FileSystemObject` — or drop the Scripting Runtime reference.
 
-\---
+---
 
 ## Text encodings
 
@@ -102,7 +102,7 @@ FileSystemTools.NormalizeTextFile "script.sh", encUtf8, nlWindows
 
 Appending to an existing file adopts **that file's** newline style, so you can't accidentally turn a clean file into a mixed one.
 
-\---
+---
 
 ## Large files
 
@@ -126,7 +126,7 @@ ts.Close
 
 Multi-byte encodings are handled correctly across chunk boundaries, including surrogate pairs split by a 64 KB read. This is verified against 54 million lines of mixed 1-, 2-, 3- and 4-byte characters (see below).
 
-\---
+---
 
 ## Objects
 
@@ -146,7 +146,7 @@ Next
 
 `Folder.Files` and `Folder.SubFolders` return a **snapshot** of the membership. The objects inside are live; the list is not.
 
-\---
+---
 
 ## Deviations from FSO
 
@@ -158,7 +158,7 @@ Parity is the goal, but not at any price. Each of these was checked against the 
 
 **`FileAttribute.Volume` and `.Alias` are not provided.** `Volume` has no Win32 equivalent (use `Drive.VolumeName`). `Alias` is `FILE\_ATTRIBUTE\_REPARSE\_POINT` under a misleading name — and collides with VBA's `vbAlias` (64 vs 1024). Use `ReparsePoint`.
 
-\---
+---
 
 ## Beyond FSO...
 
@@ -191,10 +191,10 @@ Parity is the goal, but not at any price. Each of these was checked against the 
 |`File.Version`|Gets the file version string|
 |`Folder.HasAttribute`|Determines is an attribute is set|
 |`Folder.SetAttribute`|Sets a single attribute|
-|`TextStream.IsStreaming`|byte-streaming or buffered access|
+|`TextStream.IsStreaming`|whether byte-streaming or buffered access is supported|
 |`TextStream.Encoding`|Detect a file's encoding|
 
-\---
+---
 
 ## Errors
 
@@ -212,7 +212,7 @@ Error numbers follow FSO, so existing handlers keep working:
 |**71**|Disk not ready|
 |**76**|Path not found|
 
-\---
+---
 
 ## Verification
 
@@ -226,7 +226,7 @@ The large-file and encoding claims above are measured, not asserted. The probe m
 |Line/column tracking is exact|14 CR/LF edge cases, plus 35 M lines end to end|
 |FSO parity|Differential tests against the real `Scripting.FileSystemObject`|
 
-\---
+---
 
 ## Structure
 
@@ -241,7 +241,7 @@ The large-file and encoding claims above are measured, not asserted. The probe m
 |`File`, `Folder`, `Drive`|Objects|
 |`Files`, `Folders`, `Drives`|Collections|
 
-\---
+---
 
 ## License
 
