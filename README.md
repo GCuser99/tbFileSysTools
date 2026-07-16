@@ -17,7 +17,7 @@ text = FileSystemTools.TextFileToString("data.txt")     ' encoding auto-detected
 
 `Scripting.FileSystemObject` shipped in 1996 and shows it:
 
-||FSO|tbFileSysTools|
+|Feature|FSO|tbFileSysTools|
 |-|-|-|
 |Text encodings|ASCII and UTF-16 only|Any Windows code page, with BOM handling and auto-detection|
 |Files > 2 GB|Reads them as **empty**, silently|Streams them, in both directions|
@@ -150,15 +150,13 @@ Next
 
 ## Deviations from FSO
 
-Parity is the goal, but not at any price. Each of these was checked against the real `Scripting.FileSystemObject` as an oracle, and broken deliberately:
+Parity is the goal, but not at any price. Each of these was checked against the `Scripting.FileSystemObject`, and broken deliberately:
 
 **`Folder.Size` does not follow directory reparse points.** FSO does. A junction pointing into its own subtree makes FSO double-count (measured: 2500 vs 1500), and a junction pointing at an ancestor makes it recurse until it dies. This library reports what physically lives in the tree.
 
-**An unreadable folder raises.** FSO silently reports it as empty. A size or file list that quietly omits a subtree you couldn't read is worse than an error.
+**An unreadable folder raises.** FSO silently reports it as empty. A size or file list that quietly omits a subtree that can't be read is worse than an error.
 
 **`FileAttribute.Volume` and `.Alias` are not provided.** `Volume` has no Win32 equivalent (use `Drive.VolumeName`). `Alias` is `FILE\_ATTRIBUTE\_REPARSE\_POINT` under a misleading name — and collides with VBA's `vbAlias` (64 vs 1024). Use `ReparsePoint`.
-
-Added alongside: `SetAttribute` and `HasAttribute`, which flip or test a single bit rather than replacing the whole set — which is what `Attributes = x` does, and what most people don't expect.
 
 \---
 
@@ -166,6 +164,8 @@ Added alongside: `SetAttribute` and `HasAttribute`, which flip or test a single 
 
 |Member||
 |-|-|
+|`CreateTextFile`|Create any format - not just ascii/utf16|
+|`OpenTextFile`|format auto-detection or user-specified|
 |`GetFileEncoding`|Detect a file's encoding|
 |`GetFileLineEnding`|Detect CRLF / LF / CR / mixed|
 |`NormalizeTextFile`|Rewrite encoding + newlines in place, idempotently|
@@ -174,13 +174,24 @@ Added alongside: `SetAttribute` and `HasAttribute`, which flip or test a single 
 |`CleanFileName`|Strip reserved characters and device names|
 |`Rename`|In-place rename (FSO makes you assign to `.Name`)|
 |`GetFileType`|Shell type description ("Text Document")|
-|`GetFileVersion`|Version resource, fixed or string|
-|`GetCurrentDirectory` / `SetCurrentDirectory`||
+|`GetCurrentDir` / `SetCurrentDir`||
 |`GetSpecialFolder`|25 known folders, not FSO's 3|
 |`GetStandardStream`|stdin / stdout / stderr as a `TextStream`|
 |`ReadStream` / `WriteStream`|Raw bytes, Unicode-safe|
 |`TextFileToString` / `StringToTextFile`|Whole-file text I/O|
 |`TextFileToArray` / `ArrayToTextFile`|Whole-file line I/O|
+|`File.Encoding`|Detect a file's encoding|
+|`File.HasAttribute`|Determines is an attribute is set|
+|`File.LineEnding`|Detect CRLF / LF / CR / mixed|
+|`File.Normalize`|Rewrite encoding + newlines in place, idempotently|
+|`File.SetAttribute`|Sets a single attribute|
+|`File.ToStream`|Reads file to byte array|
+|`File.ToString`|Reads file to string|
+|`File.Version`|Gets the file version string|
+|`Folder.HasAttribute`|Determines is an attribute is set|
+|`Folder.SetAttribute`|Sets a single attribute|
+|`TextStream.IsStreaming`|byte-streaming or buffered access|
+|`TextStream.Encoding`|Detect a file's encoding|
 
 \---
 
