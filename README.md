@@ -184,6 +184,7 @@ Parity is the goal, but not at any price. Each of these was checked against the 
 |`File.HasAttribute`|Determines is an attribute is set|
 |`File.LineEnding`|Detect CRLF / LF / CR / mixed|
 |`File.Normalize`|Rewrite encoding + newlines in place, idempotently|
+|`File.OpenAsTextStream`|format auto-detection or user-specified|
 |`File.SetAttribute`|Sets a single attribute|
 |`File.ToStream`|Reads file to byte array|
 |`File.ToString`|Reads file to string|
