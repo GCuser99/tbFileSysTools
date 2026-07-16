@@ -226,8 +226,6 @@ The large-file and encoding claims above are measured, not asserted. The probe m
 |Line/column tracking is exact|14 CR/LF edge cases, plus 35 M lines end to end|
 |FSO parity|Differential tests against the real `Scripting.FileSystemObject`|
 
-Along the way this turned up a **silent 2 GB bug**: files larger than 2 GB were being read as *empty*, with no error — because Windows' `LOF()` wraps negative past 2^31. That's fixed, and it's the reason every size in this library goes through a 64-bit path instead.
-
 \---
 
 ## Structure
