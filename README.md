@@ -13,7 +13,7 @@ text = FileSystemTools.TextFileToString("data.txt")     ' encoding auto-detected
 
 \---
 
-## Why
+## Comparison with Scripting FSO
 
 `Scripting.FileSystemObject` shipped in 1996 and shows it:
 
