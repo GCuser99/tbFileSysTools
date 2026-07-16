@@ -86,9 +86,9 @@ FileSystemTools.StringToTextFile s, "out.txt", encUtf8Bom
 Debug.Print FileSystemTools.GetFileEncoding("mystery.txt")   ' e.g. encUtf16Bom
 ```
 
-Supported: UTF-8, UTF-16 LE/BE, UTF-32 LE/BE, UTF-7, GB2312, GB18030, Big5, Latin-1, Latin-9, US-ASCII, system ANSI — each with and without a BOM — plus any other code page installed on the machine.
+Supported: UTF-8, UTF-16 LE/BE, UTF-32 LE/BE, UTF-7, GB2312, GB18030, Big5, Latin-1, Latin-9, US-ASCII, system ANSI — each with and without a BOM (if applicable) — plus any other code page installed on the machine.
 
-**Encoding values carry the BOM in their sign.** `encUtf8` is UTF-8 with no BOM; `encUtf8Bom` is the same code page, negated. So a round trip through detection never loses the caller's intent.
+**Auto-detection on Read.** Defaults to auto-detect using a reliable heuristical algorithm but user can specify a code-page if known.
 
 ### Line endings
 
