@@ -36,7 +36,7 @@ Everything above is measured, not assumed — see [Verification](#verification).
 
 **Requires:** twinBASIC. *(TODO: minimum build number.)*
 
-\---
+---
 
 ## Two ways in
 
