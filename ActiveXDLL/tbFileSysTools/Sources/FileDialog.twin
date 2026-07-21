@@ -1,0 +1,1449 @@
+' ==========================================================================
+' FileDialog
+'
+' A class for selecting file system objects, similar to MS Office's dialogs,
+' with extended functionality. Designed for use both from within twinBASIC
+' projects and as an ActiveX DLL callable from VBA hosts (Excel, Access, 
+' Word, etc.).
+'
+' Requires Jon Johnson's WinDevLib tB package, and the companion FilterEntry,
+' PlaceEntry, and FileDialogEventSink classes (included in this file).
+'
+' Contact Info:
+'
+' https://github.com/GCUser99
+'
+' --- How this is put together --------------------------------------------
+' A thin, VBA-friendly face over the Vista-era shell dialog COM interfaces
+' (IFileDialog / IFileOpenDialog / IFileSaveDialog). Callers set properties,
+' call Show, and read SelectedItems - they never see an IShellItem.
+'
+' Three things are worth understanding before changing anything here:
+'
+'   1. NOTHING IS APPLIED UNTIL Show. Every property just parks a value in a
+'      field. The whole configuration is pushed into the COM object inside
+'      ShowFileOpen / ShowFileSave / ShowFolderSelect, which is why an invalid
+'      InitialFolderPath or ClientGuid raises from Show, not from the Let.
+'
+'   2. THE THREE Show* FUNCTIONS ARE NEAR-DUPLICATES. Each one builds its
+'      options mask, applies the shared Apply* helpers, advises the sink, calls
+'      Show, unadvises, and harvests results. They differ only in which COM class
+'      they create, which options they honour, and whether results come back as
+'      one item or many. A change to the advise/show/unadvise dance almost always
+'      needs making three times.
+'
+'   3. VETOES TRAVEL AS ERRORS. There is no return value on the way back into the
+'      shell. A handler that sets Cancel:=True causes Raise* to Err.Raise
+'      ERR_EVENT_CANCELLED, which propagates UNTRAPPED out through the sink's
+'      interface method, where tB turns it into a failed HRESULT - and a failed
+'      HRESULT from OnFileOk is what tells the dialog to stay open. Wrap any of
+'      that in On Error Resume Next and the veto silently stops working.
+'
+' --- Why the event sink is a separate class ------------------------------
+' Implementing IFileDialogEvents on this public, COM-creatable class would drag
+' IFileDialog, IShellItem and the FDE_* enums into the exported type library,
+' where COM consumers would see them. FileDialogEventSink is private and does it
+' instead, so the public object model is just FileDialog's own members.
+'
+' --- State reuse ---------------------------------------------------------
+' A FileDialog instance is reusable, but it is NOT reset between Show calls.
+' Options, filters and places persist. See the notes on Title/ButtonName and on
+' SelectedItems for the two places where that has surprising consequences.
+' ==========================================================================
+/*
+    Usage from twinBASIC (parameterized constructor):
+
+        Dim folderPicker As FileDialog
+        Set folderPicker = New FileDialog(fdFolderPicker)
+        folderPicker.Title = "Select the Folder to Use"
+        If folderPicker.Show() Then folderPath = folderPicker.SelectedItems(1)
+
+    Usage from VBA via ActiveX (or from tB without the constructor argument):
+
+        Dim folderPicker As New FileDialog
+        folderPicker.DialogType = fdFolderPicker     ' required before Show
+        folderPicker.Title = "Select the Folder to Use"
+        If folderPicker.Show() Then folderPath = folderPicker.SelectedItems(1)
+
+    Multi-filter Save example reading back which format the user picked:
+
+        Dim picker As New FileDialog
+        picker.DialogType = fdSaveAs
+        picker.AddFilters "Word|*.docx|PDF|*.pdf|Text|*.txt"
+        picker.StrictFileTypes = True
+        picker.DontAddToRecent = True
+        picker.AddPlace Environ("USERPROFILE") & "\Documents\Templates"
+        If picker.Show() Then
+            Select Case picker.SelectedFilterIndex
+                Case 1: SaveAsWord picker.SelectedItems(1)
+                Case 2: SaveAsPdf picker.SelectedItems(1)
+                Case 3: SaveAsText picker.SelectedItems(1)
+            End Select
+        End If
+*/
+[COMCreatable(True)]
+[Description("A class for selecting file system objects, similar to MS Office's dialogs.")]
+[Hidden(False)]
+[ClassId("56FFD6A7-62C4-4182-B289-0BB7121C28CD")]
+[InterfaceId("56FFD6A7-62C4-4182-B289-56F0E4D74E29")]
+Public Class FileDialog
+
+    Option Explicit
+    
+    ' The veto signal. Raised by the Raise* methods when a handler cancels, and
+    ' deliberately NOT trapped anywhere on the way back to the shell - see the
+    ' header. It is a control-flow mechanism, not an error condition.
+    Private Const ERR_EVENT_CANCELLED As Long = 106
+
+    ' Cancel is ByRef on the two vetoable events; Response is ByRef on the two that
+    ' answer a shell question. Everything else is notification-only.
+    Public Event FileOk(ByVal itemPath As String, ByRef Cancel As Boolean)
+    Public Event FolderChanging(ByVal folderPath As String, ByRef Cancel As Boolean)
+    Public Event FolderChanged(ByVal folderPath As String)
+    Public Event SelectionChanged(ByVal itemPath As String)
+    Public Event FileTypeChanged(ByVal filterIndex As Long)
+    Public Event BeforeOverwrite(ByVal itemPath As String, ByRef Response As FileDialogResponse)
+    Public Event ShareViolation(ByVal itemPath As String, ByRef Response As FileDialogResponse)
+    
+    ' Values deliberately match FDE_OVERWRITE_RESPONSE and FDE_SHAREVIOLATION_RESPONSE
+    ' (0/1/2), so the sink can hand the caller's answer straight back to the shell with
+    ' a bare CLng. Do not renumber these without changing the sink.
+    Public Enum FileDialogResponse
+        fdResponseDefault = 0   ' let the dialog handle it normally (its built-in prompt)
+        fdResponseAccept = 1   ' proceed: accept the overwrite / ignore the share violation
+        fdResponseRefuse = 2   ' refuse: the dialog stays open
+    End Enum
+
+    ' 1-based on purpose: 0 is the "not set yet" sentinel that Show checks for.
+    Public Enum FileDialogType
+        fdOpen = 1
+        fdSaveAs = 2
+        fdFolderPicker = 3
+    End Enum
+
+    ' Raw FOS_* values from <shobjidl.h>. Private: these are an implementation
+    ' detail, surfaced to callers as individual Boolean properties instead.
+    Private Enum FILEOPENDIALOGOPTIONS
+        FOS_OVERWRITEPROMPT = &H00000002
+        FOS_STRICTFILETYPES = &H00000004
+        FOS_NOCHANGEDIR = &H00000008
+        FOS_PICKFOLDERS = &H00000020
+        FOS_FORCEFILESYSTEM = &H00000040
+        FOS_ALLNONSTORAGEITEMS = &H00000080
+        FOS_NOVALIDATE = &H00000100
+        FOS_ALLOWMULTISELECT = &H00000200
+        FOS_PATHMUSTEXIST = &H00000800
+        FOS_FILEMUSTEXIST = &H00001000
+        FOS_CREATEPROMPT = &H00002000
+        FOS_SHAREAWARE = &H00004000
+        FOS_NOREADONLYRETURN = &H00008000&
+        FOS_NOTESTFILECREATE = &H00010000
+        FOS_HIDEMRUPLACES = &H00020000
+        FOS_HIDEPINNEDPLACES = &H00040000
+        FOS_NODEREFERENCELINKS = &H00100000
+        FOS_DONTADDTORECENT = &H02000000
+        FOS_FORCESHOWHIDDEN = &H10000000
+        FOS_DEFAULTNOMINIMODE = &H20000000
+        FOS_FORCEPREVIEWPANEON = &H40000000
+        FOS_SUPPORTSTREAMABLEITEMS = &H80000000
+    End Enum
+
+    ' FDAP -- file dialog "add place" position
+    Private Enum FDAP
+        FDAP_BOTTOM = 0
+        FDAP_TOP = 1
+    End Enum
+    
+    ' Class-specific error numbers. Note these are raw values, NOT vbObjectError-based -
+    ' see the notes if that ever needs revisiting.
+    Private Const ERR_INVALID_DIALOG_TYPE   As Long = 101
+    Private Const ERR_INVALID_INITIAL_PATH  As Long = 102
+    Private Const ERR_INVALID_FILTER        As Long = 103
+    Private Const ERR_INVALID_GUID          As Long = 104
+    Private Const ERR_INVALID_PLACE         As Long = 105
+    Private Const ERR_SOURCE                As String = "FileDialog"
+
+    ' 0x800704C7 = ERROR_CANCELLED (user cancelled the dialog)
+    ' IFileDialog::Show returns this as an HRESULT rather than failing, so the Show*
+    ' functions mask the low word and treat a match as "the user said no" - the one
+    ' error that is not an error.
+    Private Const HRESULT_CANCELLED_LOW As Long = &H4C7
+    
+    Private Const ERR_INVALID_NAV_ROOT As Long = 107
+
+    ' --- Configuration. NONE of this is pushed to the shell until Show. ---
+    Private mOwnerWinHandle As LongPtr
+    Private mInitialFolderPath As String
+    Private mUseAsDefaultFolder As Boolean
+    Private mFilters As Collection              ' of FilterEntry
+    Private mFilterIndex As Long
+    Private mSelectedFilterIndex As Long
+    Private mTitle As String
+    Private mButtonName As String
+    Private mAllowMultiSelect As Boolean
+    Private mInitialFileName As String
+    Private mDefaultExtension As String
+    Private mSelectedItems As Collection        ' Nothing until the first successful Show
+    Private mDialogType As FileDialogType
+    Private mTypeDefaultsApplied As Boolean     ' tracks first DialogType assignment
+    Private mFileNameLabel As String
+    Private mShowHiddenFiles As Boolean
+    Private mPathMustExist As Boolean
+    Private mFileMustExist As Boolean
+    Private mDontAddToRecent As Boolean
+    Private mStrictFileTypes As Boolean
+    Private mNoChangeDir As Boolean
+    Private mClientGuid As String
+    Private mPlaces As Collection               ' of PlaceEntry
+    Private mShareAware As Boolean
+    Private mEnforceFilterExtensions As Boolean
+    Private mNavigationRoot As String
+    Private mStrictNavigationRoot As Boolean
+    Private mCancelButtonName As String
+    
+    ' Parameterized constructor for tB callers. Equivalent to:
+    '   Dim fd As New FileDialog : fd.DialogType = val
+    ' VBA-via-ActiveX callers should use the parameterless form and set
+    ' DialogType as a property before calling Show.
+    Public Sub New(ByVal val As FileDialogType)
+        SetDefaults
+        Me.DialogType = val
+    End Sub
+
+    ' The mTypeDefaultsApplied latch is what makes property order not matter: the
+    ' FIRST DialogType assignment seeds FileMustExist/PathMustExist, and any later
+    ' reassignment leaves whatever the caller has since set. Without the latch,
+    '   fd.DialogType = fdSaveAs : fd.FileMustExist = True : fd.DialogType = fdSaveAs
+    ' would silently undo the caller's choice.
+    [Description("Gets or sets the type of file dialog (fdOpen, fdSaveAs, or fdFolderPicker). Must be set before calling Show. The first assignment also applies type-specific defaults for FileMustExist and PathMustExist; later changes do not overwrite caller-set values. Read/write.")]
+    Public Property Let DialogType(ByVal val As FileDialogType)
+        If val < fdOpen Or val > fdFolderPicker Then
+            Err.Raise vbObjectError + ERR_INVALID_DIALOG_TYPE, ERR_SOURCE, _
+                "Invalid dialog type. Use fdOpen, fdSaveAs, or fdFolderPicker."
+        End If
+        mDialogType = val
+        If Not mTypeDefaultsApplied Then
+            ApplyTypeSpecificDefaults
+            mTypeDefaultsApplied = True
+        End If
+    End Property
+    Public Property Get DialogType() As FileDialogType
+        DialogType = mDialogType
+    End Property
+    
+    [Description("If True, the item returned must be in an existing folder. Defaults to True for all dialog types. Read/write.")]
+    Public Property Let PathMustExist(ByVal val As Boolean)
+        mPathMustExist = val
+    End Property
+    Public Property Get PathMustExist() As Boolean
+        PathMustExist = mPathMustExist
+    End Property
+
+    [Description("If True, the file returned must already exist. Defaults to True for Open dialogs and False for SaveAs and folder pickers. Read/write.")]
+    Public Property Let FileMustExist(ByVal val As Boolean)
+        mFileMustExist = val
+    End Property
+    Public Property Get FileMustExist() As Boolean
+        FileMustExist = mFileMustExist
+    End Property
+
+    [Description("Sets the text of the label next to the file name edit box. Read/write.")]
+    Public Property Let FileNameLabel(ByVal val As String)
+        mFileNameLabel = val
+    End Property
+    Public Property Get FileNameLabel() As String
+        FileNameLabel = mFileNameLabel
+    End Property
+
+    ' FOS_SHAREAWARE is a prerequisite, not a preference: without it the shell never
+    ' calls OnShareViolation at all, so the ShareViolation event simply never fires.
+    ' NOT applied by the folder picker - no file is opened, so there is nothing to
+    ' violate a share on.
+    [Description("If True, the dialog calls back through the ShareViolation event when a sharing violation occurs (Open and SaveAs only; has no effect on a folder picker). Required for ShareViolation to fire at all. Default False. Read/write.")]
+    Public Property Let ShareAware(ByVal val As Boolean)
+        mShareAware = val
+    End Property
+    Public Property Get ShareAware() As Boolean
+        ShareAware = mShareAware
+    End Property
+    
+    ' MODAL. Blocks until the user dismisses the dialog; events fire on this thread
+    ' from inside the shell's message loop, so a handler that blocks freezes the dialog.
+    '
+    ' The 0-check is why fdOpen starts at 1: SetDefaults leaves mDialogType at 0 as an
+    ' "unset" sentinel, which a VBA caller who forgot to assign DialogType will hit.
+    [Description("Displays a file dialog box and returns a Boolean indicating whether the user pressed the Action button (True) or the Cancel button (False). Raises if DialogType has not been set. No other code runs until the user dismisses the dialog.")]
+    Public Function Show() As Boolean
+        If mDialogType = 0 Then
+            Err.Raise vbObjectError + ERR_INVALID_DIALOG_TYPE, ERR_SOURCE, _
+                "DialogType must be set before calling Show. " & _
+                "Example: fd.DialogType = fdSaveAs"
+        End If
+        Select Case mDialogType
+            Case fdFolderPicker
+                Show = ShowFolderSelect()
+            Case fdOpen
+                Show = ShowFileOpen()
+            Case fdSaveAs
+                Show = ShowFileSave()
+        End Select
+    End Function
+
+    ' 0 = no owner: the dialog is not modal to anything, and can end up behind the
+    ' host window. VBA hosts should pass Application.hWnd.
+    [Description("Gets or sets the owner window handle - defaults to no owner window. Read/write.")]
+    Public Property Let OwnerWinHandle(ByVal val As LongPtr)
+        mOwnerWinHandle = val
+    End Property
+    Public Property Get OwnerWinHandle() As LongPtr
+        OwnerWinHandle = mOwnerWinHandle
+    End Property
+
+    ' Bare extension, no leading dot. Appended by the shell when the user types a
+    ' name without one. NOTE it interacts with EnforceFilterExtensions - setting both
+    ' means the extension gets coerced BEFORE the enforcement check can reject it,
+    ' so the check can never fire.
+    [Description("Sets the default extension to be added to file names. Read/write.")]
+    Public Property Let DefaultExtension(ByVal val As String)
+        mDefaultExtension = val
+    End Property
+    Public Property Get DefaultExtension() As String
+        DefaultExtension = mDefaultExtension
+    End Property
+
+    ' Validated at Show, not here - an unparseable path raises ERR_INVALID_INITIAL_PATH
+    ' from ApplyInitialFolder.
+    [Description("Sets the folder used as a starting point for the dialog. By default (UseAsDefaultFolder=True), the dialog uses this only on first run and remembers the user's last location thereafter. Set UseAsDefaultFolder=False to force this folder every time. Read/write.")]
+    Public Property Let InitialFolderPath(ByVal val As String)
+        mInitialFolderPath = val
+    End Property
+    Public Property Get InitialFolderPath() As String
+        InitialFolderPath = mInitialFolderPath
+    End Property
+
+    ' The distinction is SetDefaultFolder (a hint Windows overrides with the user's
+    ' last location) vs SetFolder (forced every time, which users generally dislike).
+    ' Default True = the polite one.
+    [Description("Controls how InitialFolderPath is applied. True (default): InitialFolderPath is a one-time default - Windows remembers and uses the user's last folder on subsequent dialog opens. False: InitialFolderPath is forced every time the dialog opens. Read/write.")]
+    Public Property Let UseAsDefaultFolder(ByVal val As Boolean)
+        mUseAsDefaultFolder = val
+    End Property
+    Public Property Get UseAsDefaultFolder() As Boolean
+        UseAsDefaultFolder = mUseAsDefaultFolder
+    End Property
+
+    ' Only applied for Save dialogs (see ShowFileSave) - the shell ignores SetFileName
+    ' on a folder picker, and Open dialogs pre-fill from history instead.
+    [Description("Sets or returns a String representing the path or file name that is initially displayed in a file dialog box. Read/write.")]
+    Public Property Let InitialFileName(ByVal val As String)
+        mInitialFileName = val
+    End Property
+    Public Property Get InitialFileName() As String
+        InitialFileName = mInitialFileName
+    End Property
+
+    [Description("If True, the chosen file will not be added to the Windows Recent Items list. Useful for apps handling sensitive files. Default False. Read/write.")]
+    Public Property Let DontAddToRecent(ByVal val As Boolean)
+        mDontAddToRecent = val
+    End Property
+    Public Property Get DontAddToRecent() As Boolean
+        DontAddToRecent = mDontAddToRecent
+    End Property
+
+    ' Silent coercion: the shell rewrites the extension to match the selected filter.
+    ' Contrast EnforceFilterExtensions, which rejects with a message instead. Pick one.
+    [Description("If True, the user can only save with an extension matching one of the defined filters (Save dialog only). Default False. Read/write.")]
+    Public Property Let StrictFileTypes(ByVal val As Boolean)
+        mStrictFileTypes = val
+    End Property
+    Public Property Get StrictFileTypes() As Boolean
+        StrictFileTypes = mStrictFileTypes
+    End Property
+
+    ' Default False for FSO/Office parity, but True is almost always what you want:
+    ' a dialog quietly changing the process CWD is a classic source of "why did my
+    ' relative path break" bugs.
+    [Description("If True, the dialog will not change the process's current working directory as a side effect of navigation. Recommended for most apps. Default False. Read/write.")]
+    Public Property Let NoChangeDir(ByVal val As Boolean)
+        mNoChangeDir = val
+    End Property
+    Public Property Get NoChangeDir() As Boolean
+        NoChangeDir = mNoChangeDir
+    End Property
+
+    ' Parsed at Show; a malformed string raises ERR_INVALID_GUID from ApplyClientGuid.
+    [Description("Sets a GUID string (e.g. ""{12345678-1234-1234-1234-123456789012}"") that identifies this dialog's purpose. Windows remembers the last folder per-GUID, so distinct dialogs in the same app can have independent location memory. Set to empty string to clear. Read/write.")]
+    Public Property Let ClientGuid(ByVal val As String)
+        mClientGuid = val
+    End Property
+    Public Property Get ClientGuid() As String
+        ClientGuid = mClientGuid
+    End Property
+    
+    ' Enforced by US, not by the shell: the check lives in RaiseFileOk and vetoes via
+    ' ERR_EVENT_CANCELLED. That is why it can show a message and keep the dialog open,
+    ' and why it is defeated by anything that coerces the name first (see the
+    ' Description) - by the time OnFileOk fires, the extension is already legal.
+    [Description("If True (Save dialogs only), the typed file name must end with an extension permitted by one of the defined filters; otherwise the user is shown a message and the dialog stays open. This is an alternative to StrictFileTypes -- it rejects with feedback instead of silently appending an extension. Do NOT combine with StrictFileTypes or an explicit DefaultExtension, as those coerce the name before this check runs. Default False. Read/write.")]
+    Public Property Let EnforceFilterExtensions(ByVal val As Boolean)
+        mEnforceFilterExtensions = val
+    End Property
+    Public Property Get EnforceFilterExtensions() As Boolean
+        EnforceFilterExtensions = mEnforceFilterExtensions
+    End Property
+
+    '--------------------------------------------------------------------------
+    ' Filter API
+    '
+    ' Filters are stored as FilterEntry objects and only marshalled into the
+    ' shell's COMDLG_FILTERSPEC array at Show time - see ApplyFilters, which has
+    ' the two non-obvious constraints (contiguous layout, stable string pointers).
+    '--------------------------------------------------------------------------
+
+    [Description("Adds a single filter to the dialog's file type dropdown. Description is the display text (e.g. Text Files); extensions are semicolon-separated patterns (e.g. *.txt;*.log). Call multiple times to add multiple filters.")]
+    Public Sub AddFilter(ByVal description As String, ByVal extensions As String)
+        If Len(description) = 0 Then
+            Err.Raise vbObjectError + ERR_INVALID_FILTER, ERR_SOURCE, "Filter description cannot be empty."
+        End If
+        If Len(extensions) = 0 Then
+            Err.Raise vbObjectError + ERR_INVALID_FILTER, ERR_SOURCE, "Filter extensions cannot be empty."
+        End If
+        Dim fe As New FilterEntry
+        fe.description = description
+        fe.extensions = extensions
+        mFilters.Add fe
+    End Sub
+
+    ' APPENDS - it does not replace. Call ClearFilters first if you mean to replace.
+    ' The odd-count check is the whole validation: a "|" inside a description or a
+    ' pattern would silently shift every subsequent pair, and an odd total is the only
+    ' symptom that can be detected.
+    [Description("Adds multiple filters in one call using a delimited string. Format: ""Desc1|Pat1|Desc2|Pat2|..."" -- alternating descriptions and patterns separated by ""|"". Patterns can themselves contain "";"" to specify multiple extensions per filter (e.g. *.jpg;*.png). Appends to any existing filters.")]
+    Public Sub AddFilters(ByVal delimitedFilters As String)
+        If Len(delimitedFilters) = 0 Then
+            Err.Raise vbObjectError + ERR_INVALID_FILTER, ERR_SOURCE, _
+                "Delimited filter string cannot be empty."
+        End If
+
+        Dim parts() As String
+        parts = Split(delimitedFilters, "|")
+        Dim partCount As Long
+        partCount = UBound(parts) - LBound(parts) + 1
+
+        If partCount Mod 2 <> 0 Then
+            Err.Raise vbObjectError + ERR_INVALID_FILTER, ERR_SOURCE, _
+                "Delimited filter string must contain an even number of |-separated parts " & _
+                "(description|pattern pairs). Received " & partCount & " parts."
+        End If
+
+        Dim i As Long
+        For i = LBound(parts) To UBound(parts) Step 2
+            AddFilter parts(i), parts(i + 1)
+        Next i
+    End Sub
+
+    [Description("Removes all filters previously added with AddFilter or AddFilters.")]
+    Public Sub ClearFilters()
+        Set mFilters = New Collection
+    End Sub
+
+    ' NOTE this can change as a SIDE EFFECT of Show: ApplyFilters adds an "All Files"
+    ' entry when none were defined, and that entry persists in mFilters afterwards.
+    [Description("Returns the number of filters currently defined. Read-only.")]
+    Public Property Get FilterCount() As Long
+        FilterCount = mFilters.Count
+    End Property
+
+    ' Input: which filter is selected when the dialog OPENS.
+    ' Contrast SelectedFilterIndex, which is the output: which one the user left it on.
+    [Description("Gets or sets the 1-based index of the filter initially selected in the dialog's file type dropdown. Set to 0 (default) to leave unspecified. Read/write.")]
+    Public Property Let FilterIndex(ByVal val As Long)
+        mFilterIndex = val
+    End Property
+    Public Property Get FilterIndex() As Long
+        FilterIndex = mFilterIndex
+    End Property
+
+    ' Reset to 0 at the top of each Show*, so a cancelled dialog reports 0 rather than
+    ' the previous run's answer. Always 0 for a folder picker - it has no filters.
+    [Description("Returns the 1-based index of the filter that was selected when the user confirmed the dialog. 0 if Show has not been called or was cancelled. Particularly useful for Save dialogs with multiple format options. Read-only.")]
+    Public Property Get SelectedFilterIndex() As Long
+        SelectedFilterIndex = mSelectedFilterIndex
+    End Property
+
+    '--------------------------------------------------------------------------
+    ' Places (custom navigation pane locations)
+    '--------------------------------------------------------------------------
+
+    [Description("Adds a folder to the dialog's left-hand navigation pane. NOTE: On Windows 11 and recent Windows 10 builds, the AddPlace API is accepted by Windows but no longer renders visibly in the redesigned nav pane. Older Windows versions still display added places. atTop=True (default) places it above the standard locations; False places it below.")]
+    Public Sub AddPlace(ByVal folderPath As String, Optional ByVal atTop As Boolean = True)
+        If Len(folderPath) = 0 Then
+            Err.Raise vbObjectError + ERR_INVALID_PLACE, ERR_SOURCE, "Place folder path cannot be empty."
+        End If
+        Dim pe As New PlaceEntry
+        pe.folderPath = folderPath
+        pe.atTop = atTop
+        mPlaces.Add pe
+    End Sub
+
+    [Description("Removes all custom places previously added with AddPlace.")]
+    Public Sub ClearPlaces()
+        Set mPlaces = New Collection
+    End Sub
+
+    [Description("Returns the number of custom places currently defined. Read-only.")]
+    Public Property Get PlaceCount() As Long
+        PlaceCount = mPlaces.Count
+    End Property
+
+    ' Empty = the dialog type's default ("Open" / "Save As" / "Select Folder"),
+    ' applied at Show without writing back to this property.
+    [Description("Gets or sets the title of a file dialog box displayed by using the FileDialog object. Read/write.")]
+    Public Property Let Title(ByVal val As String)
+        mTitle = val
+    End Property
+    Public Property Get Title() As String
+        Title = mTitle
+    End Property
+
+    ' Empty = the dialog type's default ("Open" / "Save As" / "Select Folder"),
+    ' applied at Show without writing back to this property.
+    [Description("Gets or sets a String representing the text that is displayed on the action button of a file dialog box. Read/write.")]
+    Public Property Let ButtonName(ByVal val As String)
+        mButtonName = val
+    End Property
+    Public Property Get ButtonName() As String
+        ButtonName = mButtonName
+    End Property
+    
+    ' A GUIDE, not a fence - the shell will happily accept a typed absolute path
+    ' outside the root. StrictNavigationRoot adds the fence, in RaiseFileOk.
+    ' Requires IFileDialog2 (Win7+); silently ignored if the QI fails.
+    [Description("Restricts the dialog so the user cannot browse above this folder; the navigation pane is replaced with this location. Requires Windows 7+. Guides navigation only -- a user may still TYPE an absolute path outside the root unless StrictNavigationRoot is also True. Not compatible with AddPlace (places get replaced). Read/write.")]
+    Public Property Let NavigationRoot(ByVal val As String)
+        mNavigationRoot = val
+    End Property
+    Public Property Get NavigationRoot() As String
+        NavigationRoot = mNavigationRoot
+    End Property
+
+    ' Enforced by US, in RaiseFileOk, via the ERR_EVENT_CANCELLED veto - which is why
+    ' it can reject with a message rather than just failing silently.
+    [Description("If True, a result outside NavigationRoot (e.g. a typed absolute path) is rejected with a message and the dialog stays open, making NavigationRoot a hard boundary rather than just a navigation guide. No effect unless NavigationRoot is set. Default False. Read/write.")]
+    Public Property Let StrictNavigationRoot(ByVal val As Boolean)
+        mStrictNavigationRoot = val
+    End Property
+    Public Property Get StrictNavigationRoot() As Boolean
+        StrictNavigationRoot = mStrictNavigationRoot
+    End Property
+
+    [Description("Replaces the default ""Cancel"" text on the dialog's Cancel button (e.g. ""Don't Save""). Requires Windows 7+. Read/write.")]
+    Public Property Let CancelButtonName(ByVal val As String)
+        mCancelButtonName = val
+    End Property
+    Public Property Get CancelButtonName() As String
+        CancelButtonName = mCancelButtonName
+    End Property
+
+    ' Honoured by Open and the folder picker. Meaningless for Save, which returns one
+    ' item by construction.
+    [Description("Is True if the user is allowed to select multiple files from a file dialog box. Read/write.")]
+    Public Property Let AllowMultiSelect(ByVal val As Boolean)
+        mAllowMultiSelect = val
+    End Property
+    Public Property Get AllowMultiSelect() As Boolean
+        AllowMultiSelect = mAllowMultiSelect
+    End Property
+
+    ' Applied by Open and Save. NOT applied by the folder picker - see ShowFolderSelect.
+    [Description("If True, Show all files including system and hidden files. Read/write.")]
+    Public Property Let ShowHiddenFiles(ByVal val As Boolean)
+        mShowHiddenFiles = val
+    End Property
+    Public Property Get ShowHiddenFiles() As Boolean
+        ShowHiddenFiles = mShowHiddenFiles
+    End Property
+
+    ' 1-BASED. Always a valid Collection - never Nothing - and EMPTY unless the most
+    ' recent Show returned True. Cleared at the top of every Show, so a cancelled
+    ' dialog cannot leave the previous run's results lying around.
+    [Description("Gets a Selected Items collection containing the paths the user selected. 1-based. Empty unless the most recent Show returned True; never Nothing, so Count is always safe to read. Read-only.")]
+    Public Property Get SelectedItems() As Collection
+        Set SelectedItems = mSelectedItems
+    End Property
+    
+    '-------------------------------------------------------------------------------------------------
+    '--------------------------------------- Private Members -----------------------------------------
+    '-------------------------------------------------------------------------------------------------
+
+    ' Internal event raisers. Called by the private FileDialogEventSink, which owns
+    ' the IFileDialogEvents implementation. Keeping Implements off this public class
+    ' means IFileDialog and the other WinDevLib shell types stay OUT of the exposed
+    ' (tbFileworks) object model. Friend scope = project-internal, not COM-visible.
+    '
+    ' A veto (RaiseFileOk / RaiseFolderChanging) raises ERR_EVENT_CANCELLED here; the
+    ' error propagates untrapped back through the sink's interface method, where tB
+    ' converts it to a failed HRESULT that tells the dialog to stay open.
+
+    ' Three independent gates, in order: the caller's handler, then our two baked-in
+    ' policies. Any one of them vetoes by raising. Order matters - the caller gets
+    ' first refusal, so a handler can accept something our policies would reject only
+    ' by not enabling those policies.
+    Friend Sub RaiseFileOk(ByVal itemPath As String)
+        ' caller's own validation first
+        Dim cancel As Boolean
+        RaiseEvent FileOk(itemPath, cancel)
+        If cancel Then Err.Raise vbObjectError + ERR_EVENT_CANCELLED, ERR_SOURCE, "FileOk vetoed by handler."
+
+        ' baked-in extension enforcement (Save only)
+        If mEnforceFilterExtensions And mDialogType = fdSaveAs Then
+            Dim ext As String: ext = LCase$(GetFinalExtension(itemPath))
+            If Not ExtensionIsAllowed(ext) Then
+                MsgBox "Please save using one of these file types:" & vbCrLf & _
+                       AllowedExtensionsList(), vbExclamation, "Invalid File Extension"
+                Err.Raise vbObjectError + ERR_EVENT_CANCELLED, ERR_SOURCE, "Extension not permitted by any filter."
+            End If
+        End If
+
+        ' hard navigation-root boundary: catches a typed path that escaped the root
+        If mStrictNavigationRoot And Len(mNavigationRoot) <> 0 Then
+            If Not PathIsUnder(itemPath, mNavigationRoot) Then
+                MsgBox "Please choose a location inside:" & vbCrLf & mNavigationRoot, _
+                       vbExclamation, "Location Not Allowed"
+                Err.Raise vbObjectError + ERR_EVENT_CANCELLED, ERR_SOURCE, "Result is outside the navigation root."
+            End If
+        End If
+    End Sub
+
+    Friend Sub RaiseFolderChanging(ByVal folderPath As String)
+        Dim cancel As Boolean
+        RaiseEvent FolderChanging(folderPath, cancel)
+        If cancel Then Err.Raise vbObjectError + ERR_EVENT_CANCELLED, ERR_SOURCE, "FolderChanging vetoed by handler."
+    End Sub
+
+    ' The four below are notification-only: nothing the handler does can veto, so
+    ' there is no Err.Raise and no return value.
+    Friend Sub RaiseFolderChanged(ByVal folderPath As String)
+        RaiseEvent FolderChanged(folderPath)
+    End Sub
+
+    Friend Sub RaiseSelectionChanged(ByVal itemPath As String)
+        RaiseEvent SelectionChanged(itemPath)
+    End Sub
+
+    Friend Sub RaiseFileTypeChanged(ByVal filterIndex As Long)
+        RaiseEvent FileTypeChanged(filterIndex)
+    End Sub
+
+    ' These two answer a shell question rather than vetoing, so they RETURN a value
+    ' instead of raising. Defaulting to fdResponseDefault means a caller with no
+    ' handler gets the dialog's built-in behaviour, which is the right default.
+    Friend Function RaiseOverwrite(ByVal itemPath As String) As Long
+        Dim resp As FileDialogResponse: resp = fdResponseDefault
+        RaiseEvent BeforeOverwrite(itemPath, resp)
+        RaiseOverwrite = CLng(resp)
+    End Function
+
+    Friend Function RaiseShareViolation(ByVal itemPath As String) As Long
+        Dim resp As FileDialogResponse: resp = fdResponseDefault
+        RaiseEvent ShareViolation(itemPath, resp)
+        RaiseShareViolation = CLng(resp)
+    End Function
+
+    '======================================================================
+    ' The three Show implementations
+    '
+    ' Near-duplicates by design - see the header. Each follows the same seven steps:
+    '   1. reset mSelectedFilterIndex
+    '   2. title / options mask / button labels
+    '   3. the shared Apply* helpers (guid, folder, places, IFileDialog2)
+    '   4. create + advise the event sink
+    '   5. Show (modal; blocks; events fire from inside)
+    '   6. unadvise + release the sink - ALWAYS, including on cancel
+    '   7. harvest results
+    '
+    ' The On Error Resume Next around Advise/Show/Unadvise is doing real work in each
+    ' case, and each case is different:
+    '   Advise    - a failure is swallowed and adviseCookie stays 0, so events simply
+    '               never fire. Silent degradation, deliberate.
+    '   Show      - the error is CAPTURED (showErr), not ignored: user-cancel arrives
+    '               as an HRESULT, and everything else must be re-raised.
+    '   Unadvise  - best-effort cleanup; a failure here must not mask the result.
+    '======================================================================
+
+    ' Folder picker. Differs from the other two: no filters, no InitialFileName, and
+    ' no ShareAware - FOS_SHAREAWARE governs what happens when a selected FILE is
+    ' locked by another process, and a folder picker never opens one, so the shell
+    ' would never raise OnShareViolation. The flag would be inert; the ShareViolation
+    ' event does not fire for this dialog type.
+    Private Function ShowFolderSelect() As Boolean
+        Dim fsd As New FileOpenDialog
+        Dim siResult As IShellItem
+        Dim siaResult As IShellItemArray
+        Dim lpPath As LongPtr, sPath As String
+        Dim options As Long
+
+        mSelectedFilterIndex = 0
+        Set mSelectedItems = New Collection    ' clear stale results from a previous Show
+
+        Dim t As String
+        If Len(mTitle) = 0 Then t = "Select Folder" Else t = mTitle
+        fsd.SetTitle t
+        
+        ' FOS_PICKFOLDERS is what turns a FileOpenDialog into a folder picker.
+        options = FOS_PICKFOLDERS
+        If mFileMustExist Then options = options Or FOS_FILEMUSTEXIST
+        If mPathMustExist Then options = options Or FOS_PATHMUSTEXIST
+        If mAllowMultiSelect Then options = options Or FOS_ALLOWMULTISELECT
+        If mShowHiddenFiles Then options = options Or FOS_FORCESHOWHIDDEN   ' hidden FOLDERS too
+        If mDontAddToRecent Then options = options Or FOS_DONTADDTORECENT
+        If mNoChangeDir Then options = options Or FOS_NOCHANGEDIR
+        fsd.SetOptions options
+        
+        Dim btn As String
+        If Len(mButtonName) = 0 Then btn = "Select Folder" Else btn = mButtonName
+        fsd.SetOkButtonLabel btn
+
+        If Len(mFileNameLabel) <> 0 Then fsd.SetFileNameLabel mFileNameLabel
+
+        ApplyClientGuid fsd
+        ApplyInitialFolder fsd
+        ApplyPlaces fsd
+        ApplyFileDialog2 fsd
+
+        Dim sink As FileDialogEventSink
+        Set sink = New FileDialogEventSink
+        sink.Init Me
+
+        Dim adviseCookie As Long: adviseCookie = 0
+        On Error Resume Next
+        fsd.Advise sink, adviseCookie     ' advise the private sink, not Me
+        On Error GoTo 0
+
+        On Error Resume Next
+        fsd.Show mOwnerWinHandle          ' MODAL: blocks here; events fire on this thread
+        Dim showErr As Long: showErr = Err.Number
+        On Error GoTo 0
+
+        If adviseCookie <> 0 Then
+            On Error Resume Next
+            fsd.Unadvise adviseCookie     ' always release, even on cancel
+            On Error GoTo 0
+        End If
+
+        Set sink = Nothing                ' release the sink and its back-ref to Me
+
+        ' User cancel arrives as an HRESULT, not a failure. Anything else re-raises.
+        If showErr <> 0 Then
+            If (showErr And &HFFFF&) <> HRESULT_CANCELLED_LOW Then Err.Raise showErr
+            Exit Function                 ' NB: leaves mSelectedItems as it was
+        End If
+        
+        fsd.GetResults siaResult
+        
+        If siaResult IsNot Nothing Then
+            Dim pEnum As IEnumShellItems
+            siaResult.EnumItems pEnum
+            Do While pEnum.Next(1, siResult) = S_OK
+                lpPath = 0: sPath = ""
+                ' SIGDN_FILESYSPATH fails for a virtual (non-filesystem) item, leaving
+                ' lpPath at 0 - such items are skipped rather than reported.
+                siResult.GetDisplayName(SIGDN_FILESYSPATH, lpPath)
+                If lpPath Then
+                    sPath = LPWSTRtoStr(lpPath)
+                    mSelectedItems.Add sPath
+                    CoTaskMemFree lpPath   ' the shell allocated it; we free it
+                End If
+                Set siResult = Nothing
+            Loop
+            If mSelectedItems.Count > 0 Then ShowFolderSelect = True
+        End If
+    End Function
+
+    Private Function ShowFileOpen() As Boolean
+        Dim fod As New FileOpenDialog
+        Dim siResult As IShellItem
+        Dim siaResult As IShellItemArray
+        ' These three MUST live for the duration of the dialog: ApplyFilters writes
+        ' pointers into filterSpecs that point INTO filterNames/filterExts. Declaring
+        ' them here (and passing ByRef) is what keeps that storage alive. See ApplyFilters.
+        Dim filterSpecs() As Byte
+        Dim filterNames() As String
+        Dim filterExts() As String
+        Dim lpPath As LongPtr, sPath As String
+        Dim options As Long
+
+        mSelectedFilterIndex = 0
+        Set mSelectedItems = New Collection    ' clear stale results from a previous Show
+        
+        Dim t As String
+        If Len(mTitle) = 0 Then t = "Open" Else t = mTitle
+        fod.SetTitle t
+
+        ApplyFilters fod, filterSpecs, filterNames, filterExts
+
+        ' Note options starts at 0 here - unlike Save, which forces OVERWRITEPROMPT.
+        If mFileMustExist Then options = options Or FOS_FILEMUSTEXIST
+        If mPathMustExist Then options = options Or FOS_PATHMUSTEXIST
+        If mAllowMultiSelect Then options = options Or FOS_ALLOWMULTISELECT
+        If mShowHiddenFiles Then options = options Or FOS_FORCESHOWHIDDEN
+        If mDontAddToRecent Then options = options Or FOS_DONTADDTORECENT
+        If mNoChangeDir Then options = options Or FOS_NOCHANGEDIR
+        If mShareAware Then options = options Or FOS_SHAREAWARE   ' prerequisite for the event
+        fod.SetOptions options
+
+        Dim btn As String
+        If Len(mButtonName) = 0 Then btn = "Open" Else btn = mButtonName
+        fod.SetOkButtonLabel btn
+
+        If Len(mFileNameLabel) <> 0 Then fod.SetFileNameLabel mFileNameLabel
+
+        ApplyClientGuid fod
+        ApplyInitialFolder fod
+        ApplyPlaces fod
+        ApplyFileDialog2 fod
+
+        Dim sink As FileDialogEventSink
+        Set sink = New FileDialogEventSink
+        sink.Init Me
+
+        Dim adviseCookie As Long: adviseCookie = 0
+        On Error Resume Next
+        fod.Advise sink, adviseCookie     ' advise the private sink, not Me
+        On Error GoTo 0
+
+        On Error Resume Next
+        fod.Show mOwnerWinHandle
+        Dim showErr As Long: showErr = Err.Number
+        On Error GoTo 0
+
+        If adviseCookie <> 0 Then
+            On Error Resume Next
+            fod.Unadvise adviseCookie     ' always release, even on cancel
+            On Error GoTo 0
+        End If
+
+        Set sink = Nothing                ' release the sink and its back-ref to Me
+
+        If showErr <> 0 Then
+            If (showErr And &HFFFF&) <> HRESULT_CANCELLED_LOW Then Err.Raise showErr
+            Exit Function
+        End If
+        
+        ' Read the filter the user LEFT the dropdown on - the answer to
+        ' SelectedFilterIndex. Best-effort: a failure leaves it at 0.
+        On Error Resume Next
+        fod.GetFileTypeIndex mSelectedFilterIndex
+        On Error GoTo 0
+
+        fod.GetResults siaResult          ' plural: Open can be multi-select
+
+        If siaResult IsNot Nothing Then
+            Dim pEnum As IEnumShellItems
+            siaResult.EnumItems pEnum
+            Do While pEnum.Next(1, siResult) = S_OK
+                lpPath = 0: sPath = ""
+                siResult.GetDisplayName(SIGDN_FILESYSPATH, lpPath)
+                If lpPath Then
+                    sPath = LPWSTRtoStr(lpPath)
+                    mSelectedItems.Add sPath
+                    CoTaskMemFree lpPath
+                End If
+                Set siResult = Nothing
+            Loop
+            If mSelectedItems.Count > 0 Then ShowFileOpen = True
+        End If
+    End Function
+
+    Private Function ShowFileSave() As Boolean
+        Dim fsd As New FileSaveDialog
+        Dim siResult As IShellItem        ' singular: Save always returns exactly one
+        Dim filterSpecs() As Byte
+        Dim filterNames() As String
+        Dim filterExts() As String
+        Dim lpPath As LongPtr, sPath As String
+        Dim options As Long
+
+        mSelectedFilterIndex = 0
+        Set mSelectedItems = New Collection    ' clear stale results from a previous Show
+        
+        Dim t As String
+        If Len(mTitle) = 0 Then t = "Save As" Else t = mTitle
+        fsd.SetTitle t
+
+        ApplyFilters fsd, filterSpecs, filterNames, filterExts
+
+        ' StrictFileTypes without a DefaultExtension is a silent no-op - the shell has
+        ' nothing to coerce TO. Derive one from the selected filter so the caller's
+        ' intent is honoured. Skipped when EnforceFilterExtensions is on, because that
+        ' policy wants to REJECT a bad extension, and a derived default would fix it up
+        ' before the check could ever fire.
+        Dim effectiveDefExt As String
+        effectiveDefExt = mDefaultExtension
+        If Len(effectiveDefExt) = 0 And mStrictFileTypes And Not mEnforceFilterExtensions Then
+            effectiveDefExt = DeriveDefaultExtension()
+        End If
+        If Len(effectiveDefExt) <> 0 Then fsd.SetDefaultExtension effectiveDefExt
+
+        ' Two options are FORCED on for Save, regardless of caller settings:
+        '   OVERWRITEPROMPT  - also the prerequisite for the BeforeOverwrite event
+        '   NOREADONLYRETURN - never hand back a path we could not write to
+        options = FOS_OVERWRITEPROMPT ' query user for intention if file exists
+        options = options Or FOS_NOREADONLYRETURN
+        If mFileMustExist Then options = options Or FOS_FILEMUSTEXIST
+        If mPathMustExist Then options = options Or FOS_PATHMUSTEXIST
+        If mShowHiddenFiles Then options = options Or FOS_FORCESHOWHIDDEN
+        If mDontAddToRecent Then options = options Or FOS_DONTADDTORECENT
+        If mNoChangeDir Then options = options Or FOS_NOCHANGEDIR
+        If mStrictFileTypes Then options = options Or FOS_STRICTFILETYPES
+        If mShareAware Then options = options Or FOS_SHAREAWARE
+        fsd.SetOptions options
+
+        Dim btn As String
+        If Len(mButtonName) = 0 Then btn = "Save" Else btn = mButtonName
+        fsd.SetOkButtonLabel btn
+
+        If Len(mFileNameLabel) <> 0 Then fsd.SetFileNameLabel mFileNameLabel
+
+        ' The only dialog type that honours InitialFileName.
+        If Len(mInitialFileName) <> 0 Then fsd.SetFileName mInitialFileName
+
+        ApplyClientGuid fsd
+        ApplyInitialFolder fsd
+        ApplyPlaces fsd
+        ApplyFileDialog2 fsd
+
+        Dim sink As FileDialogEventSink
+        Set sink = New FileDialogEventSink
+        sink.Init Me
+
+        Dim adviseCookie As Long: adviseCookie = 0
+        On Error Resume Next
+        fsd.Advise sink, adviseCookie     ' advise the private sink, not Me
+        On Error GoTo 0
+
+        On Error Resume Next
+        fsd.Show mOwnerWinHandle
+        Dim showErr As Long: showErr = Err.Number
+        On Error GoTo 0
+
+        If adviseCookie <> 0 Then
+            On Error Resume Next
+            fsd.Unadvise adviseCookie     ' always release, even on cancel
+            On Error GoTo 0
+        End If
+
+        Set sink = Nothing                ' release the sink and its back-ref to Me
+
+        If showErr <> 0 Then
+            If (showErr And &HFFFF&) <> HRESULT_CANCELLED_LOW Then Err.Raise showErr
+            Exit Function
+        End If
+        
+        On Error Resume Next
+        fsd.GetFileTypeIndex mSelectedFilterIndex
+        On Error GoTo 0
+
+        fsd.GetResult siResult            ' singular - no enumeration needed
+
+        If siResult IsNot Nothing Then
+            siResult.GetDisplayName(SIGDN_FILESYSPATH, lpPath)
+            If lpPath Then
+                sPath = LPWSTRtoStr(lpPath)
+                mSelectedItems.Add sPath
+                CoTaskMemFree lpPath
+                ShowFileSave = True
+            End If
+        End If
+    End Function
+
+    '======================================================================
+    ' Apply* helpers - shared by all three Show implementations
+    '======================================================================
+
+    ' Builds a contiguous COMDLG_FILTERSPEC array in a raw byte buffer and applies
+    ' it to the dialog.
+    '
+    ' Why a byte buffer: tB's allocation of struct arrays containing pointer fields
+    ' may not produce the contiguous C-style layout that SetFileTypes expects, so
+    ' we build it explicitly.
+    '
+    ' Why the parallel String arrays: StrPtr on a Collection-accessed class member
+    ' (mFilters(i).description) returns a pointer to a transient temporary that
+    ' may be freed before SetFileTypes dereferences it. Copying into a local
+    ' String array gives us stable storage whose lifetime is tied to the caller's
+    ' stack frame. buffer(), nameStorage(), and specStorage() are all passed ByRef
+    ' from the Show* function so they live for the duration of the dialog.
+    '
+    ' SIDE EFFECT: with no filters defined, this ADDS an "All Files" entry to mFilters -
+    ' which then persists on the instance, so FilterCount changes as a result of Show.
+    Private Sub ApplyFilters(ByVal fd As IFileDialog, _
+                              ByRef buffer() As Byte, _
+                              ByRef nameStorage() As String, _
+                              ByRef specStorage() As String)
+        ' Work against a LOCAL collection so an injected default never lands in
+        ' mFilters - otherwise Show would silently change FilterCount, and a second
+        ' Show would see an "All Files" entry the caller never added.
+        Dim filters As Collection
+        If mFilters.Count = 0 Then
+            Set filters = New Collection
+            Dim fe As New FilterEntry
+            fe.description = "All Files"
+            fe.extensions = "*.*"
+            filters.Add fe
+        Else
+            Set filters = mFilters
+        End If
+
+        Dim ptrSize As Long
+        #If Win64 Then
+            ptrSize = 8
+        #Else
+            ptrSize = 4
+        #End If
+        Dim structSize As Long
+        structSize = ptrSize * 2          ' COMDLG_FILTERSPEC = { LPCWSTR name; LPCWSTR spec; }
+
+        ReDim nameStorage(0 To filters.Count - 1)
+        ReDim specStorage(0 To filters.Count - 1)
+        ReDim buffer(0 To (filters.Count * structSize) - 1)
+
+        Dim i As Long
+        For i = 0 To filters.Count - 1
+            ' Copy into the stable arrays FIRST, then take pointers into THEM - never
+            ' into the Collection member directly. This is the whole point.
+            nameStorage(i) = filters(i + 1).description
+            specStorage(i) = filters(i + 1).extensions
+
+            Dim namePtr As LongPtr: namePtr = StrPtr(nameStorage(i))
+            Dim specPtr As LongPtr: specPtr = StrPtr(specStorage(i))
+            Dim baseOffset As Long: baseOffset = i * structSize
+
+            CopyMemory buffer(baseOffset), namePtr, ptrSize
+            CopyMemory buffer(baseOffset + ptrSize), specPtr, ptrSize
+        Next i
+
+        fd.SetFileTypes filters.Count, VarPtr(buffer(0))
+
+        ' Out-of-range index is silently ignored rather than raising - a stale
+        ' FilterIndex from a previous configuration should not break the dialog.
+        If mFilterIndex > 0 And mFilterIndex <= filters.Count Then
+            fd.SetFileTypeIndex mFilterIndex
+        End If
+    End Sub
+
+    ' Sets the initial folder using SetDefaultFolder (one-time hint) or SetFolder
+    ' (forced every time) depending on mUseAsDefaultFolder. Raises if the path
+    ' was supplied but cannot be parsed.
+    '
+    ' With no InitialFolderPath, falls back to Documents - but ONLY when there is no
+    ' NavigationRoot, since the nav root already dictates where the dialog opens and
+    ' a default folder outside it would fight with it.
+    Private Sub ApplyInitialFolder(ByVal fd As IFileDialog)
+        Dim siDef As IShellItem
+        If Len(mInitialFolderPath) > 0 Then
+            Dim hr As Long
+            hr = SHCreateItemFromParsingName(StrPtr(mInitialFolderPath), Nothing, IID_IShellItem, siDef)
+            If hr <> S_OK Or siDef Is Nothing Then
+                ' Raises rather than degrading: a path the caller explicitly set and got
+                ' wrong is worth telling them about.
+                Err.Raise vbObjectError + ERR_INVALID_INITIAL_PATH, ERR_SOURCE, _
+                    "InitialFolderPath does not exist or cannot be parsed: " & mInitialFolderPath
+            End If
+            If mUseAsDefaultFolder Then
+                fd.SetDefaultFolder siDef
+            Else
+                fd.SetFolder siDef
+            End If
+        Else
+            If Len(mNavigationRoot) = 0 Then          ' nav root, if set, drives the start location
+                SHGetKnownFolderItem FOLDERID_Documents, KF_FLAG_DEFAULT, 0, IID_IShellItem, siDef
+                fd.SetDefaultFolder siDef
+            End If
+        End If
+    End Sub
+
+    ' Parses mClientGuid (if set) and calls SetClientGuid. Raises ERR_INVALID_GUID
+    ' on parse failure so the caller learns about malformed input immediately.
+    '
+    ' Note the asymmetry: a BAD GUID raises, but a SetClientGuid that fails is
+    ' swallowed - a malformed string is the caller's bug, a rejected call is not.
+    Private Sub ApplyClientGuid(ByVal fd As IFileDialog)
+        If Len(mClientGuid) = 0 Then Exit Sub
+        Dim g As UUID
+        Dim hr As Long
+        hr = CLSIDFromString(StrPtr(mClientGuid), g)
+        If hr = S_OK Then
+            On Error Resume Next
+            fd.SetClientGuid g
+            On Error GoTo 0
+        Else
+            Err.Raise vbObjectError + ERR_INVALID_GUID, ERR_SOURCE, _
+                "ClientGuid is not a valid GUID string: " & mClientGuid
+        End If
+    End Sub
+
+    ' Iterates mPlaces and calls AddPlace for each. Silently ignores individual
+    ' failures (e.g. a deleted folder) so one bad entry doesn't break the dialog.
+    ' Contrast ApplyInitialFolder, which raises - a place is a nicety, a start folder
+    ' is a stated intent.
+    '
+    ' Note: IFileDialog::AddPlace is a Vista-era API that Windows accepts on all
+    ' modern versions, but on Windows 11 (and recent Windows 10 builds) the
+    ' redesigned nav pane no longer renders added places visibly. The call still
+    ' succeeds; the result just isn't shown. Older Windows versions still display
+    ' the places. See AddPlace's description for details.
+    Private Sub ApplyPlaces(ByVal fd As IFileDialog)
+        If mPlaces.Count = 0 Then Exit Sub
+        Dim i As Long
+        For i = 1 To mPlaces.Count
+            Dim pe As PlaceEntry
+            Set pe = mPlaces(i)
+            Dim siPlace As IShellItem
+            Dim hr As Long
+            hr = SHCreateItemFromParsingName(StrPtr(pe.folderPath), Nothing, IID_IShellItem, siPlace)
+            If hr = S_OK And siPlace IsNot Nothing Then
+                Dim pos As Long
+                If pe.atTop Then pos = FDAP_TOP Else pos = FDAP_BOTTOM
+                On Error Resume Next
+                fd.AddPlace siPlace, pos
+                On Error GoTo 0
+            End If
+        Next i
+    End Sub
+
+    ' Runs ONCE, on the first DialogType assignment - see the latch in the Let.
+    ' PathMustExist is True for every type; only FileMustExist actually varies.
+    Private Sub ApplyTypeSpecificDefaults()
+        Select Case mDialogType
+            Case fdOpen
+                mFileMustExist = True     ' you cannot open what is not there
+                mPathMustExist = True
+            Case fdFolderPicker
+                mFileMustExist = False
+                mPathMustExist = True
+            Case fdSaveAs
+                mFileMustExist = False    ' the whole point is usually a NEW file
+                mPathMustExist = True
+        End Select
+    End Sub
+    
+    ' Derives a bare default extension (no leading period) from the selected
+    ' filter -- or the first filter if none is explicitly selected. Returns ""
+    ' if nothing usable can be derived (e.g. a pure wildcard like *.*).
+    ' Used to arm FOS_STRICTFILETYPES when the caller enabled StrictFileTypes
+    ' but never set DefaultExtension, so strict enforcement isn't a silent no-op.
+    Private Function DeriveDefaultExtension() As String
+        If mFilters.Count = 0 Then Exit Function
+
+        Dim idx As Long
+        idx = mFilterIndex
+        If idx < 1 Or idx > mFilters.Count Then idx = 1     ' fall back to the first filter
+
+        Dim pattern As String
+        pattern = mFilters(idx).extensions
+
+        ' If several patterns are semicolon-separated (e.g. *.jpg;*.png), take the first
+        Dim semiPos As Long
+        semiPos = InStr(pattern, ";")
+        If semiPos > 0 Then pattern = Left$(pattern, semiPos - 1)
+        pattern = Trim$(pattern)
+
+        ' Strip a leading "*." or "." to leave a bare extension
+        If Left$(pattern, 2) = "*." Then
+            pattern = Mid$(pattern, 3)
+        ElseIf Left$(pattern, 1) = "." Then
+            pattern = Mid$(pattern, 2)
+        ElseIf Left$(pattern, 1) = "*" Then
+            pattern = Mid$(pattern, 2)
+        End If
+
+        ' Reject anything still wildcarded or empty -- nothing meaningful to coerce to
+        If Len(pattern) = 0 Then Exit Function
+        If InStr(pattern, "*") > 0 Or InStr(pattern, "?") > 0 Then Exit Function
+
+        DeriveDefaultExtension = pattern
+    End Function
+    
+    ' Bare extension, no dot. The slashPos test is what stops "C:\my.folder\readme"
+    ' reporting an extension of "folder\readme".
+    Private Function GetFinalExtension(ByVal path As String) As String
+        Dim dotPos As Long:   dotPos = InStrRev(path, ".")
+        Dim slashPos As Long: slashPos = InStrRev(path, "\")
+        If dotPos > slashPos And dotPos > 0 Then GetFinalExtension = Mid$(path, dotPos + 1)
+    End Function
+
+    ' True if ext (lowercased, no dot) matches ANY filter. A wildcard filter
+    ' (*.* or *) permits anything, which makes enforcement a deliberate no-op.
+    '
+    ' Consequence worth knowing: because ApplyFilters injects "All Files"/"*.*" when no
+    ' filters were defined, EnforceFilterExtensions with no filters permits everything.
+    Private Function ExtensionIsAllowed(ByVal ext As String) As Boolean
+        Dim i As Long, j As Long, p As String, patExt As String, patterns() As String
+        For i = 1 To mFilters.Count
+            patterns = Split(mFilters(i).extensions, ";")
+            For j = LBound(patterns) To UBound(patterns)
+                p = Trim$(patterns(j))
+                If p = "*.*" Or p = "*" Then ExtensionIsAllowed = True: Exit Function
+                If Left$(p, 2) = "*." Then
+                    patExt = Mid$(p, 3)
+                ElseIf Left$(p, 1) = "." Then
+                    patExt = Mid$(p, 2)
+                Else
+                    patExt = p
+                End If
+                If Len(ext) > 0 And LCase$(patExt) = ext Then ExtensionIsAllowed = True: Exit Function
+            Next j
+        Next i
+    End Function
+
+    ' Raw patterns, joined for display in the enforcement message box.
+    Private Function AllowedExtensionsList() As String
+        Dim s As String, i As Long
+        For i = 1 To mFilters.Count
+            If Len(s) > 0 Then s = s & "; "
+            s = s & mFilters(i).extensions
+        Next i
+        AllowedExtensionsList = s
+    End Function
+    
+    ' Everything requiring IFileDialog2 (Windows 7+). The QI is allowed to fail: on an
+    ' older OS the core dialog still works and these extras are simply absent.
+    ' NavigationRoot is the exception - a root the caller SET but that cannot be parsed
+    ' raises, because silently ignoring a security-ish boundary would be worse than
+    ' failing.
+    Private Sub ApplyFileDialog2(ByVal fd As IFileDialog)
+        Dim fd2 As IFileDialog2
+        On Error Resume Next
+        Set fd2 = fd                       ' narrow QI to IFileDialog2 (Win7+)
+        On Error GoTo 0
+        If fd2 Is Nothing Then Exit Sub    ' degrade gracefully: core dialog still works
+
+        If Len(mCancelButtonName) <> 0 Then
+            On Error Resume Next
+            fd2.SetCancelButtonLabel mCancelButtonName
+            On Error GoTo 0
+        End If
+
+        If Len(mNavigationRoot) <> 0 Then
+            Dim si As IShellItem, hr As Long
+            hr = SHCreateItemFromParsingName(StrPtr(mNavigationRoot), Nothing, IID_IShellItem, si)
+            If hr = S_OK And si IsNot Nothing Then
+                On Error Resume Next
+                fd2.SetNavigationRoot si   ' this REPLACES the nav pane - hence the AddPlace conflict
+                On Error GoTo 0
+            Else
+                Err.Raise vbObjectError + ERR_INVALID_NAV_ROOT, ERR_SOURCE, _
+                    "NavigationRoot does not exist or cannot be parsed: " & mNavigationRoot
+            End If
+        End If
+    End Sub
+
+    ' True if path equals root or sits strictly beneath it. Case-insensitive,
+    ' and boundary-aware so C:\Proj is NOT treated as under C:\Project.
+    '
+    ' The boundary awareness is the whole point: a naive Left$(p, Len(r)) = r test
+    ' would accept C:\Project2 as being under C:\Project. Appending the separator
+    ' before comparing is what prevents that.
+    ' Purely textual - it does not resolve symlinks or ".." , so a junction could in
+    ' principle point outside the root and still pass.
+    Private Function PathIsUnder(ByVal path As String, ByVal root As String) As Boolean
+        If Len(path) = 0 Or Len(root) = 0 Then Exit Function
+        Dim p As String: p = LCase$(Trim$(path))
+        Dim r As String: r = LCase$(Trim$(root))
+        Do While Len(p) > 0 And Right$(p, 1) = "\": p = Left$(p, Len(p) - 1): Loop
+        Do While Len(r) > 0 And Right$(r, 1) = "\": r = Left$(r, Len(r) - 1): Loop
+        If p = r Then PathIsUnder = True: Exit Function
+        PathIsUnder = (Left$(p, Len(r) + 1) = r & "\")
+    End Function
+
+    ' Class_Initialize runs when an instance is constructed via:
+    '   Dim fd As New FileDialog        (VBA-via-ActiveX, or tB without arg)
+    ' Sub New runs when an instance is constructed via:
+    '   Set fd = New FileDialog(fdOpen) (tB only)
+    ' Per tB docs, only one of these runs in a given construction path, so
+    ' both call SetDefaults to guarantee initialization regardless of route.
+    Private Sub Class_Initialize()
+        SetDefaults
+    End Sub
+
+    Private Sub Class_Terminate()
+        Set mSelectedItems = Nothing
+        Set mFilters = Nothing
+        Set mPlaces = Nothing
+    End Sub
+
+    ' The single place every field gets its starting value. Called from BOTH
+    ' construction routes - see Class_Initialize.
+    ' NOT called between Show invocations: an instance keeps its configuration, which
+    ' is what makes it reusable. Add a Reset method if that is ever wanted.
+    Private Sub SetDefaults()
+        mOwnerWinHandle = 0&
+        mInitialFolderPath = vbNullString
+        mUseAsDefaultFolder = True
+        Set mFilters = New Collection
+        mFilterIndex = 0
+        mSelectedFilterIndex = 0
+        Set mPlaces = New Collection
+        mTitle = vbNullString
+        mButtonName = vbNullString
+        mAllowMultiSelect = False
+        mInitialFileName = vbNullString
+        mDefaultExtension = vbNullString
+        mShowHiddenFiles = False
+        mDontAddToRecent = False
+        mStrictFileTypes = False
+        mNoChangeDir = False
+        mClientGuid = vbNullString
+        mDialogType = 0                  ' invalid sentinel until DialogType is set
+        mTypeDefaultsApplied = False
+        mEnforceFilterExtensions = False
+        mNavigationRoot = vbNullString
+        mStrictNavigationRoot = False
+        mCancelButtonName = vbNullString
+        mShareAware = False
+        ' NB: mSelectedItems is deliberately left as Nothing - see the SelectedItems
+        ' property. It only ever becomes a Collection on a successful Show.
+        Set mSelectedItems = New Collection
+    End Sub
+
+End Class
+
+' ==========================================================================
+' FileDialogEventSink
+'
+' Companion class for FileDialog. Implements IFileDialogEvents and forwards
+' each shell callback to the owning FileDialog via its Friend Raise* methods.
+'
+' Why this exists: implementing IFileDialogEvents directly on the public,
+' COM-creatable FileDialog class would drag IFileDialog, IShellItem, and the
+' FDE_* enums into the exposed type library (visible in the VBA object model
+' under tbFileworks). Hosting the implementation on this private, non-creatable
+' class keeps those shell types internal, so the public surface exposes only
+' FileDialog's own members, events, and the FileDialogResponse enum.
+'
+' Lifetime: created and advised for the duration of a single Show call, then
+' unadvised and released. FileDialog never stores the sink, so the sink's
+' back-reference to its owner does not create a leak.
+'
+' THE VETO PATH RUNS THROUGH HERE. mOwner.RaiseFileOk may Err.Raise
+' ERR_EVENT_CANCELLED; that error must propagate out of the interface method
+' UNTRAPPED, because tB converts an untrapped error into a failed HRESULT, and a
+' failed HRESULT from OnFileOk is what makes the dialog stay open. Note the
+' On Error Resume Next blocks below are all scoped tightly around the COM calls
+' that can legitimately fail - none of them wraps a Raise* call. Do not widen them.
+'
+' Lives only inside FileDialog's Show methods; not intended for standalone use.
+' ==========================================================================
+
+[COMCreatable(False)]
+Private Class FileDialogEventSink
+    Option Explicit
+    Implements IFileDialogEvents
+
+    Private mOwner As FileDialog
+
+    Friend Sub Init(ByVal owner As FileDialog)
+        Set mOwner = owner
+    End Sub
+
+    ' Shell item -> filesystem path, or "" for a virtual item that has no path.
+    ' The caller-frees convention: GetDisplayName allocates with CoTaskMemAlloc.
+    Private Function ItemPath(ByVal si As IShellItem) As String
+        If si Is Nothing Then Exit Function
+        Dim lpPath As LongPtr
+        On Error Resume Next
+        si.GetDisplayName SIGDN_FILESYSPATH, lpPath   ' fails for virtual (non-FS) items
+        On Error GoTo 0
+        If lpPath Then
+            ItemPath = LPWSTRtoStr(lpPath)
+            CoTaskMemFree lpPath
+        End If
+    End Function
+
+    Private Sub IFileDialogEvents_OnFileOk(ByVal pfd As IFileDialog)
+        Dim si As IShellItem
+        On Error Resume Next
+        pfd.GetResult si
+        On Error GoTo 0                        ' error trapping OFF before the veto path
+        mOwner.RaiseFileOk ItemPath(si)        ' a veto propagates out as a failed HRESULT
+    End Sub
+
+    Private Sub IFileDialogEvents_OnFolderChanging(ByVal pfd As IFileDialog, ByVal psiFolder As IShellItem)
+        mOwner.RaiseFolderChanging ItemPath(psiFolder)   ' vetoable: no error trapping here either
+    End Sub
+
+    Private Sub IFileDialogEvents_OnFolderChange(ByVal pfd As IFileDialog)
+        Dim si As IShellItem
+        On Error Resume Next
+        pfd.GetFolder si
+        On Error GoTo 0
+        mOwner.RaiseFolderChanged ItemPath(si)
+    End Sub
+
+    Private Sub IFileDialogEvents_OnSelectionChange(ByVal pfd As IFileDialog)
+        Dim si As IShellItem
+        On Error Resume Next            ' selection may be empty
+        pfd.GetCurrentSelection si
+        On Error GoTo 0
+        mOwner.RaiseSelectionChanged ItemPath(si)
+    End Sub
+
+    Private Sub IFileDialogEvents_OnTypeChange(ByVal pfd As IFileDialog)
+        Dim idx As Long
+        On Error Resume Next
+        pfd.GetFileTypeIndex idx
+        On Error GoTo 0
+        mOwner.RaiseFileTypeChanged idx
+    End Sub
+
+    Private Sub IFileDialogEvents_OnOverwrite(ByVal pfd As IFileDialog, ByVal psi As IShellItem, ByRef pResponse As FDE_OVERWRITE_RESPONSE)
+        ' FileDialogResponse and FDE_OVERWRITE_RESPONSE share values (0/1/2)
+        pResponse = mOwner.RaiseOverwrite(ItemPath(psi))
+    End Sub
+
+    Private Sub IFileDialogEvents_OnShareViolation(ByVal pfd As IFileDialog, ByVal psi As IShellItem, ByRef pResponse As FDE_SHAREVIOLATION_RESPONSE)
+        ' FileDialogResponse and FDE_SHAREVIOLATION_RESPONSE share values (0/1/2)
+        pResponse = mOwner.RaiseShareViolation(ItemPath(psi))
+    End Sub
+End Class
+
+' ==========================================================================
+' FilterEntry
+'
+' Companion class for FileDialog. Represents a single file-type filter
+' (description + semicolon-separated extension patterns) stored in
+' FileDialog.mFilters.
+'
+' Lives only inside the FileDialog instance that owns it; not intended for
+' standalone use.
+' ==========================================================================
+
+[COMCreatable(False)]
+Private Class FilterEntry
+    Option Explicit
+    ' WARNING: StrPtr(someCollection(i).description) returns a transient
+    ' temporary. Copy to a local String first if you need a stable pointer.
+    ' This is not theoretical - it is exactly why ApplyFilters keeps parallel
+    ' nameStorage()/specStorage() arrays instead of pointing at these fields.
+    Public description As String
+    Public extensions As String
+End Class
+
+' ==========================================================================
+' PlaceEntry
+'
+' Companion class for FileDialog. Represents a single custom location
+' (folder path + position preference) added to the dialog's navigation pane
+' via FileDialog.AddPlace.
+'
+' Lives only inside the FileDialog instance that owns it; not intended for
+' standalone use.
+' ==========================================================================
+
+[COMCreatable(False)]
+Private Class PlaceEntry
+    Option Explicit
+    Public folderPath As String
+    Public atTop As Boolean
+End Class
