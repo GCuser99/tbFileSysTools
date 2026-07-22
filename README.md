@@ -269,7 +269,7 @@ The large-file, encoding and long-path claims above are measured, not asserted. 
 |`FileSystemObject`|COM-creatable thin wrapper over the above|
 |`TextStream`|Streaming text reader/writer|
 |`TextCodec`|Encoding detection, encode/decode, BOM handling|
-|`Shared`|shared file/folder/drive procs|
+|`Shared`|Shared file/folder/drive procs|
 |`WinAPI`|WinDevLib's Win32 declarations|
 |`File`, `Folder`, `Drive`|Objects|
 |`Files`, `Folders`, `Drives`|Collections|
