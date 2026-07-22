@@ -2,7 +2,7 @@
 
 A modern replacement for Scripting Runtime's `FileSystemObject`, written in [twinBASIC](https://twinbasic.com).
 
-It does everything FSO does, plus the things FSO has never been able to do: **full text-encoding support**, **files larger than 2 GB**, and **line-ending detection and normalization**.
+It does everything FSO does, plus the things FSO has never been able to do: **full text-encoding support**, **files larger than 2 GB**, **line-ending detection and normalization**, and **long paths beyond the legacy 260-character limit**.
 
 ```vb
 ' Read a UTF-8 file with a BOM, a UTF-16LE file, and a Shift-JIS file.
@@ -23,6 +23,7 @@ text = FileSystemTools.TextFileToString("data.txt")     ' encoding auto-detected
 |Files > 2 GB|Reads them as **empty**, silently|Streams them, in both directions|
 |Appending to a > 2 GB file|Not possible|Works|
 |Line endings|No support|Detect, preserve, normalize|
+|Paths > 260 chars|Fails, and `FileExists` **returns False** on a file that exists|Supported transparently|
 |Junction in a folder tree|`Folder.Size` double-counts, or recurses forever|Skipped|
 |Unreadable folder|Reports it as empty|Raises|
 
@@ -128,6 +129,33 @@ Multi-byte encodings are handled correctly across chunk boundaries, including su
 
 ---
 
+## Long paths
+
+Windows' legacy `MAX_PATH` limit is 260 characters. `Scripting.FileSystemObject` is bound by it — and worse, bound by it **silently**: on a path longer than 260 characters, FSO's `FileExists` returns False for a file that exists, `GetFile` and `OpenTextFile` raise "path not found", and nothing distinguishes "too long" from "genuinely absent".
+
+This library supports long paths transparently. Reading, writing, creating, copying, moving, deleting, enumerating, normalizing and merging all work well past 260 characters — no prefix, no flag, no special call. You pass a normal path; the library canonicalizes it and applies the `\\?\` prefix to the underlying Win32 calls when needed.
+
+```vb
+' A 400-plus-character path is just a path.
+Dim deep As String
+deep = "C:\...\a\very\deeply\nested\...\structure\notes.txt"   ' > 260 chars
+FileSystemTools.StringToTextFile "hello", deep
+Debug.Print FileSystemTools.FileExists(deep)                   ' True
+Debug.Print FileSystemTools.TextFileToString(deep)             ' hello
+```
+
+A few members stay bound to 260 characters, because the specific Win32 APIs behind them don't honor the `\\?\` prefix. Each degrades or raises clearly rather than returning a wrong answer:
+
+|Member|On a > 260 path|Why|
+|-|-|-|
+|`GetFileType` / `File.Type`|Falls back to the lexical `"<EXT> File"`|`SHGetFileInfoW` (shell API) rejects `\\?\`|
+|`GetFileVersion` / `File.Version`|Returns `""`, as for a file with no version resource|Version-resource APIs don't honor `\\?\`|
+|`GetRelativePath`|Falls back to the absolute target path|`PathRelativePathToW` is capped at `MAX_PATH`|
+|`File.ShortPath`|Returns the full path unchanged|8.3 shortening is a legacy-`MAX_PATH` mechanism|
+|Wildcard patterns in `CopyFile` / `MoveFile` / `DeleteFile` / `CopyFolder` / `MoveFolder` / `DeleteFolder` / `GetFilePaths`|The pattern is 260-bound; matched items are handled normally|A wildcard pattern can't be safely `\\?\`-prefixed|
+
+---
+
 ## Objects
 
 `File`, `Folder`, `Drive` and their collections work as they do in FSO.
@@ -156,6 +184,8 @@ Parity is the goal, but not at any price. Each of these was checked against the 
 
 **An unreadable folder raises.** FSO silently reports it as empty. A size or file list that quietly omits a subtree that can't be read is worse than an error.
 
+**Long paths are supported, not rejected.** FSO caps at 260 and misreports; this library handles them (see [Long paths](#long-paths)). Matching FSO here would have meant matching a silent wrong answer.
+
 **`FileAttribute.Volume` and `.Alias` are not provided.** `Volume` has no Win32 equivalent (use `Drive.VolumeName`). `Alias` is `FILE\_ATTRIBUTE\_REPARSE\_POINT` under a misleading name — and collides with VBA's `vbAlias` (64 vs 1024). Use `ReparsePoint`.
 
 ---
@@ -168,6 +198,7 @@ Parity is the goal, but not at any price. Each of these was checked against the 
 |`OpenTextFile`|format auto-detection or user-specified|
 |`GetFileEncoding`|Detect a file's encoding|
 |`GetFileLineEnding`|Detect CRLF / LF / CR / mixed|
+|`MergeTextFiles`|Merges two text files, normalizing the encoding to the first|
 |`NormalizeTextFile`|Rewrite encoding + newlines in place, idempotently|
 |`GetFilePaths`|Enumerate with a wildcard, recursion, hidden/system filters|
 |`GetRelativePath`|Path from A to B|
@@ -216,7 +247,7 @@ Error numbers follow FSO, so existing handlers keep working:
 
 ## Verification
 
-The large-file and encoding claims above are measured, not asserted. The probe modules are in the repo *(TODO: path)* and can be re-run.
+The large-file, encoding and long-path claims above are measured, not asserted. The probe modules are in the repo *(TODO: path)* and can be re-run.
 
 |Claim|Evidence|
 |-|-|
@@ -224,6 +255,8 @@ The large-file and encoding claims above are measured, not asserted. The probe m
 |Append to a > 2 GB file is correct and non-destructive|Head, size and tail all verified after appending to a 2.4 GB file|
 |Multi-byte encodings survive chunk boundaries|54 M lines of UTF-16LE and UTF-8 containing 1-, 2-, 3- and 4-byte characters and surrogate pairs; line length chosen so chunk boundaries sweep every character position. Zero errors|
 |Line/column tracking is exact|14 CR/LF edge cases, plus 35 M lines end to end|
+|Long paths work end to end|>400-character folder tree built by the library's own `CreateFolder`; write, read, normalize and in-place merge round-trips all pass, including a temp name that crosses 260 during an atomic swap|
+|FSO is 260-bound and misreports|Oracle test: on a >260 file, the real `Scripting.FileSystemObject` returns `FileExists = False` and raises 53/76 from `GetFile` / `OpenTextFile`|
 |FSO parity|Differential tests against the real `Scripting.FileSystemObject`|
 
 ---
@@ -246,4 +279,3 @@ The large-file and encoding claims above are measured, not asserted. The probe m
 ## License
 
 MIT © 2026 GCUser99
-
