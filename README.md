@@ -2,7 +2,7 @@
 
 A modern replacement for Scripting Runtime's `FileSystemObject`, written in [twinBASIC](https://twinbasic.com).
 
-It does everything FSO does, plus the things FSO has never been able to do: **full text-encoding support**, **files larger than 2 GB**, **line-ending detection and normalization**, and **long paths beyond the legacy 260-character limit**.
+It does everything FSO does, plus many things FSO cannot: **full text-encoding support**, **files larger than 2 GB**, **line-ending detection and normalization**, and **long paths beyond the legacy 260-character limit**.
 
 ```vb
 ' Read a UTF-8 file with a BOM, a UTF-16LE file, and a Shift-JIS file.
