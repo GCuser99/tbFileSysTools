@@ -206,8 +206,7 @@ Parity is the goal, but not at any price. Each of these was checked against the 
 |`Rename`|In-place rename (FSO makes you assign to `.Name`)|
 |`GetFileType`|Shell type description ("Text Document")|
 |`GetCurrentDir` / `SetCurrentDir`||
-|`GetSpecialFolder`|25 known folders, not FSO's 3|
-|`GetStandardStream`|Stdin / Stdout / stderr as a `TextStream`|
+|`GetSpecialFolder`|25 known folders, including FSO's 3|
 |`ReadStream` / `WriteStream`|Raw bytes, Unicode-safe|
 |`TextFileToString` / `StringToTextFile`|Whole-file text I/O|
 |`TextFileToArray` / `ArrayToTextFile`|Whole-file line I/O|
@@ -223,13 +222,13 @@ Parity is the goal, but not at any price. Each of these was checked against the 
 |`Folder.HasAttribute`|Determines is an attribute is set|
 |`Folder.SetAttribute`|Sets a single attribute|
 |`TextStream.IsStreaming`|Whether byte-streaming or buffered access is supported|
-|`TextStream.Encoding`|Detect a file's encoding|
+|`TextStream.Encoding`|Returns a file's encoding|
 
 ---
 
 ## Errors
 
-Error numbers follow FSO, so existing handlers keep working:
+Error numbers follow FSO convention, so existing handlers keep working:
 
 |||
 |-|-|
@@ -263,7 +262,7 @@ The large-file, encoding and long-path claims above are measured, not asserted. 
 
 ## Structure
 
-|||
+| File | Description |
 |-|-|
 |`FileSystemTools`|The API. All the logic lives here|
 |`FileSystemObject`|COM-creatable thin wrapper over the above|
