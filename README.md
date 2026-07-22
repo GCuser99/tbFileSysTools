@@ -195,7 +195,7 @@ Parity is the goal, but not at any price. Each of these was checked against the 
 |Member||
 |-|-|
 |`CreateTextFile`|Create any format - not just ascii/utf16|
-|`OpenTextFile`|format auto-detection or user-specified|
+|`OpenTextFile`|Format auto-detection or user-specified|
 |`GetFileEncoding`|Detect a file's encoding|
 |`GetFileLineEnding`|Detect CRLF / LF / CR / mixed|
 |`MergeTextFiles`|Merges two text files, normalizing the encoding to the first|
@@ -207,7 +207,7 @@ Parity is the goal, but not at any price. Each of these was checked against the 
 |`GetFileType`|Shell type description ("Text Document")|
 |`GetCurrentDir` / `SetCurrentDir`||
 |`GetSpecialFolder`|25 known folders, not FSO's 3|
-|`GetStandardStream`|stdin / stdout / stderr as a `TextStream`|
+|`GetStandardStream`|Stdin / Stdout / stderr as a `TextStream`|
 |`ReadStream` / `WriteStream`|Raw bytes, Unicode-safe|
 |`TextFileToString` / `StringToTextFile`|Whole-file text I/O|
 |`TextFileToArray` / `ArrayToTextFile`|Whole-file line I/O|
@@ -215,14 +215,14 @@ Parity is the goal, but not at any price. Each of these was checked against the 
 |`File.HasAttribute`|Determines is an attribute is set|
 |`File.LineEnding`|Detect CRLF / LF / CR / mixed|
 |`File.Normalize`|Rewrite encoding + newlines in place, idempotently|
-|`File.OpenAsTextStream`|format auto-detection or user-specified|
+|`File.OpenAsTextStream`|Format auto-detection or user-specified|
 |`File.SetAttribute`|Sets a single attribute|
 |`File.ToStream`|Reads file to byte array|
 |`File.ToString`|Reads file to string|
 |`File.Version`|Gets the file version string|
 |`Folder.HasAttribute`|Determines is an attribute is set|
 |`Folder.SetAttribute`|Sets a single attribute|
-|`TextStream.IsStreaming`|whether byte-streaming or buffered access is supported|
+|`TextStream.IsStreaming`|Whether byte-streaming or buffered access is supported|
 |`TextStream.Encoding`|Detect a file's encoding|
 
 ---
