@@ -197,6 +197,8 @@ Parity is the goal, but not at any price. Each of these was checked against the 
 
 ## Beyond FSO...
 
+The following members are either added, or their function significantly improved.
+
 |Member||
 |-|-|
 |`CreateTextFile`|Create any format - not just ascii/utf16|
