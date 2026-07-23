@@ -1,7 +1,7 @@
 ' ==========================================================================
-' MergeFilesTests
+' MergeTextFilesTests
 '
-' Targets ONE failure mode: MergeFiles decides whether it is doing an in-place
+' Targets ONE failure mode: MergeTextFiles decides whether it is doing an in-place
 ' merge by comparing the output path against the input paths TEXTUALLY. If the
 ' same file is named two different ways - "a.txt" vs ".\a.txt" vs an absolute
 ' path - the comparison misses, the temp-swap is skipped, and CreateTextFile
@@ -18,7 +18,7 @@
 ' EXPECTED AFTER:          all pass.
 ' ==========================================================================
 
-Module MergeFilesTests
+Private Module MergeTextFilesTests
     Option Explicit
 
     Private Const A_TEXT As String = "A-line-1" & vbCrLf & "A-line-2"
@@ -36,7 +36,7 @@ Module MergeFilesTests
         mRoot = FileSystemTools.BuildPath( _
                     FileSystemTools.GetSpecialFolder(TemporaryFolder), "mergetests")
 
-        Debug.Print "=== MergeFiles: path aliasing / in-place safety ==="
+        Debug.Print "=== MergeTextFiles: path aliasing / in-place safety ==="
 
         On Error GoTo Done
 
@@ -78,7 +78,7 @@ Module MergeFilesTests
         Dim a As String, b As String, o As String
         Seed a, b
         o = FileSystemTools.BuildPath(mRoot, "out.txt")
-        FileSystemTools.MergeFiles a, b, o
+        FileSystemTools.MergeTextFiles a, b, o
         CheckMerged "1 distinct output path", o
     End Sub
 
@@ -87,7 +87,7 @@ Module MergeFilesTests
     Private Sub Case2_OutputOmitted()
         Dim a As String, b As String
         Seed a, b
-        FileSystemTools.MergeFiles a, b
+        FileSystemTools.MergeTextFiles a, b
         CheckMerged "2 output omitted (in place)", a
     End Sub
 
@@ -97,7 +97,7 @@ Module MergeFilesTests
         Dim a As String, b As String
         Seed a, b
         FileSystemTools.SetCurrentDir mRoot
-        FileSystemTools.MergeFiles "a.txt", "b.txt", ".\a.txt"
+        FileSystemTools.MergeTextFiles "a.txt", "b.txt", ".\a.txt"
         FileSystemTools.SetCurrentDir mSavedCwd
         CheckMerged "3 output as '.\a.txt' vs 'a.txt'", a
     End Sub
@@ -107,7 +107,7 @@ Module MergeFilesTests
         Dim a As String, b As String
         Seed a, b
         FileSystemTools.SetCurrentDir mRoot
-        FileSystemTools.MergeFiles "a.txt", "b.txt", a      ' a is absolute
+        FileSystemTools.MergeTextFiles "a.txt", "b.txt", a      ' a is absolute
         FileSystemTools.SetCurrentDir mSavedCwd
         CheckMerged "4 relative inputs, absolute output", a
     End Sub
@@ -117,7 +117,7 @@ Module MergeFilesTests
         Dim a As String, b As String
         Seed a, b
         FileSystemTools.SetCurrentDir mRoot
-        FileSystemTools.MergeFiles a, b, "a.txt"            ' output is relative
+        FileSystemTools.MergeTextFiles a, b, "a.txt"            ' output is relative
         FileSystemTools.SetCurrentDir mSavedCwd
         CheckMerged "5 absolute inputs, relative output", a
     End Sub
@@ -127,7 +127,7 @@ Module MergeFilesTests
     Private Sub Case6_CaseDifference()
         Dim a As String, b As String
         Seed a, b
-        FileSystemTools.MergeFiles a, b, UCase$(a)
+        FileSystemTools.MergeTextFiles a, b, UCase$(a)
         CheckMerged "6 output differs only by case", a
     End Sub
 
@@ -138,7 +138,7 @@ Module MergeFilesTests
         Dim a As String, b As String
         Seed a, b
         FileSystemTools.SetCurrentDir mRoot
-        FileSystemTools.MergeFiles "a.txt", "b.txt", ".\b.txt"
+        FileSystemTools.MergeTextFiles "a.txt", "b.txt", ".\b.txt"
         FileSystemTools.SetCurrentDir mSavedCwd
         CheckMerged "7 output aliases the SECOND file", b
     End Sub
@@ -149,7 +149,7 @@ Module MergeFilesTests
         Dim a As String, b As String
         Seed a, b
         FileSystemTools.SetCurrentDir mRoot
-        FileSystemTools.MergeFiles "a.txt", "b.txt", "./a.txt"
+        FileSystemTools.MergeTextFiles "a.txt", "b.txt", "./a.txt"
         FileSystemTools.SetCurrentDir mSavedCwd
         CheckMerged "8 output as './a.txt' (forward slash)", a
     End Sub
@@ -159,7 +159,7 @@ Module MergeFilesTests
     Private Sub Case9_NoStrayTempLeft()
         Dim a As String, b As String
         Seed a, b
-        FileSystemTools.MergeFiles a, b                     ' in place -> uses a temp
+        FileSystemTools.MergeTextFiles a, b                     ' in place -> uses a temp
         Dim leftovers As Collection
         Set leftovers = FileSystemTools.GetFilePaths(mRoot, "*.tmp*")
         Dim more As Collection
@@ -231,19 +231,5 @@ Module MergeFilesTests
             Debug.Print "  FAIL  " & name & "   want: " & want & "   got: " & got
         End If
     End Sub
-    
-    Private Sub testit()
-        Dim ts As TextStream
-        Set ts = FileSystemTools.CreateTextFile("adstest.txt")
-        ts.WriteLine "main"
-        ts.Close
-        Set ts = FileSystemTools.CreateTextFile("adstest.txt:meta")
-        ts.WriteLine "stream content"
-        ts.Close
-        Debug.Print FileSystemTools.TextFileToString("adstest.txt:meta")   ' -> stream content
-        Debug.Print FileSystemTools.GetFile("adstest.txt").Size            ' -> 6ish, ADS not counted
-    End Sub
 
 End Module
-
-

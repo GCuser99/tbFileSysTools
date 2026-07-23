@@ -27,7 +27,7 @@
 ' ~35M for UTF-8). Needs ~5 GB free. Run E1 and E2 separately if you prefer.
 ' ==========================================================================
 
-Module MultiByteProbe
+Private Module MultiByteProbe
     Option Explicit
 
     Private Const TARGET_BYTES As LongLong = 2400000000^        ' comfortably past 2^31
@@ -411,4 +411,3 @@ Module MultiByteProbe
     End Sub
 
 End Module
-

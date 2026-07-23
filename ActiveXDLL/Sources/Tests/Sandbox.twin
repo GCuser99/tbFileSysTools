@@ -1,4 +1,5 @@
-Module MergeCode
+'Not offical tests - place to apply various ideas
+Private Module Sandbox
 
     Sub test_merge()
         Dim codeFolder As String, f As File, c As New Collection
@@ -17,7 +18,7 @@ Module MergeCode
         c.Add ".\Sources\TextCodec.twin"
         c.Add ".\Sources\Shared.twin"
         c.Add ".\Sources\WinAPI.twin"
-        
+    
         'determine encoding for first file
         Dim enc As TextEncoding
         Dim lineEnding As String, lineEndingCode As NewlineType
@@ -44,7 +45,7 @@ Module MergeCode
 
     Sub test_merge_for_project_dropin()
         Dim c As New Collection
-        
+    
         c.Add ".\Sources\FileSystemObject.twin"
         c.Add ".\Sources\FileSystemTools.twin"
         c.Add ".\Sources\File.twin"
@@ -55,9 +56,9 @@ Module MergeCode
         c.Add ".\Sources\Drives.twin"
         c.Add ".\Sources\TextStream.twin"
         c.Add ".\Sources\TextCodec.twin"
-        c.Add ".\Sources\Shared.twin"
+        c.Add ".\Sources\FSTShared.twin"
         c.Add ".\Sources\WinAPI.twin"
-        
+    
         'determine encoding for first file
         Dim enc As TextEncoding
         Dim le As NewlineType
@@ -85,7 +86,7 @@ Module MergeCode
         ReDim Preserve o(0 To j)
         ArrayToTextFile o, ".\Sources\tbFileSysTools.twin", encoding:=enc, lineEnding:=le
     End Sub
-    
+
     Sub test_merge_for_package()
         Dim c As New Collection
         c.Add ".\Sources\FileSystemObject.twin"
@@ -98,9 +99,9 @@ Module MergeCode
         c.Add ".\Sources\Drives.twin"
         c.Add ".\Sources\TextStream.twin"
         c.Add ".\Sources\TextCodec.twin"
-        c.Add ".\Sources\Shared.twin"
+        c.Add ".\Sources\FSTShared.twin"
         c.Add ".\Sources\WinAPI.twin"
-        
+    
         'determine encoding for first file
         Dim enc As TextEncoding
         Dim le As NewlineType
@@ -128,32 +129,35 @@ Module MergeCode
         ReDim Preserve o(0 To j)
         ArrayToTextFile o, "..\Package\Sources\tbFileSysToolsPackage.twin", encoding:=enc, lineEnding:=le
     End Sub
-    
+
     Private Sub Normalize_Eg()
         Dim fso As New tbFileSysTools.FileSystemObject
         Dim folderPath As String
         Dim f As tbFileSysTools.File
-        
+    
         folderPath = fso.BuildPath(fso.GetSpecialFolder(Documents), "GitHub\tbFileSysTools\ActiveXDLL\Dev")
         For Each f In fso.GetFolder(folderPath).Files
             f.Normalize toEncoding:=encUtf8, toLineEnding:=nlWindows
         Next f
-        
     End Sub
     
-    Private Sub test_long_path()
+    Private Sub Merge_tests()
         Dim fso As New tbFileSysTools.FileSystemObject
-        Dim fileName As String
+        Dim folderPath As String
         Dim filePath As String
-        fileName = String$(237, "1") & ".txt"
-        Debug.Print Len(fileName)
-        filePath = fso.BuildPath(fso.GetSpecialFolder(Documents), fileName)
-        Debug.Print Len(filePath) 'practical limit is 245
-        Dim txt As String
-        txt = "hello new world"
-        fso.StringToTextFile(txt, filePath)
-        'Open tempPath For Binary Access Write As #fn fails in WriteStream
+        Dim f As tbFileSysTools.File
+    
+        folderPath = fso.BuildPath(fso.GetSpecialFolder(Documents), "GitHub\tbFileSysTools\ActiveXDLL\Sources\Tests")
+        filePath = fso.BuildPath(folderPath, "all_tests.twin")
+        fso.StringToTextFile "' All-in-one Test Files Suite", filePath
+        
+        For Each f In fso.GetFolder(folderPath).Files
+            If f.Path <> filePath Then
+                Debug.Print f.Name
+                fso.MergeTextFiles filePath, f.Path, insertBlankLineBetween:=True
+            End If
+        Next f
     End Sub
     
-
+    
 End Module

@@ -1,5 +1,10 @@
+'==========================================================================
+'  FAST SUITES  --  seconds, no fixtures, no human, no GB                  
+'==========================================================================
+
+
 ' ==========================================================================
-' FileSystemObjectTests - unified test suite for the tbFileworks library
+' GeneralTests - unified test suite for the library
 '
 '   * Uses the twinBASIC "Unit Testing" package . Add it via Project -> References (Ctrl+T) ->
 '     Available Packages.
@@ -23,7 +28,8 @@
 ' Folders and Drives classes in the project, with the public enums reachable
 ' unqualified (encUtf8, ForReading, nlWindows, FileAttribute.*, Fixed, ...).
 ' ==========================================================================
-Private Module FileSystemObjectTests
+
+Private Module GeneralTests
     Option Explicit
 
     '======================================================================
@@ -130,7 +136,7 @@ Private Module FileSystemObjectTests
         Test_NoMatchErrorsVsScriptingFSO
 
         CleanupTestDir
-        Debug.Print "Fileworks: all tests passed."
+        Debug.Print "tbFileSysTools: all tests passed."
     End Sub
 
     '======================================================================
@@ -467,7 +473,6 @@ Private Module FileSystemObjectTests
         Set ts = fso.OpenTextFile(p, ForWriting, True, encUtf8)
         ts.Write "x"
         ts.Close
-
         Dim b() As Byte: fso.ReadStream p, b
         Assert.Strict.AreEqual Asc("x"), b(0)   ' no leading BOM
         fso.DeleteFile p, ignoreMissing:=True
@@ -481,7 +486,6 @@ Private Module FileSystemObjectTests
         ts.WriteLine "a"
         ts.WriteLine "b"
         ts.Close
-
         Dim b() As Byte: fso.ReadStream p, b      ' expect: a \n b \n
         Assert.Strict.AreEqual 4&, SafeCount(b)
         Assert.Strict.AreEqual Asc("a"), b(0)
@@ -498,7 +502,6 @@ Private Module FileSystemObjectTests
         Set ts = fso.OpenTextFile(p, ForWriting, True, encUtf8, nlWindows)
         ts.WriteLine "a"
         ts.Close
-
         Dim b() As Byte: fso.ReadStream p, b      ' expect: a \r \n
         Assert.Strict.AreEqual 3&, SafeCount(b)
         Assert.Strict.AreEqual Asc("a"), b(0)
@@ -514,7 +517,6 @@ Private Module FileSystemObjectTests
         Set ts = fso.OpenTextFile(p, ForWriting, True, encUtf8, nlUnix)
         ts.WriteBlankLines 3
         ts.Close
-
         Dim b() As Byte: fso.ReadStream p, b
         Assert.Strict.AreEqual 3&, SafeCount(b)
         Assert.Strict.AreEqual 10&, b(0)
@@ -543,7 +545,6 @@ Private Module FileSystemObjectTests
         Set ts = fso.OpenTextFile(p, ForAppending, False, encAutoDetect)
         ts.Write "line2"
         ts.Close
-
         Set ts = fso.OpenTextFile(p)
         Assert.Exact.AreEqual "line1" & vbLf & "line2", ts.ReadAll()
         ts.Close
@@ -559,13 +560,11 @@ Private Module FileSystemObjectTests
         Set ts = fso.OpenTextFile(p, ForAppending)
         ts.Write "b"
         ts.Close
-
         Dim b() As Byte: fso.ReadStream p, b       ' EF BB BF 'a' 'b' (one BOM only)
         Assert.Strict.AreEqual 5&, SafeCount(b)
         Assert.Strict.AreEqual CLng(&HEF), CLng(b(0))
         Assert.Strict.AreEqual CLng(Asc("a")), CLng(b(3))
         Assert.Strict.AreEqual CLng(Asc("b")), CLng(b(4))
-
         Set ts = fso.OpenTextFile(p)
         Assert.Exact.AreEqual "ab", ts.ReadAll()         ' BOM stripped on read
         ts.Close
@@ -577,18 +576,14 @@ Private Module FileSystemObjectTests
         Dim p As String: p = TempPath("a_empty.txt")
         Dim fso As New FileSystemObject
         Dim ts As TextStream
-
         fso.DeleteFile p, ignoreMissing:=True
-
         Set ts = fso.OpenTextFile(p, ForWriting, True)
         ts.Close
         Assert.Exact.IsTrue fso.FileExists(p)
-
         Set ts = fso.OpenTextFile(p, ForAppending, , , nlUnix)
         ts.WriteLine("line1")
         ts.WriteLine("line2")
         ts.Close
-
         Set ts = fso.OpenTextFile(p, ForReading)
         Assert.Exact.AreEqual "line1" & vbLf & "line2" & vbLf, ts.ReadAll
         ts.Close
@@ -2134,7 +2129,7 @@ Private Module FileSystemObjectTests
     '   for recursive work, which is fine - those paths are covered elsewhere.
     '======================================================================
     Private Function TestDir() As String
-        TestDir = Environ$("TEMP") & "\FileworksTests"
+        TestDir = Environ$("TEMP") & "\GeneralTests"
     End Function
 
     Private Sub EnsureTestDir()
@@ -2322,19 +2317,3 @@ Private Module FileSystemObjectTests
     End Function
 
 End Module
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

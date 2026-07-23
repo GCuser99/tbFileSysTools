@@ -27,7 +27,7 @@
 '   current directory. Entry points that COMPARE two paths, or that use one path
 '   more than once, MUST call GetAbsolutePathName first: "a.txt", ".\a.txt" and
 '   "C:\work\a.txt" are the same file but three different strings, and a textual
-'   comparison between them silently misses (this is what made MergeFiles
+'   comparison between them silently misses (this is what made MergeTextFiles
 '   truncate its own input). Entry points that merely hand a path to a single
 '   Win32 call may pass it through unresolved.
 ' ==========================================================================
@@ -1354,7 +1354,7 @@ Public Module FileSystemTools
     End Function
     
     [Description("Merges two text files in the order specified. If outputFilePath is omitted, the first file is overwritten in place. The second file's line endings are converted to match the first file's. Streams line by line, so file size is not limited.")]
-    Public Sub MergeFiles(ByVal firstFilePath As String, ByVal secondFilePath As String, _
+    Public Sub MergeTextFiles(ByVal firstFilePath As String, ByVal secondFilePath As String, _
                           Optional ByVal outputFilePath As String, _
                           Optional ByVal insertBlankLineBetween As Boolean = False, _
                           Optional ByVal firstFileEncoding As TextEncoding = encAutoDetect, _
@@ -1411,7 +1411,7 @@ Public Module FileSystemTools
             If MoveFileExW(StrPtr(FSTShared.ApiPath(writePath)), StrPtr(FSTShared.ApiPath(outPath)), MOVEFILE_REPLACE_EXISTING) = 0 Then
                 Dim me_ As Long: me_ = Err.LastDllError
                 DeleteFileW StrPtr(writePath)          ' don't strand the temp
-                RaiseFromLastError me_, "MergeFiles", outPath
+                RaiseFromLastError me_, "MergeTextFiles", outPath
             End If
         End If
         
@@ -1424,7 +1424,7 @@ Public Module FileSystemTools
         If Not tsOut Is Nothing Then tsOut.Close
         If inPlace Then DeleteFile writePath, True, True   ' don't leave a stray temp
         On Error GoTo 0
-        Err.Raise e, "MergeFiles", d
+        Err.Raise e, "MergeTextFiles", d
     End Sub
     
     '-------------------------------------------------------------------------------------------------

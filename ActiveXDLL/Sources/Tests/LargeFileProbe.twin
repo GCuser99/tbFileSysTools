@@ -1,3 +1,8 @@
+'==========================================================================
+'  LARGE-FILE PROBES  --  minutes, and gigabytes of %TEMP%                 
+'==========================================================================
+
+
 ' ==========================================================================
 ' LargeFileProbe
 '
@@ -27,7 +32,7 @@
 ' Run RunAll. Needs ~5 GB free (Phase A file + Phase B file).
 ' ==========================================================================
 
-Module LargeFileProbe
+Private Module LargeFileProbe
     Option Explicit
 
     ' Target just over 2 GB. 2^31 = 2,147,483,648. We overshoot by ~250 MB so a
@@ -40,8 +45,18 @@ Module LargeFileProbe
     Private Const LINES_PER_BLOCK As Long = BLOCK_SIZE \ LINE_LEN    ' 1024
 
     ' Set these to a volume with room to spare.
-    Private Const RAW_PATH As String = "C:\Users\waite\AppData\Local\Temp\_probe_raw.bin"
-    Private Const TS_PATH  As String = "C:\Users\waite\AppData\Local\Temp\_probe_textstream.txt"
+    ' Derived from %TEMP% at run time, NOT hard-coded (see AppendProbe for why
+    ' these are Functions rather than Consts). RAW_PATH must match AppendProbe's -
+    ' Phase D appends to the file Phase A leaves behind.
+    Private Function RAW_PATH() As String
+        RAW_PATH = FileSystemTools.BuildPath( _
+                       FileSystemTools.GetSpecialFolder(TemporaryFolder), "_probe_raw.bin")
+    End Function
+
+    Private Function TS_PATH() As String
+        TS_PATH = FileSystemTools.BuildPath( _
+                       FileSystemTools.GetSpecialFolder(TemporaryFolder), "_probe_textstream.txt")
+    End Function
 
     '======================================================================
     Public Sub RunAll()

@@ -27,7 +27,7 @@
 ' the offending line and skip to Probe 3.
 ' ==========================================================================
 
-Module SeekProbe
+Private Module SeekProbe
     Option Explicit
 
     Private Const RAW_PATH As String = "C:\_probe_raw.bin"   ' must match LargeFileProbe

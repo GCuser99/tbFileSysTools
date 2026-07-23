@@ -1,3 +1,8 @@
+'==========================================================================
+'  LONG-PATH SUITES  --  builds a >400-character tree in %TEMP%            
+'==========================================================================
+
+
 ' ==========================================================================
 ' LongPathWriteTests
 '
@@ -10,7 +15,7 @@
 '   1. WriteStream's atomic swap  (SetFileAttributesW + MoveFileExW on filePath,
 '                                  and on the even-longer tempPath)
 '   2. NormalizeTextFile          (GetFileAttributesW attribute reads)
-'   3. MergeFiles                 (in-place MoveFileExW swap)
+'   3. MergeTextFiles                 (in-place MoveFileExW swap)
 '
 ' The fixture tree is built with tB's own CreateFolder, which is now long-path
 ' capable via ApiPath -> CreateDirectoryW. If the tree fails to build, THAT is the
@@ -21,7 +26,7 @@
 ' Run RunAll. Self-contained; leaves nothing behind on success.
 ' ==========================================================================
 
-Module LongPathWriteTests
+Private Module LongPathWriteTests
     Option Explicit
 
     Private Const SEG As String = "seg_0123456789_abcdefghijkl"   ' 27 chars
@@ -63,7 +68,7 @@ Module LongPathWriteTests
         Test_StringToTextFile_RoundTrip
         Test_ArrayToTextFile_RoundTrip
         Test_NormalizeTextFile
-        Test_MergeFiles_InPlace
+        Test_MergeTextFiles_InPlace
         Test_TempNameOverflow
         Test_Rename
         
@@ -152,7 +157,7 @@ Module LongPathWriteTests
               got.Count & " item(s), first=[" & first & "]"
     End Sub
 
-    ' TextStream append. MergeFiles exercised OpenWriteFresh; nothing has exercised
+    ' TextStream append. MergeTextFiles exercised OpenWriteFresh; nothing has exercised
     ' OpenWriteAppend, whose CreateFileW (FILE_APPEND_DATA) is a separate prefixed
     ' call site.
     Private Sub Test_AppendStream()
@@ -300,9 +305,9 @@ Module LongPathWriteTests
               "changed=" & changed & " got=[" & Replace(got, vbLf, "\n") & "]"
     End Sub
 
-    ' MergeFiles' in-place swap: output path aliases the first input, so it goes
+    ' MergeTextFiles' in-place swap: output path aliases the first input, so it goes
     ' through the temp-and-MoveFileExW path - the third prefixed site.
-    Private Sub Test_MergeFiles_InPlace()
+    Private Sub Test_MergeTextFiles_InPlace()
         Dim a As String, b As String
         a = FileSystemTools.BuildPath(mDeep, "merge_a.txt")
         b = FileSystemTools.BuildPath(mDeep, "merge_b.txt")
@@ -311,14 +316,14 @@ Module LongPathWriteTests
         FileSystemTools.StringToTextFile "B1" & vbCrLf & "B2", b, encUtf8, nlWindows
 
         ' outputFilePath omitted -> in-place into 'a' -> temp swap on a >260 path
-        FileSystemTools.MergeFiles a, b
+        FileSystemTools.MergeTextFiles a, b
 
         Dim got As String
         got = FileSystemTools.TextFileToString(a)
         Dim ok As Boolean
         ok = (InStr(got, "A1") > 0) AndAlso (InStr(got, "B2") > 0) _
              AndAlso (InStr(got, "A1") < InStr(got, "B1"))
-        Check "MergeFiles in-place on long path", ok, "A then B", _
+        Check "MergeTextFiles in-place on long path", ok, "A then B", _
               "[" & Replace(got, vbCrLf, "|") & "]"
     End Sub
 
@@ -383,4 +388,3 @@ Module LongPathWriteTests
     End Sub
 
 End Module
-

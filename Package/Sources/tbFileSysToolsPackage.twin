@@ -66,12 +66,12 @@
 Public Class FileSystemObject
     Option Explicit
 
-    [Description("Returns the file's version. By default (fvFixed) returns the binary version as major.minor.build.revision, fvFileString returns the authored StringFileInfo FileVersion string and fvProductString returns the ProductVersion string; both fall back to the fixed version when the file has no string block. Returns an empty string when the file carries no version resource.")]
+    [Description("Returns the file's version. By default (fvFixed) returns the binary version as major.minor.build.revision, fvFileString returns the authored StringFileInfo FileVersion string and fvProductString returns the ProductVersion string; both fall back to the fixed version when the file has no string block. Returns an empty string when the file carries no version resource, and also for paths longer than 260 characters, which the version-resource APIs do not support.")]
     Public Function GetFileVersion(ByVal fileName As String, Optional ByVal source As FileVersionSource = fvFixed) As String
         Return FileSystemTools.GetFileVersion(fileName, source)
     End Function
     
-    [Description("Returns the shell's type description for a file or folder (e.g. ""Text Document"", ""Application"", ""File Folder""), the same string Explorer and Scripting.FileSystemObject's File.Type show. Falls back to ""<EXT> File"" or ""File"" when the shell is unavailable.")]
+    [Description("Returns the shell's type description for a file or folder (e.g. ""Text Document"", ""Application"", ""File Folder""), the same string Explorer and Scripting.FileSystemObject's File.Type show. Falls back to ""<EXT> File"" or ""File"" when the shell is unavailable, and for paths longer than 260 characters, which the shell APIs do not support.")]
     Public Function GetFileType(ByVal filePath As String) As String
         Return FileSystemTools.GetFileType(filePath)
     End Function
@@ -555,7 +555,7 @@ Public Module FileSystemTools
     ' Three-step version-resource read: size the block, load it, then query it.
     ' Any of the three can legitimately fail (no version resource at all), in
     ' which case we return "" rather than raising - matching FSO.
-    [Description("Returns the file's version. By default (fvFixed) returns the binary version as major.minor.build.revision, fvFileString returns the authored StringFileInfo FileVersion string and fvProductString returns the ProductVersion string; both fall back to the fixed version when the file has no string block. Returns an empty string when the file carries no version resource.")]
+    [Description("Returns the file's version. By default (fvFixed) returns the binary version as major.minor.build.revision, fvFileString returns the authored StringFileInfo FileVersion string and fvProductString returns the ProductVersion string; both fall back to the fixed version when the file has no string block. Returns an empty string when the file carries no version resource, and also for paths longer than 260 characters, which the version-resource APIs do not support.")]
     Public Function GetFileVersion(ByVal filePath As String, Optional ByVal source As FileVersionSource = fvFixed) As String
         Dim size As Long
         filePath = VBA.Replace$(filePath, "/", "\")
@@ -593,7 +593,7 @@ Public Module FileSystemTools
             (ffi.dwFileVersionLS And &HFFFF&)
     End Function
         
-    [Description("Returns the shell's type description for a file or folder (e.g. ""Text Document"", ""Application"", ""File Folder""), the same string Explorer and Scripting.FileSystemObject's File.Type show. Falls back to ""<EXT> File"" or ""File"" when the shell is unavailable.")]
+    [Description("Returns the shell's type description for a file or folder (e.g. ""Text Document"", ""Application"", ""File Folder""), the same string Explorer and Scripting.FileSystemObject's File.Type show. Falls back to ""<EXT> File"" or ""File"" when the shell is unavailable, and for paths longer than 260 characters, which the shell APIs do not support.")]
     Public Function GetFileType(ByVal filePath As String) As String
         Dim shfi As SHFILEINFOW
         filePath = VBA.Replace$(filePath, "/", "\")
@@ -609,7 +609,7 @@ Public Module FileSystemTools
                 GetFileType = GetFileType & ChrW$(ch)
             Next
         End If
-        If Len(GetFileType) = 0 Then                          ' shell unavailable/headless -> your fallback
+        If Len(GetFileType) = 0 Then                          ' shell unavailable/headless -> fallback
             Dim ext As String
             ext = GetExtensionName(filePath)
             If Len(ext) = 0 Then GetFileType = "File" Else GetFileType = UCase$(ext) & " File"
@@ -737,7 +737,7 @@ Public Module FileSystemTools
         ' this path returns a valid attribute mask and would otherwise pass.
         Dim attr As Long
         folderPath = VBA.Replace$(folderPath, "/", "\")
-        attr = GetFileAttributesW(StrPtr(Shared.ApiPath(folderPath)))
+        attr = GetFileAttributesW(StrPtr(FSTShared.ApiPath(folderPath)))
         FolderExists = (attr <> INVALID_FILE_ATTRIBUTES) And ((attr And FILE_ATTRIBUTE_DIRECTORY) <> 0)
     End Function
         
@@ -762,7 +762,7 @@ Public Module FileSystemTools
         Dim attr As Long
         If Trim$(filePath) = vbNullString Then Exit Function     ' empty -> False
         filePath = VBA.Replace$(filePath, "/", "\")
-        attr = GetFileAttributesW(StrPtr(Shared.ApiPath(filePath)))
+        attr = GetFileAttributesW(StrPtr(FSTShared.ApiPath(filePath)))
         FileExists = (attr <> INVALID_FILE_ATTRIBUTES) And ((attr And FILE_ATTRIBUTE_DIRECTORY) = 0)
     End Function
         
@@ -826,7 +826,7 @@ Public Module FileSystemTools
         ' Pure rename (same folder, no overwrite, no move)
         ' Flags deliberately 0: no REPLACE_EXISTING (guarded above) and no
         ' COPY_ALLOWED (a same-folder rename can never cross volumes).
-        If MoveFileExW(StrPtr(Shared.ApiPath(source)), StrPtr(Shared.ApiPath(destination)), 0) = 0 Then
+        If MoveFileExW(StrPtr(FSTShared.ApiPath(source)), StrPtr(FSTShared.ApiPath(destination)), 0) = 0 Then
             RaiseFromLastError Err.LastDllError, "Rename", source
         End If
         Rename = destination
@@ -891,6 +891,7 @@ Public Module FileSystemTools
         ' If caller gives a base, only combine when Path is genuinely relative
         ' BUT: "C:foo" is special. We keep Windows semantics unless base is on same drive.
         If Len(baseDirectory) > 0 Then
+            /*
             If IsDriveRelative(path) Then
                 ' Base overrides the per-drive current directory only when it's the same drive.
                 If UCase$(Left$(baseDirectory, 2)) = UCase$(Left$(path, 2)) Then
@@ -909,6 +910,14 @@ Public Module FileSystemTools
                     Err.Raise 52, "GetAbsolutePathName", "Bad file name or number: " & path
                 End If
                 path = Left$(combined, InStr(combined, vbNullChar) - 1)
+            End If
+            */
+            If IsDriveRelative(path) Then
+                If UCase$(Left$(baseDirectory, 2)) = UCase$(Left$(path, 2)) Then
+                    path = CombineLexical(baseDirectory, Mid$(path, 3))
+                End If
+            Else
+                path = CombineLexical(baseDirectory, path)
             End If
         End If
 
@@ -1075,6 +1084,13 @@ Public Module FileSystemTools
         End If
     End Function
     
+    ' LONG-PATH LIMIT: the CWD stays 260-bound, and the \\?\ prefix is NOT a
+    ' workaround - verified: ChDir on a >260 path fails both bare and prefixed.
+    ' SetCurrentDirectoryW loses the cap only under the process-wide opt-in
+    ' (LongPathsEnabled + longPathAware in the APPLICATION manifest), which a
+    ' library can't guarantee: in an ActiveX host that manifest is Excel's.
+    ' Structural reason: relative paths can't carry the prefix, so a long CWD
+    ' would make every relative path unresolvable. Deliberately not ApiPath'd.
     [Description("Returns the current directory.")]
     Public Function GetCurrentDir() As String
         Const MAX_PATH As Long = 32768
@@ -1374,7 +1390,7 @@ Public Module FileSystemTools
         ' which silently yielded an unallocated array - i.e. a huge file read as empty.
         ' StatPath is the only trustworthy size source.
         Dim attrs As Long, cr As Date, mo As Date, ac As Date, leaf As String
-        If Not Shared.StatPath(filePath, attrs, size, cr, mo, ac, leaf) Then
+        If Not FSTShared.StatPath(filePath, attrs, size, cr, mo, ac, leaf) Then
             Err.Raise 53, "ReadStream", "Could not stat file: " & filePath
         End If
 
@@ -1427,10 +1443,10 @@ Public Module FileSystemTools
 
         ' Clear any read-only attribute on an existing target so it can be replaced
         If FileExists(filePath) Then
-            SetFileAttributesW StrPtr(Shared.ApiPath(filePath)), FILE_ATTRIBUTE_NORMAL
+            SetFileAttributesW StrPtr(FSTShared.ApiPath(filePath)), FILE_ATTRIBUTE_NORMAL
         End If
         ' Atomic swap (temp is on the same volume, so this is a true rename)
-        If MoveFileExW(StrPtr(Shared.ApiPath(tempPath)), StrPtr(Shared.ApiPath(filePath)), MOVEFILE_REPLACE_EXISTING) = 0 Then
+        If MoveFileExW(StrPtr(FSTShared.ApiPath(tempPath)), StrPtr(FSTShared.ApiPath(filePath)), MOVEFILE_REPLACE_EXISTING) = 0 Then
             ' Capture LastDllError BEFORE the cleanup call - DeleteFileW would
             ' overwrite it and we would raise the wrong error.
             Dim e As Long
@@ -1481,7 +1497,7 @@ Public Module FileSystemTools
         Dim f As File
         Set f = New File
         Dim attrs As Long, size As LongLong, created As Date, modified As Date, accessed As Date, leaf As String
-        Shared.StatPath filePath, attrs, size, created, modified, accessed, leaf
+        FSTShared.StatPath filePath, attrs, size, created, modified, accessed, leaf
         ' StatPath hands back the leaf as stored on disk; re-attach it so the object
         ' reports the true casing rather than whatever the caller typed.
         If Len(leaf) > 0 Then filePath = BuildPath(GetParentFolderName(filePath), leaf)   ' disk casing
@@ -1498,7 +1514,7 @@ Public Module FileSystemTools
         Dim d As Folder
         Set d = New Folder
         Dim attrs As Long, size As LongLong, created As Date, modified As Date, accessed As Date, leaf As String
-        Shared.StatPath folderPath, attrs, size, created, modified, accessed, leaf
+        FSTShared.StatPath folderPath, attrs, size, created, modified, accessed, leaf
         ' A drive root has no leaf to enumerate, so StatPath returns "" and the path
         ' is left as-is. (Note: 'size' is stat'd but unused - Folder computes it.)
         If Len(leaf) > 0 Then folderPath = BuildPath(GetParentFolderName(folderPath), leaf)   ' "" for root -> unchanged
@@ -1614,7 +1630,7 @@ Public Module FileSystemTools
         ' Capture settable source attributes before the rewrite resets them
         ' (WriteStream's temp-swap replaces the file, and with it its attributes).
         Dim srcAttr As Long
-        srcAttr = GetFileAttributesW(StrPtr(Shared.ApiPath(filePath))) And Shared.SETTABLE_ATTRS
+        srcAttr = GetFileAttributesW(StrPtr(FSTShared.ApiPath(filePath))) And FSTShared.SETTABLE_ATTRS
 
         ' Convert newlines, then re-encode to the target
         Dim s As String
@@ -1637,7 +1653,7 @@ Public Module FileSystemTools
             ' neither trigger a spurious change nor block idempotency.
             Dim tgt As Long
             tgt = SanitizeAttrs(toAttributes)                 ' what SetPathAttributes will apply
-            If (GetFileAttributesW(StrPtr(Shared.ApiPath(filePath))) And Shared.SETTABLE_ATTRS) <> tgt Then
+            If (GetFileAttributesW(StrPtr(FSTShared.ApiPath(filePath))) And FSTShared.SETTABLE_ATTRS) <> tgt Then
                 SetPathAttributes filePath, tgt    ' tgt already sanitized; the chokepoint re-sanitizes idempotently
                 changed = True                     ' NOTE: an attribute-only change still reports True
             End If
@@ -1711,7 +1727,7 @@ Public Module FileSystemTools
         tsOut.Close
 
         If inPlace Then
-            If MoveFileExW(StrPtr(Shared.ApiPath(writePath)), StrPtr(Shared.ApiPath(outPath)), MOVEFILE_REPLACE_EXISTING) = 0 Then
+            If MoveFileExW(StrPtr(FSTShared.ApiPath(writePath)), StrPtr(FSTShared.ApiPath(outPath)), MOVEFILE_REPLACE_EXISTING) = 0 Then
                 Dim me_ As Long: me_ = Err.LastDllError
                 DeleteFileW StrPtr(writePath)          ' don't strand the temp
                 RaiseFromLastError me_, "MergeFiles", outPath
@@ -1801,20 +1817,20 @@ Public Module FileSystemTools
         Dim name As String
 
         Dim e As Long
-        hFind = FindFirstFileW(StrPtr(Shared.EnsureTrailingBackslash(Shared.ApiPath(folder)) & pattern), ffd)
+        hFind = FindFirstFileW(StrPtr(FSTShared.EnsureTrailingBackslash(FSTShared.ApiPath(folder)) & pattern), ffd)
         e = Err.LastDllError                          ' capture BEFORE anything else
         If hFind = INVALID_HANDLE_VALUE Then
-            Shared.IsEmptySearch e, "GetFilePaths", folder   ' returns True, or raises
+            FSTShared.IsEmptySearch e, "GetFilePaths", folder   ' returns True, or raises
             Exit Sub
         End If
 
         On Error GoTo CleanUp
         Do
             If (ffd.dwFileAttributes And FILE_ATTRIBUTE_DIRECTORY) = 0 Then
-                name = Shared.FindDataFileName(ffd)         ' NUL-terminated fixed buffer -> String
+                name = FSTShared.FindDataFileName(ffd)         ' NUL-terminated fixed buffer -> String
                 If name <> "." And name <> ".." Then
-                    If Shared.IncludeByAttr(ffd.dwFileAttributes, includeHidden, includeSystem) Then
-                        result.Add Shared.EnsureTrailingBackslash(folder) & name
+                    If FSTShared.IncludeByAttr(ffd.dwFileAttributes, includeHidden, includeSystem) Then
+                        result.Add FSTShared.EnsureTrailingBackslash(folder) & name
                     End If
                 End If
             End If
@@ -1836,10 +1852,10 @@ Public Module FileSystemTools
         Dim folders As New Collection
 
         Dim e As Long
-        hFind = FindFirstFileW(StrPtr(Shared.EnsureTrailingBackslash(Shared.ApiPath(folder)) & "*"), ffd)
+        hFind = FindFirstFileW(StrPtr(FSTShared.EnsureTrailingBackslash(FSTShared.ApiPath(folder)) & "*"), ffd)
         e = Err.LastDllError
         If hFind = INVALID_HANDLE_VALUE Then
-            Shared.IsEmptySearch e, "GetFilePaths", folder
+            FSTShared.IsEmptySearch e, "GetFilePaths", folder
             Set EnumerateSubFolders = folders          ' empty, and legitimately so
             Exit Function
         End If
@@ -1847,10 +1863,10 @@ Public Module FileSystemTools
         On Error GoTo CleanUp
         Do
             If (ffd.dwFileAttributes And FILE_ATTRIBUTE_DIRECTORY) <> 0 Then
-                name = Shared.FindDataFileName(ffd)
+                name = FSTShared.FindDataFileName(ffd)
                 If name <> "." And name <> ".." Then        ' skip the self/parent entries
-                    If Shared.IncludeByAttr(ffd.dwFileAttributes, includeHidden, includeSystem) Then
-                        folders.Add Shared.EnsureTrailingBackslash(folder) & name
+                    If FSTShared.IncludeByAttr(ffd.dwFileAttributes, includeHidden, includeSystem) Then
+                        folders.Add FSTShared.EnsureTrailingBackslash(folder) & name
                     End If
                 End If
             End If
@@ -1870,7 +1886,7 @@ Public Module FileSystemTools
     ' not exist reports NORMAL (i.e. "treat it as a file").
     Private Function ResolveAttrForRelative(ByVal path As String) As FILE_ATTRIBUTES
         Dim a As FILE_ATTRIBUTES
-        a = GetFileAttributesW(StrPtr(Shared.ApiPath(path)))
+        a = GetFileAttributesW(StrPtr(FSTShared.ApiPath(path)))
         If a <> INVALID_FILE_ATTRIBUTES And (a And FILE_ATTRIBUTE_DIRECTORY) <> 0 Then
             ResolveAttrForRelative = FILE_ATTRIBUTE_DIRECTORY
         Else
@@ -1912,7 +1928,7 @@ Public Module FileSystemTools
             PathExists = False
             Exit Function
         End If
-        PathExists = (GetFileAttributesW(StrPtr(Shared.ApiPath(path))) <> INVALID_FILE_ATTRIBUTES)
+        PathExists = (GetFileAttributesW(StrPtr(FSTShared.ApiPath(path))) <> INVALID_FILE_ATTRIBUTES)
     End Function
         
     '=================================================================================================
@@ -1923,7 +1939,7 @@ Public Module FileSystemTools
     ' Raises 53 for missing/wrong-type; anything else comes from RaiseFromLastError.
     Private Sub DeleteOneFile(ByVal filePath As String, ByVal force As Boolean, ByVal ignoreMissing As Boolean)
         Dim attr As Long
-        Dim p As String: p = Shared.ApiPath(filePath)
+        Dim p As String: p = FSTShared.ApiPath(filePath)
         
         attr = GetFileAttributesW(StrPtr(p))
         If attr = -1 Then
@@ -1965,7 +1981,7 @@ Public Module FileSystemTools
         On Error GoTo CleanUp
         Do
             Dim nm As String
-            nm = Shared.FindDataFileName(ffd)
+            nm = FSTShared.FindDataFileName(ffd)
             If nm <> "." And nm <> ".." Then
                 If (ffd.dwFileAttributes And FILE_ATTRIBUTE_DIRECTORY) = 0 Then names.Add nm
             End If
@@ -1995,7 +2011,7 @@ Public Module FileSystemTools
     ' delegate here (parallels DeleteOneFile / MoveOneFolder).
     Private Sub DeleteOneFolder(ByVal folderPath As String, ByVal force As Boolean, ByVal ignoreMissing As Boolean)
         Dim attr As Long
-        Dim p As String: p = Shared.ApiPath(folderPath)
+        Dim p As String: p = FSTShared.ApiPath(folderPath)
         attr = GetFileAttributesW(StrPtr(p))
         If attr = -1 Then
             If ignoreMissing Then Exit Sub                 ' nothing to delete - not an error
@@ -2029,7 +2045,7 @@ Public Module FileSystemTools
         ' as one string. ApiPath is a no-op under 248 chars, so short paths are
         ' unchanged. 'folder' is already canonical (it descends from GetAbsolutePathName
         ' in DeleteOneFolder), which is what makes \\?\ safe to apply.
-        searchPath = Shared.EnsureTrailingBackslash(Shared.ApiPath(folder)) & "*"
+        searchPath = FSTShared.EnsureTrailingBackslash(FSTShared.ApiPath(folder)) & "*"
 
         hFind = FindFirstFileW(StrPtr(searchPath), ffd)
         If hFind = INVALID_HANDLE_VALUE Then Exit Sub
@@ -2041,24 +2057,24 @@ Public Module FileSystemTools
         ' to any other kind of mutation.
         Do
             Dim name As String
-            name = Shared.FindDataFileName(ffd)
+            name = FSTShared.FindDataFileName(ffd)
 
             If name <> "." And name <> ".." Then
                 Dim fullPath As String
                 ' BARE path (no prefix): the recursive call re-derives its own search
                 ' string and prefixes at its own API calls. Prefixing here would push a
                 ' \\?\ path through the child's EnsureTrailingBackslash/wildcard concat.
-                fullPath = Shared.EnsureTrailingBackslash(folder) & name
+                fullPath = FSTShared.EnsureTrailingBackslash(folder) & name
 
                 If (ffd.dwFileAttributes And FILE_ATTRIBUTE_DIRECTORY) <> 0 Then
                     ' Recurses into reparse points/junctions as if they were real
                     ' folders - deletes the TARGET's contents, not just the link.
                     DeleteFolderRecursive fullPath, force                ' bare - see above
-                    If force Then SetFileAttributesW StrPtr(Shared.ApiPath(fullPath)), FILE_ATTRIBUTE_NORMAL
-                    RemoveDirectoryW StrPtr(Shared.ApiPath(fullPath))
+                    If force Then SetFileAttributesW StrPtr(FSTShared.ApiPath(fullPath)), FILE_ATTRIBUTE_NORMAL
+                    RemoveDirectoryW StrPtr(FSTShared.ApiPath(fullPath))
                 Else
-                    If force Then SetFileAttributesW StrPtr(Shared.ApiPath(fullPath)), FILE_ATTRIBUTE_NORMAL
-                    DeleteFileW StrPtr(Shared.ApiPath(fullPath))
+                    If force Then SetFileAttributesW StrPtr(FSTShared.ApiPath(fullPath)), FILE_ATTRIBUTE_NORMAL
+                    DeleteFileW StrPtr(FSTShared.ApiPath(fullPath))
                 End If
             End If
         Loop While FindNextFileW(hFind, ffd) <> 0
@@ -2090,7 +2106,7 @@ Public Module FileSystemTools
         Do
             If (ffd.dwFileAttributes And FILE_ATTRIBUTE_DIRECTORY) <> 0 Then
                 Dim nm As String
-                nm = Shared.FindDataFileName(ffd)
+                nm = FSTShared.FindDataFileName(ffd)
                 If nm <> "." And nm <> ".." Then names.Add nm
             End If
         Loop While FindNextFileW(hFind, ffd) <> 0
@@ -2128,7 +2144,7 @@ Public Module FileSystemTools
         ' Prefix the SOURCE folder, then append the wildcard - same folder/wildcard
         ' split as DeleteFolderRecursive. ApiPath is a no-op under 248. 'source' is
         ' canonical (descends from CopyOneFolder's GetAbsolutePathName), so \\?\ is safe.
-        searchPath = Shared.EnsureTrailingBackslash(Shared.ApiPath(source)) & "*"
+        searchPath = FSTShared.EnsureTrailingBackslash(FSTShared.ApiPath(source)) & "*"
 
         hFind = FindFirstFileW(StrPtr(searchPath), ffd)
         If hFind = INVALID_HANDLE_VALUE Then Exit Sub
@@ -2136,7 +2152,7 @@ Public Module FileSystemTools
         On Error GoTo CleanUp
         Do
             Dim name As String
-            name = Shared.FindDataFileName(ffd)
+            name = FSTShared.FindDataFileName(ffd)
 
             If name <> "." And name <> ".." Then
                 Dim srcItem As String
@@ -2145,8 +2161,8 @@ Public Module FileSystemTools
                 ' BARE paths - the callees (FolderExists, CreateDir, CopyOneFile, and
                 ' the recursive call) each prefix at their own API sites. Prefixing here
                 ' would push a \\?\ path through their EnsureTrailingBackslash/concat.
-                srcItem = Shared.EnsureTrailingBackslash(source) & name
-                dstItem = Shared.EnsureTrailingBackslash(destination) & name
+                srcItem = FSTShared.EnsureTrailingBackslash(source) & name
+                dstItem = FSTShared.EnsureTrailingBackslash(destination) & name
 
                 If (ffd.dwFileAttributes And FILE_ATTRIBUTE_DIRECTORY) <> 0 Then
                     ' Subfolder
@@ -2207,7 +2223,7 @@ Public Module FileSystemTools
 
         ' FSO treats destination as folder if it exists as a folder OR ends with "\"
         If IsFolderPathOrExistingFolder(destination) Then
-            destination = Shared.EnsureTrailingBackslash(destination) & GetFileName(source)
+            destination = FSTShared.EnsureTrailingBackslash(destination) & GetFileName(source)
         End If
 
         Dim flags As Long
@@ -2222,8 +2238,8 @@ Public Module FileSystemTools
         ' own. ApiPath is a no-op under 248, so short paths are untouched. Applied
         ' here, AFTER the folder-destination above, so ApiPath only ever sees
         ' the final canonical target - never a path still ending in "\" awaiting a leaf.
-        Dim src As String: src = Shared.ApiPath(source)
-        Dim dst As String: dst = Shared.ApiPath(destination)
+        Dim src As String: src = FSTShared.ApiPath(source)
+        Dim dst As String: dst = FSTShared.ApiPath(destination)
 
         SetLastError 0                                    ' clear stale error state before the call
         If CopyFileExW(StrPtr(src), StrPtr(dst), 0, 0, cancel, flags) = 0 Then
@@ -2243,7 +2259,7 @@ Public Module FileSystemTools
         End If
 
         Dim attr As Long
-        attr = GetFileAttributesW(StrPtr(Shared.ApiPath(path)))
+        attr = GetFileAttributesW(StrPtr(FSTShared.ApiPath(path)))
         If attr = -1 Then Exit Function                    ' doesn't exist -> treat as a file path
         IsFolderPathOrExistingFolder = ((attr And FILE_ATTRIBUTE_DIRECTORY) <> 0)
     End Function
@@ -2252,7 +2268,7 @@ Public Module FileSystemTools
     ' RaiseFromLastError with the caller's name (sourceName) rather than "CreateDir".
     ' Note it creates ONE level: parents must already exist (see EnsureParentExists).
     Private Sub CreateDir(ByVal path As String, ByVal sourceName As String)
-        If CreateDirectoryW(StrPtr(Shared.ApiPath(path)), ByVal vbNullPtr) = CFALSE Then
+        If CreateDirectoryW(StrPtr(FSTShared.ApiPath(path)), ByVal vbNullPtr) = CFALSE Then
             RaiseFromLastError Err.LastDllError, sourceName, path
         End If
     End Sub
@@ -2321,7 +2337,7 @@ Public Module FileSystemTools
 
         ' Atomic same-volume rename first. No COPY_ALLOWED: cross-volume falls
         ' through to our CopyFile + DeleteFile (surfaces a failed source delete).
-        If MoveFileExW(StrPtr(Shared.ApiPath(source)), StrPtr(Shared.ApiPath(destination)), 0) <> 0 Then
+        If MoveFileExW(StrPtr(FSTShared.ApiPath(source)), StrPtr(FSTShared.ApiPath(destination)), 0) <> 0 Then
             MoveOneFile = destination
             Exit Function
         End If
@@ -2366,7 +2382,7 @@ Public Module FileSystemTools
         ' NOTE the asymmetry with MoveOneFile: COPY_ALLOWED is passed here, but it
         ' is a no-op for directories (Win32 will not copy a tree), so a cross-volume
         ' move still lands in the ERROR_NOT_SAME_DEVICE fallback below.
-        If MoveFileExW(StrPtr(Shared.ApiPath(source)), StrPtr(Shared.ApiPath(destination)), MOVEFILE_COPY_ALLOWED) <> 0 Then
+        If MoveFileExW(StrPtr(FSTShared.ApiPath(source)), StrPtr(FSTShared.ApiPath(destination)), MOVEFILE_COPY_ALLOWED) <> 0 Then
             MoveOneFolder = destination
             Exit Function
         End If
@@ -2400,7 +2416,7 @@ Public Module FileSystemTools
         ' Resolve destination folder: an EXISTING destination means "copy INTO it"
         ' (source keeps its leaf name); otherwise the destination IS the new folder.
         If FolderExists(destination) Then
-            destination = Shared.EnsureTrailingBackslash(destination) & GetFileName(source)
+            destination = FSTShared.EnsureTrailingBackslash(destination) & GetFileName(source)
         End If
 
         ' Destination inside source = unbounded recursion: every level we create
@@ -2464,7 +2480,7 @@ Public Module FileSystemTools
         On Error GoTo CleanUp
         Do
             Dim nm As String
-            nm = Shared.FindDataFileName(ffd)
+            nm = FSTShared.FindDataFileName(ffd)
             If nm <> "." And nm <> ".." Then
                 Dim isDir As Boolean
                 isDir = ((ffd.dwFileAttributes And FILE_ATTRIBUTE_DIRECTORY) <> 0)
@@ -2494,7 +2510,7 @@ Public Module FileSystemTools
         ' --- Phase 2: handle closed; perform the moves via the single-item cores ---
         ' The trailing "\" is what makes the cores treat destination as a container.
         Dim destContainer As String
-        destContainer = Shared.EnsureTrailingBackslash(destination)
+        destContainer = FSTShared.EnsureTrailingBackslash(destination)
 
         Dim v As Variant
         For Each v In names
@@ -2530,7 +2546,7 @@ Public Module FileSystemTools
         On Error GoTo CleanUp
         Do
             Dim nm As String
-            nm = Shared.FindDataFileName(ffd)
+            nm = FSTShared.FindDataFileName(ffd)
             If nm <> "." And nm <> ".." Then
                 If (ffd.dwFileAttributes And FILE_ATTRIBUTE_DIRECTORY) <> 0 Then names.Add nm
             End If
@@ -2554,7 +2570,7 @@ Public Module FileSystemTools
 
         ' --- Phase 2: handle closed; now copy ---
         Dim destContainer As String
-        destContainer = Shared.EnsureTrailingBackslash(destination)
+        destContainer = FSTShared.EnsureTrailingBackslash(destination)
 
         Dim v As Variant
         For Each v In names
@@ -2585,7 +2601,7 @@ Public Module FileSystemTools
         On Error GoTo CleanUp
         Do
             Dim nm As String
-            nm = Shared.FindDataFileName(ffd)
+            nm = FSTShared.FindDataFileName(ffd)
             If nm <> "." And nm <> ".." Then
                 If (ffd.dwFileAttributes And FILE_ATTRIBUTE_DIRECTORY) = 0 Then names.Add nm
             End If
@@ -2609,7 +2625,7 @@ Public Module FileSystemTools
 
         ' --- Phase 2: handle closed; now copy ---
         Dim destContainer As String
-        destContainer = Shared.EnsureTrailingBackslash(destination)
+        destContainer = FSTShared.EnsureTrailingBackslash(destination)
 
         Dim v As Variant
         For Each v In names
@@ -2645,6 +2661,30 @@ Public Module FileSystemTools
             End If
         Next
     End Sub
+    
+    ' Lexical replacement for PathCombineW, which is shlwapi and hard-capped at 260
+    ' (like PathRelativePathToW, and not covered by the long-path opt-in). Safe to do
+    ' textually because GetFullPathNameW runs straight afterwards and resolves any
+    ' "." / ".." that survive - and it IS long-path capable.
+    Private Function CombineLexical(ByVal baseDir As String, ByVal relPath As String) As String
+        If Len(relPath) = 0 Then CombineLexical = baseDir: Exit Function
+        If Len(baseDir) = 0 Then CombineLexical = relPath: Exit Function
+
+        ' Already absolute (drive-qualified or UNC) -> the base is irrelevant.
+        If (Len(relPath) >= 2 And Mid$(relPath, 2, 1) = ":") Or Left$(relPath, 2) = "\\" Then
+            CombineLexical = relPath
+            Exit Function
+        End If
+
+        ' Root-relative ("\foo"): PathCombineW takes the ROOT of the base, not the
+        ' whole base. Preserve that or the semantics change silently.
+        If Left$(relPath, 1) = "\" Then
+            CombineLexical = GetDriveName(baseDir) & relPath
+            Exit Function
+        End If
+
+        CombineLexical = BuildPath(baseDir, relPath)
+    End Function
     
 End Module
 
@@ -2780,7 +2820,7 @@ Public Class File
     End Property
 
     ' A true stat field, unlike Folder.Size (which walks a subtree). Exact past 4GB:
-    ' the value comes from Shared.SizeFromHL, which reassembles both DWORDs.
+    ' the value comes from FSTShared.SizeFromHL, which reassembles both DWORDs.
     [Description("Returns the size, in bytes, of a specified file.")]
     Public Property Get Size() As LongLong
         EnsureCurrent
@@ -2802,7 +2842,7 @@ Public Class File
 
     ' Loads and parses the PE version resource each time. Returns "" for a file
     ' that carries none - which is most files.
-    [Description("Returns the file's version. By default (fvFixed) returns the binary version as major.minor.build.revision, fvFileString returns the authored StringFileInfo FileVersion string and fvProductString returns the ProductVersion string; both fall back to the fixed version when the file has no string block. Returns an empty string when the file carries no version resource.")]
+    [Description("Returns the file's version. By default (fvFixed) returns the binary version as major.minor.build.revision, fvFileString returns the authored StringFileInfo FileVersion string and fvProductString returns the ProductVersion string; both fall back to the fixed version when the file has no string block. Returns an empty string when the file carries no version resource, and also for paths longer than 260 characters, which the version-resource APIs do not support.")]
     Public Property Get Version(Optional ByVal source As FileVersionSource = fvFixed) As String
         EnsureCurrent
         Version = FileSystemTools.GetFileVersion(mPath, source)
@@ -2831,24 +2871,22 @@ Public Class File
         Encoding = FileSystemTools.GetFileEncoding(mPath, sampleBytes)
     End Property
 
-    ' A shell round-trip (SHGetFileInfoW), and the string is LOCALISED - it is
-    ' whatever Explorer would show. Contrast Folder.Type, which is hard-coded.
-    [Description("The shell type description of the file (e.g. ""Text Document""), as shown in Explorer.")]
+    [Description("Returns the shell's type description for a file or folder (e.g. ""Text Document"", ""Application"", ""File Folder""), the same string Explorer and Scripting.FileSystemObject's File.Type show. Falls back to ""<EXT> File"" or ""File"" when the shell is unavailable, and for paths longer than 260 characters, which the shell APIs do not support.")]
     Public Property Get Type() As String
         EnsureCurrent
         Type = FileSystemTools.GetFileType(mPath)
     End Property
 
-    [Description("Returns the short path of a specified file.")]
+    [Description("Returns the file's 8.3 short path, or the full path unchanged when no short name is available - which includes volumes with 8.3 name generation disabled and paths longer than 260 characters. Compare the result with the full path to tell whether shortening actually occurred.")]
     Public Property Get ShortPath() As String
         EnsureCurrent
-        ShortPath = Shared.GetShortPath(mPath)
+        ShortPath = FSTShared.GetShortPath(mPath)
     End Property
 
-    [Description("Returns the short name of a specified file.")]
+    [Description("Returns the file's 8.3 short name, or the normal file name unchanged when no short name is available - which includes volumes with 8.3 name generation disabled and paths longer than 260 characters. Compare the result with Name to tell whether shortening actually occurred.")]
     Public Property Get ShortName() As String
         EnsureCurrent
-        ShortName = FileSystemTools.GetFileName(Shared.GetShortPath(mPath))
+        ShortName = FileSystemTools.GetFileName(FSTShared.GetShortPath(mPath))
     End Property
 
     '======================================================================
@@ -2880,7 +2918,7 @@ Public Class File
     Public Property Let Attributes(ByVal value As FileAttribute)
         If value = NoChange Then Exit Property
         EnsureCurrent                      ' fail-fast with 53 if gone, before attempting the set
-        Shared.SetPathAttributes mPath, value
+        FSTShared.SetPathAttributes mPath, value
         Refresh                            ' re-stat: mAttrs now mirrors actual disk state
     End Property
     
@@ -2890,9 +2928,9 @@ Public Class File
     Public Sub SetAttribute(ByVal attr As FileAttribute, ByVal state As Boolean)
         EnsureCurrent
         Dim v As Long
-        v = mAttrs And Shared.SETTABLE_ATTRS          ' current settable set
+        v = mAttrs And FSTShared.SETTABLE_ATTRS          ' current settable set
         If state Then v = v Or attr Else v = v And Not attr
-        Shared.SetPathAttributes mPath, v             ' re-sanitizes; Normal-dominance applies
+        FSTShared.SetPathAttributes mPath, v             ' re-sanitizes; Normal-dominance applies
         Refresh
     End Sub
 
@@ -3007,7 +3045,7 @@ Public Class File
     ' not found), matching FSO.
     Private Sub EnsureCurrent()
         Dim leaf As String
-        If Not Shared.StatPath(mPath, mAttrs, mSize, mCreated, mModified, mAccessed, leaf) Then
+        If Not FSTShared.StatPath(mPath, mAttrs, mSize, mCreated, mModified, mAccessed, leaf) Then
             Err.Raise 53, "File", "File not found: " & mPath
         End If
         ' leaf can only differ from mPath's leaf by CASE — any real name change would
@@ -3250,7 +3288,7 @@ Public Class Folder
     
     ' Get returns the file system's full attribute set, including bits Windows
     ' manages and will not let you write (Directory, ReparsePoint, Compressed,
-    ' Encrypted...). Let applies only the settable subset - Shared.SanitizeAttrs
+    ' Encrypted...). Let applies only the settable subset - FSTShared.SanitizeAttrs
     ' masks the rest away.
     '
     ' The round trip IS a no-op, despite that mask: SetFileAttributesW ignores the
@@ -3270,7 +3308,7 @@ Public Class Folder
     Public Property Let Attributes(ByVal value As FileAttribute)
         If value = NoChange Then Exit Property
         EnsureCurrent                      ' fail-fast with 76 if gone, before attempting the set
-        Shared.SetPathAttributes mPath, value
+        FSTShared.SetPathAttributes mPath, value
         Refresh                            ' re-stat: mAttrs mirrors disk
     End Property
     
@@ -3278,9 +3316,9 @@ Public Class Folder
     Public Sub SetAttribute(ByVal attr As FileAttribute, ByVal state As Boolean)
         EnsureCurrent
         Dim v As Long
-        v = mAttrs And Shared.SETTABLE_ATTRS          ' current settable set
+        v = mAttrs And FSTShared.SETTABLE_ATTRS          ' current settable set
         If state Then v = v Or attr Else v = v And Not attr
-        Shared.SetPathAttributes mPath, v             ' re-sanitizes; Normal-dominance applies
+        FSTShared.SetPathAttributes mPath, v             ' re-sanitizes; Normal-dominance applies
         Refresh
     End Sub
 
@@ -3290,24 +3328,28 @@ Public Class Folder
         HasAttribute = ((mAttrs And attr) <> 0)
     End Property
     
-    [Description("Returns the short path of a specified folder.")]
+    [Description("Returns the folder's 8.3 short path, or the full path unchanged when no short name is available - which includes volumes with 8.3 name generation disabled and paths longer than 260 characters. Compare the result with Path to tell whether shortening actually occurred.")]
     Public Property Get ShortPath() As String
         EnsureCurrent
-        ShortPath = Shared.GetShortPath(mPath)
+        ShortPath = FSTShared.GetShortPath(mPath)
     End Property
 
-    [Description("Returns the short name of a specified folder.")]
+    [Description("Returns the folder's 8.3 short name, or the normal folder name unchanged when no short name is available - which includes volumes with 8.3 name generation disabled and paths longer than 260 characters. Compare the result with Name to tell whether shortening actually occurred.")]
     Public Property Get ShortName() As String
         EnsureCurrent
-        ShortName = FileSystemTools.GetFileName(Shared.GetShortPath(mPath))
+        ShortName = FileSystemTools.GetFileName(FSTShared.GetShortPath(mPath))
     End Property
 
-    [Description("Returns the type of a specified folder.")]
+    [Description("Returns the shell's type description for the folder (e.g. ""File folder""), the same string Explorer and Scripting.FileSystemObject's Folder.Type show. Falls back to a generic description when the shell is unavailable, and for paths longer than 260 characters, which the shell APIs do not support.")]
     Public Property Get Type() As String
         EnsureCurrent
         Type = FileSystemTools.GetFileType(mPath)
+        ' GetFileType's fallback is file-oriented: with no extension it yields "File",
+        ' which is plainly wrong for a folder. Substitute FSO's own string for the
+        ' cases where the shell couldn't answer (unavailable, or a >260 path).
+        If Type = "File" Then Type = "File folder"
     End Property
-
+    
     '======================================================================
     ' Children
     '
@@ -3410,10 +3452,10 @@ Public Class Folder
         Dim isDir As Boolean
 
         Dim e As Long
-        hFind = FindFirstFileW(StrPtr(Shared.EnsureTrailingBackslash(folderPath) & "*"), ffd)
+        hFind = FindFirstFileW(StrPtr(FSTShared.EnsureTrailingBackslash(folderPath) & "*"), ffd)
         e = Err.LastDllError
         If hFind = INVALID_HANDLE_VALUE Then
-            Shared.IsEmptySearch e, IIf(wantFolders, "Folder.SubFolders", "Folder.Files"), folderPath
+            FSTShared.IsEmptySearch e, IIf(wantFolders, "Folder.SubFolders", "Folder.Files"), folderPath
             Set EnumChildren = out
             Exit Function
         End If
@@ -3422,24 +3464,24 @@ Public Class Folder
         Do
             isDir = ((ffd.dwFileAttributes And FILE_ATTRIBUTE_DIRECTORY) <> 0)
             If isDir = wantFolders Then               ' keep only the requested type
-                nm = Shared.FindDataFileName(ffd)
+                nm = FSTShared.FindDataFileName(ffd)
                 If nm <> "." And nm <> ".." Then      ' skip the self/parent entries
-                    If Shared.IncludeByAttr(ffd.dwFileAttributes, includeHidden, includeSystem) Then
-                        full = Shared.EnsureTrailingBackslash(folderPath) & nm
+                    If FSTShared.IncludeByAttr(ffd.dwFileAttributes, includeHidden, includeSystem) Then
+                        full = FSTShared.EnsureTrailingBackslash(folderPath) & nm
                         ' Keyed by name so Files("readme.txt") / SubFolders("bin")
                         ' work. AddKeyed falls back to an unkeyed add on a clash
                         ' rather than aborting the walk.
                         If wantFolders Then
-                            Shared.AddKeyed out, MakeFolderObject(full, ffd.dwFileAttributes, _
-                                Shared.FileTimeToDate(ffd.ftCreationTime), _
-                                Shared.FileTimeToDate(ffd.ftLastWriteTime), _
-                                Shared.FileTimeToDate(ffd.ftLastAccessTime)), nm
+                            FSTShared.AddKeyed out, MakeFolderObject(full, ffd.dwFileAttributes, _
+                                FSTShared.FileTimeToDate(ffd.ftCreationTime), _
+                                FSTShared.FileTimeToDate(ffd.ftLastWriteTime), _
+                                FSTShared.FileTimeToDate(ffd.ftLastAccessTime)), nm
                         Else
-                            Shared.AddKeyed out, MakeFileObject(full, ffd.dwFileAttributes, _
-                                Shared.SizeFromHL(ffd.nFileSizeHigh, ffd.nFileSizeLow), _
-                                Shared.FileTimeToDate(ffd.ftCreationTime), _
-                                Shared.FileTimeToDate(ffd.ftLastWriteTime), _
-                                Shared.FileTimeToDate(ffd.ftLastAccessTime)), nm
+                            FSTShared.AddKeyed out, MakeFileObject(full, ffd.dwFileAttributes, _
+                                FSTShared.SizeFromHL(ffd.nFileSizeHigh, ffd.nFileSizeLow), _
+                                FSTShared.FileTimeToDate(ffd.ftCreationTime), _
+                                FSTShared.FileTimeToDate(ffd.ftLastWriteTime), _
+                                FSTShared.FileTimeToDate(ffd.ftLastAccessTime)), nm
                         End If
                     End If
                 End If
@@ -3489,18 +3531,18 @@ Public Class Folder
         Dim nm As String, full As String
 
         Dim e As Long
-        hFind = FindFirstFileW(StrPtr(Shared.EnsureTrailingBackslash(folderPath) & "*"), ffd)
+        hFind = FindFirstFileW(StrPtr(FSTShared.EnsureTrailingBackslash(folderPath) & "*"), ffd)
         e = Err.LastDllError
         If hFind = INVALID_HANDLE_VALUE Then
-            Shared.IsEmptySearch e, "Folder.Size", folderPath   ' raises 70 on a denied subtree
+            FSTShared.IsEmptySearch e, "Folder.Size", folderPath   ' raises 70 on a denied subtree
             Exit Function                                       ' truly empty -> contributes 0
         End If
 
         On Error GoTo CleanUp
         Do
-            nm = Shared.FindDataFileName(ffd)
+            nm = FSTShared.FindDataFileName(ffd)
             If nm <> "." And nm <> ".." Then
-                full = Shared.EnsureTrailingBackslash(folderPath) & nm
+                full = FSTShared.EnsureTrailingBackslash(folderPath) & nm
                 If (ffd.dwFileAttributes And FILE_ATTRIBUTE_DIRECTORY) <> 0 Then
                     If (ffd.dwFileAttributes And FILE_ATTRIBUTE_REPARSE_POINT) = 0 Then
                         total = total + FolderSize(full)        ' recurse into real dirs only
@@ -3509,7 +3551,7 @@ Public Class Folder
                     ' Unlike Files/SubFolders, hidden and system files are counted
                     ' unconditionally here - no IncludeByAttr filter. A total that
                     ' omitted them would not be a size.
-                    total = total + Shared.SizeFromHL(ffd.nFileSizeHigh, ffd.nFileSizeLow)
+                    total = total + FSTShared.SizeFromHL(ffd.nFileSizeHigh, ffd.nFileSizeLow)
                 End If
             End If
         Loop While FindNextFileW(hFind, ffd) <> 0
@@ -3533,7 +3575,7 @@ Public Class Folder
     Private Sub EnsureCurrent()
         Dim ignoreSize As LongLong
         Dim leaf As String
-        If Not Shared.StatPath(mPath, mAttrs, ignoreSize, mCreated, mModified, mAccessed, leaf) Then
+        If Not FSTShared.StatPath(mPath, mAttrs, ignoreSize, mCreated, mModified, mAccessed, leaf) Then
             Err.Raise 76, "Folder", "Path not found: " & mPath
         End If
         If Len(leaf) > 0 Then
@@ -3622,7 +3664,7 @@ End Class
 ' The size, label and serial properties raise error 71 ("Disk not ready") when the
 ' drive cannot be queried - an empty optical bay, a disconnected share, a card
 ' reader with no card. Other failures (permissions, bad net path) map through
-' Shared.RaiseFromLastError as usual.
+' FSTShared.RaiseFromLastError as usual.
 '
 ' Members that NEVER raise, and are safe to call on any Drive object:
 '   IsReady     - THE GATE. Call it first if a not-ready drive is a possibility
@@ -3838,7 +3880,7 @@ Public Class Drive
         Dim e As Long
         If GetDiskFreeSpaceExW(StrPtr(RootPath()), availToUser, total, free) = 0 Then
             e = Err.LastDllError                      ' capture BEFORE anything else
-            Shared.RaiseFromLastError e, "Drive." & member, mRoot, pathIsDrive:=True
+            FSTShared.RaiseFromLastError e, "Drive." & member, mRoot, pathIsDrive:=True
         End If
     End Sub
 
@@ -3890,7 +3932,7 @@ Public Class Drive
         fsBuf = String$(VOL_BUF, vbNullChar)
         If GetVolumeInformationW(StrPtr(RootPath()), StrPtr(volBuf), VOL_BUF, serial, maxComp, flags, StrPtr(fsBuf), VOL_BUF) = 0 Then
             e = Err.LastDllError
-            Shared.RaiseFromLastError e, "Drive." & member, mRoot, pathIsDrive:=True
+            FSTShared.RaiseFromLastError e, "Drive." & member, mRoot, pathIsDrive:=True
         End If
         label = Left$(volBuf, InStr(volBuf, vbNullChar) - 1)
         fsName = Left$(fsBuf, InStr(fsBuf, vbNullChar) - 1)
@@ -3908,7 +3950,7 @@ Public Class Drive
         Dim e As Long
         If SetVolumeLabelW(StrPtr(RootPath()), StrPtr(value)) = 0 Then
             e = Err.LastDllError
-            Shared.RaiseFromLastError e, "Drive.VolumeName", mRoot, pathIsDrive:=True
+            FSTShared.RaiseFromLastError e, "Drive.VolumeName", mRoot, pathIsDrive:=True
         End If
     End Property
 
@@ -3935,7 +3977,7 @@ Public Class Drive
     End Property
     
     ' The unsigned value. Same bits, correctly interpreted: the +2^32 correction is
-    ' the same one Shared.SizeFromHL applies to a file size's low DWORD, and for the
+    ' the same one FSTShared.SizeFromHL applies to a file size's low DWORD, and for the
     ' same reason - a DWORD arriving in a signed Long.
     [Description("The drive's serial number as an unsigned 32-bit value (0 to 4294967295).")]
     Public Property Get UnsignedSerialNumber() As LongLong
@@ -4371,7 +4413,7 @@ Public Class TextStream
         ' StatPath is the only trustworthy size source.
         Dim total As LongLong
         Dim attrs As Long, cr As Date, mo As Date, ac As Date, leaf As String
-        Shared.StatPath mPath, attrs, total, cr, mo, ac, leaf
+        FSTShared.StatPath mPath, attrs, total, cr, mo, ac, leaf
         If bomLen > 0 And total >= bomLen Then
             Seek #mFile, bomLen + 1                  ' tiny offset: safe on a 32-bit Seek
             mBytesRemaining = total - bomLen
@@ -4385,7 +4427,7 @@ Public Class TextStream
 
     ' Fresh write. CREATE_ALWAYS truncates any existing file
     Private Sub OpenWriteFresh()
-        mHandle = CreateFileW(StrPtr(Shared.ApiPath(mPath)), GENERIC_WRITE, FILE_SHARE_READ, ByVal vbNullPtr, _
+        mHandle = CreateFileW(StrPtr(FSTShared.ApiPath(mPath)), GENERIC_WRITE, FILE_SHARE_READ, ByVal vbNullPtr, _
                               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0)
         If mHandle = INVALID_HANDLE_VALUE Then
             mHandle = 0                              ' normalize: 0 is our "no handle" sentinel
@@ -4409,7 +4451,7 @@ Public Class TextStream
     ' position at the end of a >2GB file (it failed with a bare E_FAIL).
     ' No BOM either - the file already has one or was never meant to.
     Private Sub OpenWriteAppend()
-        mHandle = CreateFileW(StrPtr(Shared.ApiPath(mPath)), FILE_APPEND_DATA, FILE_SHARE_READ, ByVal vbNullPtr, _
+        mHandle = CreateFileW(StrPtr(FSTShared.ApiPath(mPath)), FILE_APPEND_DATA, FILE_SHARE_READ, ByVal vbNullPtr, _
                               OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0)
         If mHandle = INVALID_HANDLE_VALUE Then
             mHandle = 0
@@ -6440,7 +6482,7 @@ End Module
 ' MIT License - Copyright (c) 2026, GCUser99 (https://github.com/GCUser99)
 ' ==========================================================================
 
-Private Module Shared
+Private Module FSTShared
     Option Explicit
     
     '======================================================================
@@ -6823,13 +6865,12 @@ End Module
 
 Private Module WinAPI
     
-    'The Windows API declarations used here are from Jon Johnson's WinDevLib tB package.
+    'The Windows API declarations used here are from Jon Johnson's WinDevLib tB package (https://github.com/fafalone/WinDevLib).
     'This project was designed to function without this module if Jon Johnson's WinDevLib is referenced.
 
     '/*
     Public Declare PtrSafe Function GetLastError Lib "kernel32" () As Long
     Public Declare PtrSafe Function GetFullPathNameW Lib "kernel32" (ByVal lpFileName As LongPtr, ByVal nBufferLength As Long, ByVal lpBuffer As LongPtr, lpFilePart As LongPtr) As Long
-    Public Declare PtrSafe Function PathCombineW Lib "shlwapi" (ByVal pszDest As LongPtr, ByVal pszDir As LongPtr, ByVal pszFile As LongPtr) As LongPtr
     Public Declare PtrSafe Function GetCurrentDirectoryW Lib "kernel32" (ByVal nBufferLength As Long, ByVal lpBuffer As LongPtr) As Long
     Public Declare PtrSafe Function SetCurrentDirectoryW Lib "kernel32" (ByVal lpPathName As LongPtr) As BOOL
     Public Declare PtrSafe Function RemoveDirectoryW Lib "kernel32" (ByVal lpPathName As LongPtr) As BOOL

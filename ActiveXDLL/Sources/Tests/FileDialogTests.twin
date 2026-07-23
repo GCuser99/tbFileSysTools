@@ -25,6 +25,7 @@
 ' clearing the handler, so a failing assertion is never swallowed by the
 ' still-active On Error Resume Next.
 ' ==========================================================================
+
 Private Module FileDialogTests
     Option Explicit
 
@@ -976,67 +977,13 @@ Private Module FileDialogTests
             GetFinalExtension = Mid$(path, dotPos + 1)
         End If
     End Function
-    
-    Sub testEvents()
-        Dim e As New FDEventSink
-        Dim fd As New FileDialog
-        fd.DialogType = fdSaveAs
-        fd.AddFilter "Text", "*.txt"
-        Set e.fd = fd
-        If fd.Show() Then MsgBox "Saved: " & fd.SelectedItems(1)
-    End Sub
 
 End Module
-
-Private Class FDEventSink
-
-    Public WithEvents fd As FileDialog
-
-    Private Sub fd_FileOk(ByVal itemPath As String, ByRef Cancel As Boolean)
-        If InStr(itemPath, " ") > 0 Then
-            MsgBox "Spaces aren't allowed in the file name."  ' indicate the cause
-            Cancel = True                                     ' keeps the dialog open
-        End If
-        Debug.Print "FileOk triggered"
-    End Sub
-
-    Private Sub fd_FolderChanged(ByVal folderPath As String)
-        Debug.Print "FolderChanged triggered - Now in: " & folderPath
-    End Sub
-
-    ' Replace the stock overwrite prompt with your own confirmation
-    Private Sub fd_BeforeOverwrite(ByVal itemPath As String, ByRef Response As FileDialogResponse)
-        If MsgBox("Replace " & itemPath & "?", vbYesNo + vbQuestion) = vbYes Then
-            Response = fdResponseAccept    ' proceed, no second Windows prompt
-        Else
-            Response = fdResponseRefuse    ' keep the dialog open
-        End If
-        Debug.Print "BeforeOverwrite triggered"
-    End Sub
-
-    Private Sub fd_ShareViolation(ByVal itemPath As String, ByRef Response As FileDialogResponse)
-        MsgBox itemPath & " is open in another program.", vbExclamation
-        Response = fdResponseRefuse        ' don't let them pick a locked file
-        Debug.Print "ShareViolation triggered"
-    End Sub
-    
-    Private Sub fd_FileTypeChanged(ByVal filterIndex As Long)
-        Debug.Print "FileTypeChanged triggered"
-    End Sub
-    
-    Private Sub fd_FolderChanging(ByVal folderPath As String, Cancel As Boolean)
-        Debug.Print "FolderChanging triggered"
-    End Sub
-    
-    Private Sub fd_SelectionChanged(ByVal itemPath As String)
-        Debug.Print "SelectionChanged triggered"
-    End Sub
-
-End Class
 
 ' Event sink for the veto test. Counts OnFileOk fires and vetoes so the test can
 ' assert the veto ACTUALLY happened, not just trust the human to have typed a bad
 ' name. Rejects any name containing a space.
+
 Private Class VetoCountingSink
 
     Public WithEvents fd As FileDialog

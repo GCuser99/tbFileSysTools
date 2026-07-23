@@ -1,4 +1,97 @@
-Private Module TestRenameCase
+' ==========================================================================
+' NameValidationTests
+'
+' Name validation and error-number parity, with the real
+' Scripting.FileSystemObject as the oracle.
+'
+' The module name undersells it: it began as a case-only rename test and grew
+' into the suite that pins how we behave on names Windows will not accept. It is
+' kept under one roof because every case here is the same question asked of a
+' different member - "given a name the filesystem rejects, do we raise the same
+' number FSO raises?"
+'
+' --- The differential pattern ---------------------------------------------
+' Most tests below run the SAME operation twice, once through this library and
+' once through Scripting.FileSystemObject, and compare Err.Number. That makes
+' the real FSO the specification rather than an assumption about it. Two
+' consequences worth knowing:
+'   * Err.Number = 0 means the operation unexpectedly SUCCEEDED, which is a
+'     result, not a pass - hence the cleanup after every case.
+'   * A failure here usually means FSO does something we did not predict, not
+'     that our code is broken. Read the printed pair before changing anything.
+'
+' --- The three families ---------------------------------------------------
+'   1. CASE-ONLY RENAME. "a.txt" -> "A.TXT" is the same file to Windows, so a
+'      naive existence check treats it as a collision and refuses. Rename allows
+'      it deliberately (see the vbTextCompare guard in FileSystemTools.Rename).
+'      Test_FSO_NameCaching additionally pins that our File object is LIVE: a
+'      case change made out-of-band is visible on the next .Name read, where
+'      FSO's cached object still reports the old casing.
+'
+'   2. BAD-NAME ERROR PARITY. The reserved characters < > : " | ? * , the
+'      reserved device names (CON, PRN...), and trailing dots and spaces.
+'      Checked as a create name (Test_BadNameErrorsVsScriptingFSO), as a
+'      destination (Test_BadNameTargetErrorsVsScriptingFSO, across MoveFile /
+'      CopyFile / MoveFolder / CopyFolder), and through the text writers
+'      (Test_CreateNameErrorsVsScriptingFSO).
+'
+'   3. WILDCARD DESTINATIONS. Test_DestWildcardRejected pins that "*" and "?"
+'      in a destination raise 5 and leave the source untouched - a wildcard
+'      means "many sources", so it can never name one target.
+'
+' --- The subtlety worth reading before editing ----------------------------
+' The colon is the one character where our two write paths DISAGREE, on purpose:
+'
+'   CreateTextFile("notes.txt:meta")        -> succeeds (0)
+'       A colon in a leaf addresses an alternate data stream, and TextStream
+'       writes the target directly, so the write is legal. FSO agrees.
+'
+'   StringToTextFile / ArrayToTextFile      -> raise 52
+'       These go through WriteStream's atomic temp-swap, which builds
+'       "<path>.~XXXX.tmp" - a name an ADS path cannot survive. Rejecting up
+'       front gives a clean 52 instead of an opaque failure at Open.
+'
+' That is why FileSystemTools.GuardWriteName and TextStream.GuardCreateName
+' differ by exactly one character. Test_CreateNameErrorsVsScriptingFSO encodes
+' both expectations; if you "fix" the asymmetry, this is what will tell you.
+'
+' --- Probe_* vs Test_* ----------------------------------------------------
+' Test_* asserts. Probe_* PRINTS and asserts nothing - each one was written to
+' find out what Windows or FSO actually does, and is kept because its output is
+' where the Test_* expectations came from. Probe_BadNameWin32Error deliberately
+' bypasses GetAbsolutePathName so it sees CreateDirectoryW's own error rather
+' than the resolver's transformation of it.
+'
+' Every test builds its fixture under %TEMP% via CleanFolder and removes it
+' afterwards, so the subs are independent and the order in RunAll is
+' presentational only.
+'
+' Run TestRenameCase.RunAll, or let TestSuite.RunFast call it.
+'
+' NOTE: two leftovers are deliberately NOT in RunAll - test_illegal (scratch
+' exploration, half commented out) and the Private CaseOnlyRename_ChangesDiskCasing
+' (superseded by Probe_CaseOnlyMove and currently unreferenced). Both are
+' candidates for deletion before publishing.
+' ==========================================================================
+Private Module NameValidationTests
+    
+    '======================================================================
+    ' Entry point
+    '
+    ' Every sub below is independent and self-cleaning, so the order here is
+    ' presentational rather than load-bearing. Probe_* subs print findings
+    ' instead of asserting - they were written to discover what the real FSO
+    ' does, and are kept because that behaviour is what the parity tests encode.
+    '======================================================================
+    Public Sub RunAll()
+        Test_FSO_NameCaching
+        Test_BadNameErrorsVsScriptingFSO
+        Test_BadNameTargetErrorsVsScriptingFSO
+        Test_DestWildcardRejected
+        Test_CreateNameErrorsVsScriptingFSO
+        Probe_CaseOnlyMove
+        Probe_BadNameWin32Error
+    End Sub
 
     ' Best-effort delete; never throws.
     Private Sub QuietKill(ByVal path As String)
@@ -6,49 +99,6 @@ Private Module TestRenameCase
         Kill path
         On Error GoTo 0
     End Sub
-    Private Sub CaseOnlyRename_ChangesDiskCasing()
-        Dim dir As String
-        dir = FileSystemTools.GetAbsolutePathName(Environ$("TEMP"))
-
-        Dim lowerPath As String
-        lowerPath = FileSystemTools.BuildPath(dir, "caserename.tmp")
-        Const upperName As String = "CASERENAME.TMP"
-
-        ' Arrange: start from a clean, known-lowercase file
-        QuietKill lowerPath
-        QuietKill FileSystemTools.BuildPath(dir, upperName)
-        Dim fn As Integer
-        fn = FreeFile
-        Open lowerPath For Output As #fn
-        Close #fn
-
-        Dim newPath As String
-        On Error GoTo CleanFail
-        ' Act: bare-name, case-only rename
-        newPath = FileSystemTools.Rename(lowerPath, upperName)
-        
-        Debug.Assert StrComp(FileSystemTools.GetFileName(newPath), upperName, vbBinaryCompare) = 0
-
-        ' Assert 1: returned path carries the new casing (binary compare!)
-        Assert.Strict.IsTrue StrComp(FileSystemTools.GetFileName(newPath), upperName, vbBinaryCompare) = 0, _
-            "Returned leaf name should be '" & upperName & "', got '" & FileSystemTools.GetFileName(newPath) & "'"
-
-        ' Assert 2: on-disk name reflects the new casing
-        Dim onDisk As String
-        onDisk = VBA.Dir$(newPath)
-        Assert.Strict.IsTrue StrComp(onDisk, upperName, vbBinaryCompare) = 0, _
-            "On-disk name should be '" & upperName & "', got '" & onDisk & "'"
-
-        QuietKill newPath
-        Exit Sub
-CleanFail:
-        Dim savedErr As Long, savedDesc As String
-        savedErr = Err.Number: savedDesc = Err.Description
-        QuietKill lowerPath
-        QuietKill FileSystemTools.BuildPath(dir, upperName)
-        Assert.Strict.Fail "Rename raised " & savedErr & ": " & savedDesc
-    End Sub
-
 
     Private Sub RealCollision_StillRaises58()
         ' Guards the change we made: a genuine collision must still raise,
@@ -121,17 +171,6 @@ CleanFail:
         fso.DeleteFile p
 
         fso.DeleteFolder wf, True
-    End Sub
-    
-    Sub test_illegal()
-        Dim fso As New FileSystemObject, fso1 As New Scripting.FileSystemObject
-        If Not fso.FolderExists(".\test_illegal") Then fso.CreateFolder ".\test_illegal"
-        fso.StringToTextFile "hi", ".\test_illegal\legal.txt"
-        'fso1.MoveFile ".\test_illegal\legal.txt", ".\test_illegal\illegal|.txt" '<-throws error 52 - Bad file name or number
-        fso.MoveFile ".\test_illegal\legal.txt", ".\test_illegal\illegal.txt" '<-throws error 52 - Bad file name or number
-        Debug.Print fso.FileExists(".\test_illegal\illegal|.txt")
-        'Debug.Print fso1.FileExists(".\test_illegal\h<.txt")
-        fso.DeleteFolder ".\test_illegal"
     End Sub
     
     '----------------------------------------------------------------------
@@ -559,4 +598,8 @@ CleanFail:
         On Error GoTo 0
     End Function
     
+
+
 End Module
+
+

@@ -13,7 +13,7 @@
 '     AreEqual "", so the vbNullString-vs-"" flavor can't cause a false failure
 '     (the same trap that surfaced while building this table).
 '
-' This SUPERSEDES the path-parsing rows of FileworksTests.Test_PathParsing.
+' This SUPERSEDES the path-parsing rows of GeneralTests.Test_PathParsing.
 ' Delete that sub (its content is fully covered here, and several of its old
 ' assertions are now stale and would fail against the corrected functions), or
 ' if you keep it, fix these lines first:
@@ -23,7 +23,8 @@
 '     GetBaseName(".gitignore")   -> ""              (was ".gitignore")
 '     GetFileName("C:\foo\")      -> "foo"           (was "")
 ' ==========================================================================
-Module FsoParityTests
+
+Private Module FsoParityTests
     Option Explicit
 
     Public Sub RunParityTests()
@@ -165,81 +166,13 @@ Module FsoParityTests
         End If
     End Sub
     
-    Public Sub testrelpath()
-        Dim fso1 As Object, fso2 As New FileSystemObject
-        Set fso1 = CreateObject("Scripting.FileSystemObject")
-        Debug.Print fso1.GetFilename("..\myfile.txt")
-        Debug.Print fso2.GetFileName("..\myfile.txt")
-        
-        Debug.Print fso1.GetParentFolderName("..\myfile.txt")
-        Debug.Print fso2.GetParentFolderName("..\myfile.txt")
-        
-        Debug.Print fso1.Getfile(".\Tests\internal\ansi.txt")
-        Debug.Print fso2.GetFile(".\Tests\internal\ansi.txt")
-        
-        Debug.Print fso1.Getfolder(".\Tests\internal\")
-        Debug.Print fso2.GetFolder(".\Tests\internal\")
-        
-        Debug.Print fso2.CleanFileName(".\Tests\internal\ansi.txt")
-        
-        fso1.CopyFile(".\Tests\internal\ansi.txt", ".\Tests\internal\ansi_copy_fso1.txt")
-        fso2.CopyFile(".\Tests\internal\ansi.txt", ".\Tests\internal\ansi_copy_fso2.txt")
-        
-        fso1.MoveFile(".\Tests\internal\ansi_copy_fso1.txt", ".\Tests\internal\ansi_move_fso1.txt")
-        fso2.MoveFile(".\Tests\internal\ansi_copy_fso2.txt", ".\Tests\internal\ansi_move_fso2.txt")
-        
-        fso1.DeleteFile(".\Tests\internal\ansi_move_fso1.txt")
-        fso2.DeleteFile(".\Tests\internal\ansi_move_fso2.txt")
-        
-        Debug.Print fso1.Getfileversion(".\Build\tbFileworks_win64.dll")
-        Debug.Print fso2.GetFileVersion(".\Build\tbFileworks_win64.dll")
-        
-        fso2.CreateFolder(".\Tests\internal\temp\temp", True)
-        fso2.MoveFolder(".\Tests\internal\temp", ".\Tests\internal\temp_moved")
-        fso2.DeleteFolder(".\Tests\internal\temp_moved")
-        
+    ' Late-binding smoke test: proves the COM class is registered and reachable
+    ' via CreateObject, which is how VBScript and unreferenced VBA hosts will use
+    ' it. Kept deliberately tiny - it is checking the registration, not the method.
+    Public Sub Test_LateBinding_CreateObject()
+        Dim fso As Object
+        Set fso = CreateObject("tbFileSysTools.FileSystemObject")
+        Assert.Exact.AreEqual "hi.txt", fso.GetFileName("c:\hi.txt")
     End Sub
-    
-    
-    Sub test_prepare_tb()
-        Dim fso As New FileSystemObject
-        Dim in As String
-        Dim out As String
-        Dim pIn As String
-        'Dim pOut As String
-        pIn = "C:\Users\waite\Documents\twin basic\ChibiArc\ChibiArc.cls"
-        'pOut = "C:\Users\waite\Documents\twin basic\ChibiArc\ChibiArcNorm.cls"
-        'in = fso.TextFileToString("C:\Users\waite\Documents\twin basic\ChibiArc\ChibiArc.cls")
-        'Debug.Print fso.GetFileLineEnding(pIn)
-        'fso.StringToTextFile(in, pOut, , nlWindows)
-        fso.NormalizeTextFile(pIn)
-    End Sub
-    
-    Sub test_getparentname()
-        Dim fso As New FileSystemObject
-        Dim in As String
-        Dim out As String
-        Dim p As String
 
-        p = "C:\Users\waite\Documents\twin basic\ChibiArc\ChibiArc.cls"
-        Debug.Print fso.GetParentFolderName(p)
-        Debug.Print fso.GetParentFolderName(fso.GetParentFolderName(p))
-        Debug.Print GetParentFolderName(p)
-        Debug.Print GetParentFolderName(GetParentFolderName(p))
-        Dim c As Drives
-        Set c = GetDrives() '<- change to GetDrives
-        Debug.Print c(1), c.Count
-        Debug.Print fso.GetFile(p).ShortPath
-        Debug.Print GetFile(p).ShortPath
-        Dim d As Folder, f As File
-        Set d = GetFolder(GetParentFolderName(p))
-        For Each f In d.Files
-            If Not (f.Attributes And Hidden) Then
-                Debug.Print f.Path
-            End If
-        Next f
-        'Dim fso2 As New Scripting.FileSystemObject
-        'fso uses IFolder and IFile
-        'fso2.GetFile(path:="" )
-    End Sub
 End Module

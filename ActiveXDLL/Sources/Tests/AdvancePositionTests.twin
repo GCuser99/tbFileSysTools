@@ -24,7 +24,7 @@
 ' Run RunAll. Expect: 14 passed, 0 failed.
 ' ==========================================================================
 
-Module AdvancePositionTests
+Private Module AdvancePositionTests
     Option Explicit
 
     Private mPassed As Long

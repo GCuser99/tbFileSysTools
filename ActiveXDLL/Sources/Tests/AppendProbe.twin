@@ -26,11 +26,21 @@
 '                LargeFileProbe (Phase C's block math assumes an unmodified file).
 ' ==========================================================================
 
-Module AppendProbe
+Private Module AppendProbe
     Option Explicit
 
-    Private Const RAW_PATH As String = "C:\Users\waite\AppData\Local\Temp\_probe_raw.bin"
-    Private Const SMALL_PATH  As String = "C:\Users\waite\AppData\Local\Temp\_probe_append_small.txt"
+    ' Derived from %TEMP% at run time, NOT hard-coded: a Const cannot call a
+    ' function, so these are zero-arg Functions (callable without parens, so every
+    ' existing call site is unchanged). RAW_PATH must match LargeFileProbe's.
+    Private Function RAW_PATH() As String
+        RAW_PATH = FileSystemTools.BuildPath( _
+                       FileSystemTools.GetSpecialFolder(TemporaryFolder), "_probe_raw.bin")
+    End Function
+
+    Private Function SMALL_PATH() As String
+        SMALL_PATH = FileSystemTools.BuildPath( _
+                       FileSystemTools.GetSpecialFolder(TemporaryFolder), "_probe_append_small.txt")
+    End Function
 
     Private Const HEAD_CHECK_BYTES As Long = 4096              ' how much of the head we fingerprint
     Private Const LINE_LEN As Long = 64
@@ -251,4 +261,14 @@ Module AppendProbe
         Debug.Print "  FAIL  " & msg
     End Sub
 
+    ' Removes only what THIS module creates. RAW_PATH is deliberately NOT deleted
+    ' here - it belongs to LargeFileProbe Phase A, and D1 only appends to it.
+    ' TestSuite.CleanUpAll sweeps that one via LargeFileProbe.CleanUp.
+    Public Sub CleanUp()
+        On Error Resume Next
+        FileSystemTools.DeleteFile SMALL_PATH, True, True
+        On Error GoTo 0
+    End Sub
+
 End Module
+

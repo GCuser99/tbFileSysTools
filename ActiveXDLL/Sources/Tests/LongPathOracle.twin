@@ -24,7 +24,7 @@
 '</windowsSettings>
 '</application>
 
-Module LongPathOracle
+Private Module LongPathOracle
     Option Explicit
 
     Private Const SEG As String = "seg_0123456789_abcdefghijkl"   ' 27 chars
@@ -263,4 +263,3 @@ Module LongPathOracle
     End Function
 
 End Module
-

@@ -310,12 +310,12 @@ Public Class FileSystemObject
     End Function
     
     [Description("Merges two text files in the order specified. If outputFilePath is omitted, the first file is overwritten in place. The second file's line endings are converted to match the first file's. Streams line by line, so file size is not limited.")]
-    Public Sub MergeFiles(ByVal firstFilePath As String, ByVal secondFilePath As String, _
+    Public Sub MergeTextFiles(ByVal firstFilePath As String, ByVal secondFilePath As String, _
                           Optional ByVal outputFilePath As String, _
                           Optional ByVal insertBlankLineBetween As Boolean = False, _
                           Optional ByVal firstFileEncoding As TextEncoding = encAutoDetect, _
                           Optional ByVal secondFileEncoding As TextEncoding = encAutoDetect)
-        FileSystemTools.MergeFiles(firstFilePath, secondFilePath, outputFilePath, insertBlankLineBetween, firstFileEncoding, secondFileEncoding)
+        FileSystemTools.MergeTextFiles(firstFilePath, secondFilePath, outputFilePath, insertBlankLineBetween, firstFileEncoding, secondFileEncoding)
     End Sub
     
 End Class
