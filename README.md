@@ -153,7 +153,7 @@ A few members stay bound to 260 characters, because the specific Win32 APIs behi
 |`GetRelativePath`|Falls back to the absolute target path|`PathRelativePathToW` is capped at `MAX_PATH`|
 |`File.ShortPath`|Returns the full path unchanged|8.3 shortening is a legacy-`MAX_PATH` mechanism|
 |Wildcard patterns in `CopyFile` / `MoveFile` / `DeleteFile` / `CopyFolder` / `MoveFolder` / `DeleteFolder` / `GetFilePaths`|The pattern is 260-bound; matched items are handled normally|A wildcard pattern can't be safely `\\?\`-prefixed|
-|`SetCurrentDir`|Raises; the CWD is left unchanged|Windows caps the process current directory at `MAX_PATH` and `SetCurrentDirectoryW` rejects `\\?\`|
+|`SetCurrentDir`|Raises; the CWD is left unchanged|`SetCurrentDirectoryW` loses the limit only under the process-wide long-path opt-in, which a library can't guarantee|
 
 ---
 
