@@ -45,7 +45,7 @@ The library has one implementation and two doorways onto it.
 
 ### `FileSystemTools` — the standard module
 
-Preferred for twinBASIC code. Call it directly; there's no object to create.
+Preferred for twinBASIC code. Call it directly; there's no object to create. Potentially smaller compile footprint than the object version.
 
 ```vb
 If FileSystemTools.FileExists(path) Then
