@@ -205,7 +205,7 @@ Parity is the goal, but not at any price. Each of these was checked against the 
 |`CleanFileName`|Strip reserved characters and device names|
 |`Rename`|In-place rename (FSO makes you assign to `.Name`)|
 |`GetFileType`|Shell type description ("Text Document")|
-|`GetCurrentDir` / `SetCurrentDir`||
+|`GetCurrentDir` / `SetCurrentDir`|Gets/Sets the current directory or folder.|
 |`GetSpecialFolder`|25 known folders, including FSO's 3|
 |`ReadStream` / `WriteStream`|Raw bytes, Unicode-safe|
 |`TextFileToString` / `StringToTextFile`|Whole-file text I/O|
