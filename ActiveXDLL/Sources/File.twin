@@ -131,7 +131,7 @@ Public Class File
     End Property
 
     ' A true stat field, unlike Folder.Size (which walks a subtree). Exact past 4GB:
-    ' the value comes from Shared.SizeFromHL, which reassembles both DWORDs.
+    ' the value comes from FSTShared.SizeFromHL, which reassembles both DWORDs.
     [Description("Returns the size, in bytes, of a specified file.")]
     Public Property Get Size() As LongLong
         EnsureCurrent
@@ -153,7 +153,7 @@ Public Class File
 
     ' Loads and parses the PE version resource each time. Returns "" for a file
     ' that carries none - which is most files.
-    [Description("Returns the file's version. By default (fvFixed) returns the binary version as major.minor.build.revision, fvFileString returns the authored StringFileInfo FileVersion string and fvProductString returns the ProductVersion string; both fall back to the fixed version when the file has no string block. Returns an empty string when the file carries no version resource.")]
+    [Description("Returns the file's version. By default (fvFixed) returns the binary version as major.minor.build.revision, fvFileString returns the authored StringFileInfo FileVersion string and fvProductString returns the ProductVersion string; both fall back to the fixed version when the file has no string block. Returns an empty string when the file carries no version resource, and also for paths longer than 260 characters, which the version-resource APIs do not support.")]
     Public Property Get Version(Optional ByVal source As FileVersionSource = fvFixed) As String
         EnsureCurrent
         Version = FileSystemTools.GetFileVersion(mPath, source)
@@ -182,24 +182,22 @@ Public Class File
         Encoding = FileSystemTools.GetFileEncoding(mPath, sampleBytes)
     End Property
 
-    ' A shell round-trip (SHGetFileInfoW), and the string is LOCALISED - it is
-    ' whatever Explorer would show. Contrast Folder.Type, which is hard-coded.
-    [Description("The shell type description of the file (e.g. ""Text Document""), as shown in Explorer.")]
+    [Description("Returns the shell's type description for a file or folder (e.g. ""Text Document"", ""Application"", ""File Folder""), the same string Explorer and Scripting.FileSystemObject's File.Type show. Falls back to ""<EXT> File"" or ""File"" when the shell is unavailable, and for paths longer than 260 characters, which the shell APIs do not support.")]
     Public Property Get Type() As String
         EnsureCurrent
         Type = FileSystemTools.GetFileType(mPath)
     End Property
 
-    [Description("Returns the short path of a specified file.")]
+    [Description("Returns the file's 8.3 short path, or the full path unchanged when no short name is available - which includes volumes with 8.3 name generation disabled and paths longer than 260 characters. Compare the result with the full path to tell whether shortening actually occurred.")]
     Public Property Get ShortPath() As String
         EnsureCurrent
-        ShortPath = Shared.GetShortPath(mPath)
+        ShortPath = FSTShared.GetShortPath(mPath)
     End Property
 
-    [Description("Returns the short name of a specified file.")]
+    [Description("Returns the file's 8.3 short name, or the normal file name unchanged when no short name is available - which includes volumes with 8.3 name generation disabled and paths longer than 260 characters. Compare the result with Name to tell whether shortening actually occurred.")]
     Public Property Get ShortName() As String
         EnsureCurrent
-        ShortName = FileSystemTools.GetFileName(Shared.GetShortPath(mPath))
+        ShortName = FileSystemTools.GetFileName(FSTShared.GetShortPath(mPath))
     End Property
 
     '======================================================================
@@ -231,7 +229,7 @@ Public Class File
     Public Property Let Attributes(ByVal value As FileAttribute)
         If value = NoChange Then Exit Property
         EnsureCurrent                      ' fail-fast with 53 if gone, before attempting the set
-        Shared.SetPathAttributes mPath, value
+        FSTShared.SetPathAttributes mPath, value
         Refresh                            ' re-stat: mAttrs now mirrors actual disk state
     End Property
     
@@ -241,9 +239,9 @@ Public Class File
     Public Sub SetAttribute(ByVal attr As FileAttribute, ByVal state As Boolean)
         EnsureCurrent
         Dim v As Long
-        v = mAttrs And Shared.SETTABLE_ATTRS          ' current settable set
+        v = mAttrs And FSTShared.SETTABLE_ATTRS          ' current settable set
         If state Then v = v Or attr Else v = v And Not attr
-        Shared.SetPathAttributes mPath, v             ' re-sanitizes; Normal-dominance applies
+        FSTShared.SetPathAttributes mPath, v             ' re-sanitizes; Normal-dominance applies
         Refresh
     End Sub
 
@@ -358,7 +356,7 @@ Public Class File
     ' not found), matching FSO.
     Private Sub EnsureCurrent()
         Dim leaf As String
-        If Not Shared.StatPath(mPath, mAttrs, mSize, mCreated, mModified, mAccessed, leaf) Then
+        If Not FSTShared.StatPath(mPath, mAttrs, mSize, mCreated, mModified, mAccessed, leaf) Then
             Err.Raise 53, "File", "File not found: " & mPath
         End If
         ' leaf can only differ from mPath's leaf by CASE — any real name change would

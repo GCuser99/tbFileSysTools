@@ -1,0 +1,9 @@
+Module LateBinding
+
+	Sub test_late()
+        Dim fso As Object
+        Set fso = CreateObject("tbFileSysTools.FileSystemObject")
+        Debug.Print fso.GetFileName("c:\hi.txt")
+    End Sub
+
+End Module

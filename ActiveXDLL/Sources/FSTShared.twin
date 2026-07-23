@@ -24,7 +24,7 @@
 ' MIT License - Copyright (c) 2026, GCUser99 (https://github.com/GCUser99)
 ' ==========================================================================
 
-Private Module Shared
+Private Module FSTShared
     Option Explicit
     
     '======================================================================
@@ -65,6 +65,7 @@ Private Module Shared
                              ByRef leafName As String) As Boolean
         Dim fd As WIN32_FIND_DATAW
         Dim h As LongPtr
+        path = ApiPath(path)
         h = FindFirstFileW(StrPtr(path), fd)
         If h <> INVALID_HANDLE_VALUE Then
             FindClose h                              ' one-shot stat: close immediately, never enumerate
@@ -172,11 +173,9 @@ Private Module Shared
         End If
     End Function
     
-    ' 8.3 short path. Two-pass sizing idiom; the first call's count INCLUDES the
-    ' terminating null, the second's return does not.
-    ' Falls back to the original path (never raises) when the API fails - which it
-    ' legitimately does on volumes with 8.3 name generation disabled, so a caller
-    ' cannot read the result as "this is definitely a short path".
+    ' LONG-PATH NOTE: GetShortPathNameW does not reliably honor \\?\, and 8.3
+    ' shortening is a legacy-MAX_PATH mechanism by nature, so this is one of the
+    ' members that stays 260-bound. Not wrapped in ApiPath deliberately.
     Public Function GetShortPath(ByVal path As String) As String
         Dim n As Long, buf As String
         n = GetShortPathNameW(StrPtr(path), 0, 0)
@@ -184,6 +183,41 @@ Private Module Shared
         buf = String$(n, vbNullChar)
         n = GetShortPathNameW(StrPtr(path), StrPtr(buf), n)
         If n = 0 Then GetShortPath = path Else GetShortPath = Left$(buf, n)
+    End Function
+    
+    ' Prefixes a path for a raw Win32 W-API call ONLY when it exceeds the legacy
+    ' limit, so short paths keep normal semantics. The input MUST already be
+    ' absolute and canonical - \\?\ disables the "." / ".." and forward-slash
+    ' handling that GetAbsolutePathName performs, so this may only ever wrap that
+    ' function's output, never a raw caller string.
+    ' 248, not 260: directory-creation (CreateDirectoryW) needs the lower ceiling,
+    ' and applying one threshold everywhere keeps the rule simple.
+    Public Function ApiPath(ByVal canonicalAbsPath As String) As String
+        If Len(canonicalAbsPath) >= 248 Then
+            ApiPath = AddLongPathPrefix(canonicalAbsPath)   ' already handles the UNC form
+        Else
+            ApiPath = canonicalAbsPath
+        End If
+    End Function
+    
+    ' A UNC path that is not ALREADY long-path-prefixed (\\?\ paths start with "\\"
+    ' too, so the second test is required).
+    Private Function IsUNC(ByVal p As String) As Boolean
+        IsUNC = (Left$(p, 2) = "\\" And Left$(p, 4) <> "\\?\")
+    End Function
+
+    ' Adds the \\?\ prefix that lifts the 260-char limit. UNC needs the special
+    ' \\?\UNC\server\share form (the leading "\\" is replaced, not kept).
+    ' Idempotent. Caution: \\?\ paths bypass normalization, so they must already be
+    ' fully canonical - always feed this the output of GetAbsolutePathName.
+    Public Function AddLongPathPrefix(ByVal p As String) As String
+        If Left$(p, 4) = "\\?\" Then
+            AddLongPathPrefix = p
+        ElseIf IsUNC(p) Then
+            AddLongPathPrefix = "\\?\UNC\" & Mid$(p, 3)
+        Else
+            AddLongPathPrefix = "\\?\" & p
+        End If
     End Function
 
     '======================================================================
@@ -204,12 +238,12 @@ Private Module Shared
     ' often 70 (permission denied) or 53 (the path went away).
     Public Function SetPathAttributes(ByVal path As String, ByVal attrs As Long) As Long
         attrs = SanitizeAttrs(attrs)
-        If SetFileAttributesW(StrPtr(path), attrs) = 0 Then
+        If SetFileAttributesW(StrPtr(ApiPath(path)), attrs) = 0 Then   ' <-- add ApiPath
             RaiseFromLastError Err.LastDllError, "Attributes", path
         End If
         SetPathAttributes = attrs
     End Function
-    
+
     ' Two rules, in order:
     '   1. Drop everything Windows won't let us write (ReparsePoint, Compressed,
     '      Encrypted, Directory, ...). Silently - an unsettable bit is not an error.

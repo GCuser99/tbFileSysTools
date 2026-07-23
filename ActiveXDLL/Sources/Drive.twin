@@ -21,7 +21,7 @@
 ' The size, label and serial properties raise error 71 ("Disk not ready") when the
 ' drive cannot be queried - an empty optical bay, a disconnected share, a card
 ' reader with no card. Other failures (permissions, bad net path) map through
-' Shared.RaiseFromLastError as usual.
+' FSTShared.RaiseFromLastError as usual.
 '
 ' Members that NEVER raise, and are safe to call on any Drive object:
 '   IsReady     - THE GATE. Call it first if a not-ready drive is a possibility
@@ -239,7 +239,7 @@ Public Class Drive
         Dim e As Long
         If GetDiskFreeSpaceExW(StrPtr(RootPath()), availToUser, total, free) = 0 Then
             e = Err.LastDllError                      ' capture BEFORE anything else
-            Shared.RaiseFromLastError e, "Drive." & member, mRoot, pathIsDrive:=True
+            FSTShared.RaiseFromLastError e, "Drive." & member, mRoot, pathIsDrive:=True
         End If
     End Sub
 
@@ -291,7 +291,7 @@ Public Class Drive
         fsBuf = String$(VOL_BUF, vbNullChar)
         If GetVolumeInformationW(StrPtr(RootPath()), StrPtr(volBuf), VOL_BUF, serial, maxComp, flags, StrPtr(fsBuf), VOL_BUF) = 0 Then
             e = Err.LastDllError
-            Shared.RaiseFromLastError e, "Drive." & member, mRoot, pathIsDrive:=True
+            FSTShared.RaiseFromLastError e, "Drive." & member, mRoot, pathIsDrive:=True
         End If
         label = Left$(volBuf, InStr(volBuf, vbNullChar) - 1)
         fsName = Left$(fsBuf, InStr(fsBuf, vbNullChar) - 1)
@@ -309,7 +309,7 @@ Public Class Drive
         Dim e As Long
         If SetVolumeLabelW(StrPtr(RootPath()), StrPtr(value)) = 0 Then
             e = Err.LastDllError
-            Shared.RaiseFromLastError e, "Drive.VolumeName", mRoot, pathIsDrive:=True
+            FSTShared.RaiseFromLastError e, "Drive.VolumeName", mRoot, pathIsDrive:=True
         End If
     End Property
 
@@ -336,7 +336,7 @@ Public Class Drive
     End Property
     
     ' The unsigned value. Same bits, correctly interpreted: the +2^32 correction is
-    ' the same one Shared.SizeFromHL applies to a file size's low DWORD, and for the
+    ' the same one FSTShared.SizeFromHL applies to a file size's low DWORD, and for the
     ' same reason - a DWORD arriving in a signed Long.
     [Description("The drive's serial number as an unsigned 32-bit value (0 to 4294967295).")]
     Public Property Get UnsignedSerialNumber() As LongLong

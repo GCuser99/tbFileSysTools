@@ -1,12 +1,11 @@
 Private Module WinAPI
     
-    'The Windows API declarations used here are from Jon Johnson's WinDevLib tB package.
+    'The Windows API declarations used here are from Jon Johnson's WinDevLib tB package (https://github.com/fafalone/WinDevLib).
     'This project was designed to function without this module if Jon Johnson's WinDevLib is referenced.
 
     '/*
     Public Declare PtrSafe Function GetLastError Lib "kernel32" () As Long
     Public Declare PtrSafe Function GetFullPathNameW Lib "kernel32" (ByVal lpFileName As LongPtr, ByVal nBufferLength As Long, ByVal lpBuffer As LongPtr, lpFilePart As LongPtr) As Long
-    Public Declare PtrSafe Function PathCombineW Lib "shlwapi" (ByVal pszDest As LongPtr, ByVal pszDir As LongPtr, ByVal pszFile As LongPtr) As LongPtr
     Public Declare PtrSafe Function GetCurrentDirectoryW Lib "kernel32" (ByVal nBufferLength As Long, ByVal lpBuffer As LongPtr) As Long
     Public Declare PtrSafe Function SetCurrentDirectoryW Lib "kernel32" (ByVal lpPathName As LongPtr) As BOOL
     Public Declare PtrSafe Function RemoveDirectoryW Lib "kernel32" (ByVal lpPathName As LongPtr) As BOOL

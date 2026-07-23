@@ -69,12 +69,12 @@
 Public Class FileSystemObject
     Option Explicit
 
-    [Description("Returns the file's version. By default (fvFixed) returns the binary version as major.minor.build.revision, fvFileString returns the authored StringFileInfo FileVersion string and fvProductString returns the ProductVersion string; both fall back to the fixed version when the file has no string block. Returns an empty string when the file carries no version resource.")]
+    [Description("Returns the file's version. By default (fvFixed) returns the binary version as major.minor.build.revision, fvFileString returns the authored StringFileInfo FileVersion string and fvProductString returns the ProductVersion string; both fall back to the fixed version when the file has no string block. Returns an empty string when the file carries no version resource, and also for paths longer than 260 characters, which the version-resource APIs do not support.")]
     Public Function GetFileVersion(ByVal fileName As String, Optional ByVal source As FileVersionSource = fvFixed) As String
         Return FileSystemTools.GetFileVersion(fileName, source)
     End Function
     
-    [Description("Returns the shell's type description for a file or folder (e.g. ""Text Document"", ""Application"", ""File Folder""), the same string Explorer and Scripting.FileSystemObject's File.Type show. Falls back to ""<EXT> File"" or ""File"" when the shell is unavailable.")]
+    [Description("Returns the shell's type description for a file or folder (e.g. ""Text Document"", ""Application"", ""File Folder""), the same string Explorer and Scripting.FileSystemObject's File.Type show. Falls back to ""<EXT> File"" or ""File"" when the shell is unavailable, and for paths longer than 260 characters, which the shell APIs do not support.")]
     Public Function GetFileType(ByVal filePath As String) As String
         Return FileSystemTools.GetFileType(filePath)
     End Function

@@ -175,7 +175,7 @@ Public Class Folder
     
     ' Get returns the file system's full attribute set, including bits Windows
     ' manages and will not let you write (Directory, ReparsePoint, Compressed,
-    ' Encrypted...). Let applies only the settable subset - Shared.SanitizeAttrs
+    ' Encrypted...). Let applies only the settable subset - FSTShared.SanitizeAttrs
     ' masks the rest away.
     '
     ' The round trip IS a no-op, despite that mask: SetFileAttributesW ignores the
@@ -195,7 +195,7 @@ Public Class Folder
     Public Property Let Attributes(ByVal value As FileAttribute)
         If value = NoChange Then Exit Property
         EnsureCurrent                      ' fail-fast with 76 if gone, before attempting the set
-        Shared.SetPathAttributes mPath, value
+        FSTShared.SetPathAttributes mPath, value
         Refresh                            ' re-stat: mAttrs mirrors disk
     End Property
     
@@ -203,9 +203,9 @@ Public Class Folder
     Public Sub SetAttribute(ByVal attr As FileAttribute, ByVal state As Boolean)
         EnsureCurrent
         Dim v As Long
-        v = mAttrs And Shared.SETTABLE_ATTRS          ' current settable set
+        v = mAttrs And FSTShared.SETTABLE_ATTRS          ' current settable set
         If state Then v = v Or attr Else v = v And Not attr
-        Shared.SetPathAttributes mPath, v             ' re-sanitizes; Normal-dominance applies
+        FSTShared.SetPathAttributes mPath, v             ' re-sanitizes; Normal-dominance applies
         Refresh
     End Sub
 
@@ -215,24 +215,28 @@ Public Class Folder
         HasAttribute = ((mAttrs And attr) <> 0)
     End Property
     
-    [Description("Returns the short path of a specified folder.")]
+    [Description("Returns the folder's 8.3 short path, or the full path unchanged when no short name is available - which includes volumes with 8.3 name generation disabled and paths longer than 260 characters. Compare the result with Path to tell whether shortening actually occurred.")]
     Public Property Get ShortPath() As String
         EnsureCurrent
-        ShortPath = Shared.GetShortPath(mPath)
+        ShortPath = FSTShared.GetShortPath(mPath)
     End Property
 
-    [Description("Returns the short name of a specified folder.")]
+    [Description("Returns the folder's 8.3 short name, or the normal folder name unchanged when no short name is available - which includes volumes with 8.3 name generation disabled and paths longer than 260 characters. Compare the result with Name to tell whether shortening actually occurred.")]
     Public Property Get ShortName() As String
         EnsureCurrent
-        ShortName = FileSystemTools.GetFileName(Shared.GetShortPath(mPath))
+        ShortName = FileSystemTools.GetFileName(FSTShared.GetShortPath(mPath))
     End Property
 
-    [Description("Returns the type of a specified folder.")]
+    [Description("Returns the shell's type description for the folder (e.g. ""File folder""), the same string Explorer and Scripting.FileSystemObject's Folder.Type show. Falls back to a generic description when the shell is unavailable, and for paths longer than 260 characters, which the shell APIs do not support.")]
     Public Property Get Type() As String
         EnsureCurrent
         Type = FileSystemTools.GetFileType(mPath)
+        ' GetFileType's fallback is file-oriented: with no extension it yields "File",
+        ' which is plainly wrong for a folder. Substitute FSO's own string for the
+        ' cases where the shell couldn't answer (unavailable, or a >260 path).
+        If Type = "File" Then Type = "File folder"
     End Property
-
+    
     '======================================================================
     ' Children
     '
@@ -335,10 +339,10 @@ Public Class Folder
         Dim isDir As Boolean
 
         Dim e As Long
-        hFind = FindFirstFileW(StrPtr(Shared.EnsureTrailingBackslash(folderPath) & "*"), ffd)
+        hFind = FindFirstFileW(StrPtr(FSTShared.EnsureTrailingBackslash(folderPath) & "*"), ffd)
         e = Err.LastDllError
         If hFind = INVALID_HANDLE_VALUE Then
-            Shared.IsEmptySearch e, IIf(wantFolders, "Folder.SubFolders", "Folder.Files"), folderPath
+            FSTShared.IsEmptySearch e, IIf(wantFolders, "Folder.SubFolders", "Folder.Files"), folderPath
             Set EnumChildren = out
             Exit Function
         End If
@@ -347,24 +351,24 @@ Public Class Folder
         Do
             isDir = ((ffd.dwFileAttributes And FILE_ATTRIBUTE_DIRECTORY) <> 0)
             If isDir = wantFolders Then               ' keep only the requested type
-                nm = Shared.FindDataFileName(ffd)
+                nm = FSTShared.FindDataFileName(ffd)
                 If nm <> "." And nm <> ".." Then      ' skip the self/parent entries
-                    If Shared.IncludeByAttr(ffd.dwFileAttributes, includeHidden, includeSystem) Then
-                        full = Shared.EnsureTrailingBackslash(folderPath) & nm
+                    If FSTShared.IncludeByAttr(ffd.dwFileAttributes, includeHidden, includeSystem) Then
+                        full = FSTShared.EnsureTrailingBackslash(folderPath) & nm
                         ' Keyed by name so Files("readme.txt") / SubFolders("bin")
                         ' work. AddKeyed falls back to an unkeyed add on a clash
                         ' rather than aborting the walk.
                         If wantFolders Then
-                            Shared.AddKeyed out, MakeFolderObject(full, ffd.dwFileAttributes, _
-                                Shared.FileTimeToDate(ffd.ftCreationTime), _
-                                Shared.FileTimeToDate(ffd.ftLastWriteTime), _
-                                Shared.FileTimeToDate(ffd.ftLastAccessTime)), nm
+                            FSTShared.AddKeyed out, MakeFolderObject(full, ffd.dwFileAttributes, _
+                                FSTShared.FileTimeToDate(ffd.ftCreationTime), _
+                                FSTShared.FileTimeToDate(ffd.ftLastWriteTime), _
+                                FSTShared.FileTimeToDate(ffd.ftLastAccessTime)), nm
                         Else
-                            Shared.AddKeyed out, MakeFileObject(full, ffd.dwFileAttributes, _
-                                Shared.SizeFromHL(ffd.nFileSizeHigh, ffd.nFileSizeLow), _
-                                Shared.FileTimeToDate(ffd.ftCreationTime), _
-                                Shared.FileTimeToDate(ffd.ftLastWriteTime), _
-                                Shared.FileTimeToDate(ffd.ftLastAccessTime)), nm
+                            FSTShared.AddKeyed out, MakeFileObject(full, ffd.dwFileAttributes, _
+                                FSTShared.SizeFromHL(ffd.nFileSizeHigh, ffd.nFileSizeLow), _
+                                FSTShared.FileTimeToDate(ffd.ftCreationTime), _
+                                FSTShared.FileTimeToDate(ffd.ftLastWriteTime), _
+                                FSTShared.FileTimeToDate(ffd.ftLastAccessTime)), nm
                         End If
                     End If
                 End If
@@ -414,18 +418,18 @@ Public Class Folder
         Dim nm As String, full As String
 
         Dim e As Long
-        hFind = FindFirstFileW(StrPtr(Shared.EnsureTrailingBackslash(folderPath) & "*"), ffd)
+        hFind = FindFirstFileW(StrPtr(FSTShared.EnsureTrailingBackslash(folderPath) & "*"), ffd)
         e = Err.LastDllError
         If hFind = INVALID_HANDLE_VALUE Then
-            Shared.IsEmptySearch e, "Folder.Size", folderPath   ' raises 70 on a denied subtree
+            FSTShared.IsEmptySearch e, "Folder.Size", folderPath   ' raises 70 on a denied subtree
             Exit Function                                       ' truly empty -> contributes 0
         End If
 
         On Error GoTo CleanUp
         Do
-            nm = Shared.FindDataFileName(ffd)
+            nm = FSTShared.FindDataFileName(ffd)
             If nm <> "." And nm <> ".." Then
-                full = Shared.EnsureTrailingBackslash(folderPath) & nm
+                full = FSTShared.EnsureTrailingBackslash(folderPath) & nm
                 If (ffd.dwFileAttributes And FILE_ATTRIBUTE_DIRECTORY) <> 0 Then
                     If (ffd.dwFileAttributes And FILE_ATTRIBUTE_REPARSE_POINT) = 0 Then
                         total = total + FolderSize(full)        ' recurse into real dirs only
@@ -434,7 +438,7 @@ Public Class Folder
                     ' Unlike Files/SubFolders, hidden and system files are counted
                     ' unconditionally here - no IncludeByAttr filter. A total that
                     ' omitted them would not be a size.
-                    total = total + Shared.SizeFromHL(ffd.nFileSizeHigh, ffd.nFileSizeLow)
+                    total = total + FSTShared.SizeFromHL(ffd.nFileSizeHigh, ffd.nFileSizeLow)
                 End If
             End If
         Loop While FindNextFileW(hFind, ffd) <> 0
@@ -458,7 +462,7 @@ Public Class Folder
     Private Sub EnsureCurrent()
         Dim ignoreSize As LongLong
         Dim leaf As String
-        If Not Shared.StatPath(mPath, mAttrs, ignoreSize, mCreated, mModified, mAccessed, leaf) Then
+        If Not FSTShared.StatPath(mPath, mAttrs, ignoreSize, mCreated, mModified, mAccessed, leaf) Then
             Err.Raise 76, "Folder", "Path not found: " & mPath
         End If
         If Len(leaf) > 0 Then

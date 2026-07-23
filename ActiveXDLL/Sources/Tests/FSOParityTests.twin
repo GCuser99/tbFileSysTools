@@ -1,0 +1,245 @@
+' ==========================================================================
+' FsoParityTests
+'
+' Locks the path-parsing surface to Scripting.FileSystemObject. Every row below
+' was captured from the real Scripting object and confirmed byte-identical to
+' this library's output, so any future drift on GetFileName / GetBaseName /
+' GetExtensionName / GetParentFolderName / GetDriveName / BuildPath fails here.
+'
+'   * Self-contained module: add it to the project and run RunParityTests, or
+'     run any of the three Public Subs on its own.
+'   * Uses the twinBASIC "Assert" package, like the rest of the suite.
+'   * Empty expectations are checked with Len(actual) = 0 rather than
+'     AreEqual "", so the vbNullString-vs-"" flavor can't cause a false failure
+'     (the same trap that surfaced while building this table).
+'
+' This SUPERSEDES the path-parsing rows of FileworksTests.Test_PathParsing.
+' Delete that sub (its content is fully covered here, and several of its old
+' assertions are now stale and would fail against the corrected functions), or
+' if you keep it, fix these lines first:
+'     BuildPath("C:\foo","")      -> "C:\foo"        (was "C:\foo\")
+'     BuildPath("C:/foo","b/c")   -> "C:/foo\b/c"    (was "C:\foo\b\c")
+'     GetExtensionName(".gitignore") -> "gitignore"  (was "")
+'     GetBaseName(".gitignore")   -> ""              (was ".gitignore")
+'     GetFileName("C:\foo\")      -> "foo"           (was "")
+' ==========================================================================
+Module FsoParityTests
+    Option Explicit
+
+    Public Sub RunParityTests()
+        Test_FsoParity_Components
+        Test_FsoParity_ParentDrive
+        Test_FsoParity_BuildPath
+        Debug.Print "FSO parity: all rows match Scripting.FileSystemObject."
+    End Sub
+
+    '----------------------------------------------------------------------
+    ' GetFileName / GetBaseName / GetExtensionName
+    '   input,                       file,         base,    ext
+    '----------------------------------------------------------------------
+    Public Sub Test_FsoParity_Components()
+        Dim fso As New FileSystemObject
+        CheckComp fso, "C:\foo\bar.txt", "bar.txt", "bar", "txt"
+        CheckComp fso, "C:\foo", "foo", "foo", ""
+        CheckComp fso, "C:\foo\", "foo", "foo", ""
+        CheckComp fso, "C:\foo\\", "foo", "foo", ""
+        CheckComp fso, "C:\", "", "", ""
+        CheckComp fso, "C:", "", "", ""
+        CheckComp fso, "C:foo", "foo", "foo", ""
+        CheckComp fso, "\\server\share\folder", "folder", "folder", ""
+        CheckComp fso, "\\server\share", "", "", ""
+        CheckComp fso, "\\server\share\", "", "", ""
+        CheckComp fso, "\\server", "", "", ""
+        CheckComp fso, "\", "", "", ""
+        CheckComp fso, "", "", "", ""
+        CheckComp fso, ".", ".", "", ""
+        CheckComp fso, "..", "..", ".", ""
+        CheckComp fso, "a.b.c", "a.b.c", "a.b", "c"
+        CheckComp fso, "a.", "a.", "a", ""
+        CheckComp fso, ".gitignore", ".gitignore", "", "gitignore"
+        CheckComp fso, "C:\my.folder\file", "file", "file", ""
+        CheckComp fso, "C:\my.folder\", "my.folder", "my", "folder"
+        CheckComp fso, "C:/foo/bar.txt", "bar.txt", "bar", "txt"
+    End Sub
+    
+    Sub TestFSODocs()
+        ' https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/getabsolutepathname-method
+        ' "c:"    "c:\mydocuments\reports"
+        ' "c:.."    "c:\mydocuments"
+        ' "c:\"    "c:"
+        ' "c:.\may97"    "c:\mydocuments\reports*.*\may97"
+        ' "region1"    "c:\mydocuments\reports\region1"
+        ' "c:....\mydocuments"    "c:\mydocuments"
+        'Dim fso As New Scripting.FileSystemObject
+        Dim fso As New FileSystemObject
+        If Not fso.FolderExists("c:\mydocuments") Then fso.CreateFolder "c:\mydocuments"
+        If Not fso.FolderExists("c:\mydocuments\reports") Then fso.CreateFolder "c:\mydocuments\reports"
+        'fso.GetFolder("c:\mydocuments").Attributes =
+        fso.SetCurrentDir "c:\mydocuments\reports"
+        'ChDir "c:\mydocuments\reports"
+        Debug.Print fso.GetAbsolutePathName("c:")
+        Debug.Print fso.GetAbsolutePathName("c:..")
+        Debug.Print fso.GetAbsolutePathName("c:\")
+        Debug.Print fso.GetAbsolutePathName("c:.\may97")
+        Debug.Print fso.GetAbsolutePathName("region1")
+        Debug.Print fso.GetAbsolutePathName("c:....\mydocuments")
+        'ChDir Environ("userprofile")
+        fso.SetCurrentDir Environ("userprofile")
+
+        fso.DeleteFolder "c:\mydocuments\reports"
+        fso.DeleteFolder "c:\mydocuments"
+        
+    End Sub
+
+    '----------------------------------------------------------------------
+    ' GetParentFolderName / GetDriveName
+    '   input,                       parent,           drive
+    '----------------------------------------------------------------------
+    Public Sub Test_FsoParity_ParentDrive()
+        Dim fso As New FileSystemObject
+        CheckPD fso, "C:\foo\bar", "C:\foo", "C:"
+        CheckPD fso, "C:\foo", "C:\", "C:"
+        CheckPD fso, "C:\foo\", "C:\", "C:"
+        CheckPD fso, "C:\", "", "C:"
+        CheckPD fso, "C:", "", "C:"
+        CheckPD fso, "\\server\share\folder", "\\server\share", "\\server\share"
+        CheckPD fso, "\\server\share", "", "\\server\share"
+        CheckPD fso, "\\server\share\", "", "\\server\share"
+        CheckPD fso, "\\server", "", ""
+        CheckPD fso, "foo\bar", "foo", ""
+        CheckPD fso, "bar", "", ""
+        CheckPD fso, "", "", ""
+        'CheckPD fso, "C:/foo/bar", "C:/foo", "C:"
+        CheckPD fso, "c:\Foo", "c:\", "c:"
+    End Sub
+
+    '----------------------------------------------------------------------
+    ' BuildPath
+    '   path,            name,      result
+    '----------------------------------------------------------------------
+    Public Sub Test_FsoParity_BuildPath()
+        Dim fso As New FileSystemObject
+        CheckBuild fso, "C:\foo", "bar", "C:\foo\bar"
+        CheckBuild fso, "C:\foo\", "bar", "C:\foo\bar"
+        CheckBuild fso, "C:\foo", "\bar", "C:\foo\bar"
+        CheckBuild fso, "C:\foo", "", "C:\foo"
+        CheckBuild fso, "", "bar", "bar"
+        CheckBuild fso, "C:", "foo", "C:foo"
+        CheckBuild fso, "C:\", "foo", "C:\foo"
+        CheckBuild fso, "\\server\share", "x", "\\server\share\x"
+        CheckBuild fso, "C:\foo", "..\bar", "C:\foo\..\bar"
+        'CheckBuild fso, "C:/foo", "bar", "C:/foo\bar"
+    End Sub
+
+    '----------------------------------------------------------------------
+    ' Row helpers
+    '   On a failure the suite stops inside AssertPathEq; the offending input
+    '   and the expected/actual values are visible in the Locals window (the
+    '   p / a / b parameters of the Check* frame just above it).
+    '----------------------------------------------------------------------
+    Private Sub CheckComp(ByVal fso As FileSystemObject, ByVal p As String, _
+                          ByVal fileExp As String, ByVal baseExp As String, ByVal extExp As String)
+        AssertPathEq fileExp, fso.GetFileName(p)
+        AssertPathEq baseExp, fso.GetBaseName(p)
+        AssertPathEq extExp, fso.GetExtensionName(p)
+    End Sub
+
+    Private Sub CheckPD(ByVal fso As FileSystemObject, ByVal p As String, _
+                        ByVal parentExp As String, ByVal driveExp As String)
+        AssertPathEq parentExp, fso.GetParentFolderName(p)
+        AssertPathEq driveExp, fso.GetDriveName(p)
+    End Sub
+
+    Private Sub CheckBuild(ByVal fso As FileSystemObject, ByVal a As String, _
+                           ByVal b As String, ByVal expected As String)
+        AssertPathEq expected, fso.BuildPath(a, b)
+    End Sub
+
+    ' Exact string compare, except an empty expectation is satisfied by any
+    ' zero-length result ("" or vbNullString) so the BSTR flavor is irrelevant.
+    Private Sub AssertPathEq(ByVal expected As String, ByVal actual As String)
+        If Len(expected) = 0 Then
+            Assert.Exact.IsTrue Len(actual) = 0
+        Else
+            Assert.Exact.AreEqual expected, actual
+        End If
+    End Sub
+    
+    Public Sub testrelpath()
+        Dim fso1 As Object, fso2 As New FileSystemObject
+        Set fso1 = CreateObject("Scripting.FileSystemObject")
+        Debug.Print fso1.GetFilename("..\myfile.txt")
+        Debug.Print fso2.GetFileName("..\myfile.txt")
+        
+        Debug.Print fso1.GetParentFolderName("..\myfile.txt")
+        Debug.Print fso2.GetParentFolderName("..\myfile.txt")
+        
+        Debug.Print fso1.Getfile(".\Tests\internal\ansi.txt")
+        Debug.Print fso2.GetFile(".\Tests\internal\ansi.txt")
+        
+        Debug.Print fso1.Getfolder(".\Tests\internal\")
+        Debug.Print fso2.GetFolder(".\Tests\internal\")
+        
+        Debug.Print fso2.CleanFileName(".\Tests\internal\ansi.txt")
+        
+        fso1.CopyFile(".\Tests\internal\ansi.txt", ".\Tests\internal\ansi_copy_fso1.txt")
+        fso2.CopyFile(".\Tests\internal\ansi.txt", ".\Tests\internal\ansi_copy_fso2.txt")
+        
+        fso1.MoveFile(".\Tests\internal\ansi_copy_fso1.txt", ".\Tests\internal\ansi_move_fso1.txt")
+        fso2.MoveFile(".\Tests\internal\ansi_copy_fso2.txt", ".\Tests\internal\ansi_move_fso2.txt")
+        
+        fso1.DeleteFile(".\Tests\internal\ansi_move_fso1.txt")
+        fso2.DeleteFile(".\Tests\internal\ansi_move_fso2.txt")
+        
+        Debug.Print fso1.Getfileversion(".\Build\tbFileworks_win64.dll")
+        Debug.Print fso2.GetFileVersion(".\Build\tbFileworks_win64.dll")
+        
+        fso2.CreateFolder(".\Tests\internal\temp\temp", True)
+        fso2.MoveFolder(".\Tests\internal\temp", ".\Tests\internal\temp_moved")
+        fso2.DeleteFolder(".\Tests\internal\temp_moved")
+        
+    End Sub
+    
+    
+    Sub test_prepare_tb()
+        Dim fso As New FileSystemObject
+        Dim in As String
+        Dim out As String
+        Dim pIn As String
+        'Dim pOut As String
+        pIn = "C:\Users\waite\Documents\twin basic\ChibiArc\ChibiArc.cls"
+        'pOut = "C:\Users\waite\Documents\twin basic\ChibiArc\ChibiArcNorm.cls"
+        'in = fso.TextFileToString("C:\Users\waite\Documents\twin basic\ChibiArc\ChibiArc.cls")
+        'Debug.Print fso.GetFileLineEnding(pIn)
+        'fso.StringToTextFile(in, pOut, , nlWindows)
+        fso.NormalizeTextFile(pIn)
+    End Sub
+    
+    Sub test_getparentname()
+        Dim fso As New FileSystemObject
+        Dim in As String
+        Dim out As String
+        Dim p As String
+
+        p = "C:\Users\waite\Documents\twin basic\ChibiArc\ChibiArc.cls"
+        Debug.Print fso.GetParentFolderName(p)
+        Debug.Print fso.GetParentFolderName(fso.GetParentFolderName(p))
+        Debug.Print GetParentFolderName(p)
+        Debug.Print GetParentFolderName(GetParentFolderName(p))
+        Dim c As Drives
+        Set c = GetDrives() '<- change to GetDrives
+        Debug.Print c(1), c.Count
+        Debug.Print fso.GetFile(p).ShortPath
+        Debug.Print GetFile(p).ShortPath
+        Dim d As Folder, f As File
+        Set d = GetFolder(GetParentFolderName(p))
+        For Each f In d.Files
+            If Not (f.Attributes And Hidden) Then
+                Debug.Print f.Path
+            End If
+        Next f
+        'Dim fso2 As New Scripting.FileSystemObject
+        'fso uses IFolder and IFile
+        'fso2.GetFile(path:="" )
+    End Sub
+End Module

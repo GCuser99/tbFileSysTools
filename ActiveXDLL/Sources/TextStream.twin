@@ -348,7 +348,7 @@ Public Class TextStream
         ' StatPath is the only trustworthy size source.
         Dim total As LongLong
         Dim attrs As Long, cr As Date, mo As Date, ac As Date, leaf As String
-        Shared.StatPath mPath, attrs, total, cr, mo, ac, leaf
+        FSTShared.StatPath mPath, attrs, total, cr, mo, ac, leaf
         If bomLen > 0 And total >= bomLen Then
             Seek #mFile, bomLen + 1                  ' tiny offset: safe on a 32-bit Seek
             mBytesRemaining = total - bomLen
@@ -362,7 +362,7 @@ Public Class TextStream
 
     ' Fresh write. CREATE_ALWAYS truncates any existing file
     Private Sub OpenWriteFresh()
-        mHandle = CreateFileW(StrPtr(mPath), GENERIC_WRITE, FILE_SHARE_READ, ByVal vbNullPtr, _
+        mHandle = CreateFileW(StrPtr(FSTShared.ApiPath(mPath)), GENERIC_WRITE, FILE_SHARE_READ, ByVal vbNullPtr, _
                               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0)
         If mHandle = INVALID_HANDLE_VALUE Then
             mHandle = 0                              ' normalize: 0 is our "no handle" sentinel
@@ -386,7 +386,7 @@ Public Class TextStream
     ' position at the end of a >2GB file (it failed with a bare E_FAIL).
     ' No BOM either - the file already has one or was never meant to.
     Private Sub OpenWriteAppend()
-        mHandle = CreateFileW(StrPtr(mPath), FILE_APPEND_DATA, FILE_SHARE_READ, ByVal vbNullPtr, _
+        mHandle = CreateFileW(StrPtr(FSTShared.ApiPath(mPath)), FILE_APPEND_DATA, FILE_SHARE_READ, ByVal vbNullPtr, _
                               OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0)
         If mHandle = INVALID_HANDLE_VALUE Then
             mHandle = 0

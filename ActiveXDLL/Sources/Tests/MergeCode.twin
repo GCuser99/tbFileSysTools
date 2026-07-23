@@ -126,7 +126,34 @@ Module MergeCode
             j = j + 1
         Next p
         ReDim Preserve o(0 To j)
-        ArrayToTextFile o, ".\Sources\tbFileSysToolsPackage.twin", encoding:=enc, lineEnding:=le
+        ArrayToTextFile o, "..\Package\Sources\tbFileSysToolsPackage.twin", encoding:=enc, lineEnding:=le
     End Sub
+    
+    Private Sub Normalize_Eg()
+        Dim fso As New tbFileSysTools.FileSystemObject
+        Dim folderPath As String
+        Dim f As tbFileSysTools.File
+        
+        folderPath = fso.BuildPath(fso.GetSpecialFolder(Documents), "GitHub\tbFileSysTools\ActiveXDLL\Dev")
+        For Each f In fso.GetFolder(folderPath).Files
+            f.Normalize toEncoding:=encUtf8, toLineEnding:=nlWindows
+        Next f
+        
+    End Sub
+    
+    Private Sub test_long_path()
+        Dim fso As New tbFileSysTools.FileSystemObject
+        Dim fileName As String
+        Dim filePath As String
+        fileName = String$(237, "1") & ".txt"
+        Debug.Print Len(fileName)
+        filePath = fso.BuildPath(fso.GetSpecialFolder(Documents), fileName)
+        Debug.Print Len(filePath) 'practical limit is 245
+        Dim txt As String
+        txt = "hello new world"
+        fso.StringToTextFile(txt, filePath)
+        'Open tempPath For Binary Access Write As #fn fails in WriteStream
+    End Sub
+    
 
 End Module

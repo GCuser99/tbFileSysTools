@@ -1,4 +1,4 @@
-    'The Windows API declarations used here are from Jon Johnson's WinDevLib tB package.
+    'The Windows API declarations used here are from Jon Johnson's WinDevLib tB package (https://github.com/fafalone/WinDevLib).
     'This project was designed to function without these declarations if Jon Johnson's WinDevLib is referenced.
 
     [Description("CLSID_FileOpenDialog")]
