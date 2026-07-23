@@ -155,6 +155,10 @@ A few members stay bound to 260 characters, because the specific Win32 APIs behi
 |Wildcard patterns in `CopyFile` / `MoveFile` / `DeleteFile` / `CopyFolder` / `MoveFolder` / `DeleteFolder` / `GetFilePaths`|The pattern is 260-bound; matched items are handled normally|A wildcard pattern can't be safely `\\?\`-prefixed|
 |`SetCurrentDir`|Raises; the CWD is left unchanged|`SetCurrentDirectoryW` loses the limit only under the process-wide long-path opt-in, which a library can't guarantee|
 
+> **Note:** tbFileSysTools does not require the Windows long-path opt-in
+> (`LongPathsEnabled` + `longPathAware`). Long paths work regardless of registry
+> or manifest configuration, and behave identically with the opt-in enabled.
+
 ---
 
 ## Objects
