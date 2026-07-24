@@ -1,6 +1,6 @@
 ' This file was automatically generated from the ActiveX DLL version source.
-' COM machinery stripped out and combined into one file for easy project
-' drop-in.
+' COM machinery stipped out, public interface made private, and combined
+' into one file for easy project drop-in.
 ' --------------------------------------------------------------------------
 ' ==========================================================================
 ' FileSystemObject
@@ -67,7 +67,7 @@
 ' ==========================================================================
 [Hidden(False)]
 [Description("This class replaces or improves on most functionality of the FileSystemObject, adding reading and writing on non-UTF16 encoded files.")]
-Public Class FileSystemObject
+Private Class FileSystemObject
     Option Explicit
 
     [Description("Returns the file's version. By default (fvFixed) returns the binary version as major.minor.build.revision, fvFileString returns the authored StringFileInfo FileVersion string and fvProductString returns the ProductVersion string; both fall back to the fixed version when the file has no string block. Returns an empty string when the file carries no version resource, and also for paths longer than 260 characters, which the version-resource APIs do not support.")]
@@ -2732,7 +2732,7 @@ End Module
 ' ==========================================================================
 [Hidden(False)]
 [Description("An FSO-style File object. Obtain via FileSystem.GetFile or Folder.Files; Not New-able directly.")]
-Public Class File
+Private Class File
     Option Explicit
 
     ' Cached stat fields. Refreshed by EnsureCurrent on every public access - see
@@ -3089,7 +3089,7 @@ End Class
 
 [Hidden(False)]
 [Description("A read-only collection of File objects, enumerable with For Each.")]
-Public Class Files
+Private Class Files
     Option Explicit
     
     Private mItems As Collection                       ' File objects, keyed by name
@@ -3152,7 +3152,7 @@ End Class
 ' ==========================================================================
 [Hidden(False)]
 [Description("An FSO-style Folder object. Obtain via FileSystem.GetFolder or Folder.SubFolders; Not New-able directly.")]
-Public Class Folder
+Private Class Folder
     Option Explicit
 
     ' Cached stat fields. Refreshed by EnsureCurrent on every public access - see
@@ -3617,7 +3617,7 @@ End Class
 ' ==========================================================================
 [Hidden(False)]
 [Description("A read-only collection of Folder objects, enumerable with For Each.")]
-Public Class Folders
+Private Class Folders
     Option Explicit
     
     Private mItems As Collection
@@ -3699,7 +3699,7 @@ End Class
 ' ==========================================================================
 [Hidden(False)]
 [Description("Provides access to the properties of a particular disk drive or network share")]
-Public Class Drive
+Private Class Drive
     Option Explicit
 
     ' FSO's values, NOT Win32's - the two disagree by one. GetDriveTypeW returns
@@ -4042,7 +4042,7 @@ End Class
 
 [Hidden(False)]
 [Description("A read-only collection of Drive objects, enumerable with For Each.")]
-Public Class Drives
+Private Class Drives
     Option Explicit
     Private mItems As Collection                       ' Drive objects, keyed by letter
 
@@ -4146,7 +4146,7 @@ End Class
 ' ==========================================================================
 [Hidden(False)]
 [Description("A streaming text reader/writer returned by FileSystem.OpenTextFile, supporting auto-detected and explicit encodings with large-file streaming.")]
-Public Class TextStream
+Private Class TextStream
     Option Explicit
     
     Private Const ERR_NOT_TEXT As Long = 5   ' shared "refused: content isn't decodable text"

@@ -4,11 +4,9 @@
 ' An FSO-style Drive object. Obtained from FileSystemTools.GetDrive,
 ' FileSystemTools.GetDrives, File.Drive or Folder.Drive - never New'd directly.
 '
-' --- A different object model from File / Folder -------------------------
-' File and Folder cache a stat and refresh it through EnsureCurrent. Drive has
-' NOTHING to cache: its only state is mRoot, and every property queries Windows
-' live, on every read. That is deliberate - free space, readiness and media
-' presence change under you, so a cached snapshot would be worse than useless.
+' Drive has NOTHING to cache: its only state is mRoot, and every property
+' queries Windows live, on every read. That is deliberate - free space,
+' readiness and media presence can change.
 '
 ' Two consequences:
 '   * Always fresh. No Refresh method exists because none is needed.
@@ -346,7 +344,6 @@ Public Class Drive
         UnsignedSerialNumber = v
     End Property
 
-    ' The form everyone actually recognises - what `vol` and Explorer show.
     ' Always 8 hex digits, dash-separated in the middle: "D4A1-B2C3".
     ' Built from the unsigned value so a negative serial formats correctly (Hex$ on a
     ' negative Long would give the right digits by accident, but only because of

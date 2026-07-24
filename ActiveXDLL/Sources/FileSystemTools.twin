@@ -572,27 +572,6 @@ Public Module FileSystemTools
         ' If caller gives a base, only combine when Path is genuinely relative
         ' BUT: "C:foo" is special. We keep Windows semantics unless base is on same drive.
         If Len(baseDirectory) > 0 Then
-            /*
-            If IsDriveRelative(path) Then
-                ' Base overrides the per-drive current directory only when it's the same drive.
-                If UCase$(Left$(baseDirectory, 2)) = UCase$(Left$(path, 2)) Then
-                    combined = String$(MAX_PATH, vbNullChar)
-                    If PathCombineW(StrPtr(combined), StrPtr(baseDirectory), StrPtr(Mid$(path, 3))) = 0 Then
-                        Err.Raise 52, "GetAbsolutePathName", "Bad file name or number: " & path
-                    End If
-                    path = Left$(combined, InStr(combined, vbNullChar) - 1)
-                End If
-                ' Else: leave as "C:foo" and let GetFullPathNameW resolve via drive CWD
-            Else
-                ' For normal relative paths (including "\foo" which is drive-root relative),
-                ' PathCombineW matches Windows behavior.
-                combined = String$(MAX_PATH, vbNullChar)
-                If PathCombineW(StrPtr(combined), StrPtr(baseDirectory), StrPtr(path)) = 0 Then
-                    Err.Raise 52, "GetAbsolutePathName", "Bad file name or number: " & path
-                End If
-                path = Left$(combined, InStr(combined, vbNullChar) - 1)
-            End If
-            */
             If IsDriveRelative(path) Then
                 If UCase$(Left$(baseDirectory, 2)) = UCase$(Left$(path, 2)) Then
                     path = CombineLexical(baseDirectory, Mid$(path, 3))
