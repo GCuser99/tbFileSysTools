@@ -43,7 +43,7 @@ Everything above is measured, not assumed — see [Verification](#verification).
 
 The library has one implementation and two pathways in.
 
-### `FileSystemTools` — the standard module
+### FileSystemTools — the standard module
 
 Preferred for twinBASIC code. Call it directly; there's no object to create. Potentially smaller compile footprint than the object version.
 
@@ -53,7 +53,7 @@ If FileSystemTools.FileExists(path) Then
 End If
 ```
 
-### `FileSystemObject` — the COM class
+### FileSystemObject — the COM class
 
 A drop-in replacement for the Scripting Runtime object. Use it for hosts that need an object, or when porting existing FSO code that you'd rather not rewrite.
 
