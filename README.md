@@ -41,7 +41,7 @@ Everything above is measured, not assumed — see [Verification](#verification).
 
 ## Two ways in
 
-The library has one implementation and two doorways onto it.
+The library has one implementation and two pathways in.
 
 ### `FileSystemTools` — the standard module
 
@@ -55,7 +55,7 @@ End If
 
 ### `FileSystemObject` — the COM class
 
-A drop-in replacement for the Scripting Runtime object. Use it for late binding, for VBA/VBScript hosts that need an object, or when porting existing FSO code that you'd rather not rewrite.
+A drop-in replacement for the Scripting Runtime object. Use it for hosts that need an object, or when porting existing FSO code that you'd rather not rewrite.
 
 ```vb
 Dim fso As New FileSystemObject          ' or CreateObject("tbFileSysTools.FileSystemObject")
