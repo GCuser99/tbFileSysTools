@@ -27,13 +27,13 @@ text = FileSystemTools.TextFileToString("data.txt")     ' encoding auto-detected
 |Junction in a folder tree|`Folder.Size` double-counts, or recurses forever|Skipped|
 |Unreadable folder|Reports it as empty|Raises|
 
-Everything above is measured, not assumed — see [Verification](#verification).
+Everything above is measured - see [Verification](#verification).
 
 ---
 
 ## Install
 
-> \*\*TODO:\*\* installation instructions — package/`.twinpack` reference, or "add the `src/` modules to your project."
+> \*\*TODO:\*\* installation instructions - package/`.twinpack` reference, or "add the `src/` modules to your project."
 
 **Requires:** twinBASIC. *(TODO: minimum build number.)*
 
