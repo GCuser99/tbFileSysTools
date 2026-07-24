@@ -253,11 +253,11 @@ Error numbers follow FSO convention, so existing handlers keep working:
 
 ## Verification
 
-The large-file, encoding and long-path claims above are measured, not asserted. The probe modules are in the repo *(TODO: path)* and can be re-run.
+The large text file, encoding and long-path claims above are measured, not asserted. The test modules can  be found in the [Tests](https://github.com/GCuser99/tbFileSysTools/tree/main/ActiveXDLL/Sources/Tests) folder.
 
 |Claim|Evidence|
 |-|-|
-|Streams past 2 GB and 4 GB, read and write|4.5 GB file written and read back block-by-block; every block verified in place|
+|Streams > 2 GB text file|4.5 GB file written and read back block-by-block; every block verified in place|
 |Append to a > 2 GB file is correct and non-destructive|Head, size and tail all verified after appending to a 2.4 GB file|
 |Multi-byte encodings survive chunk boundaries|54 M lines of UTF-16LE and UTF-8 containing 1-, 2-, 3- and 4-byte characters and surrogate pairs; line length chosen so chunk boundaries sweep every character position. Zero errors|
 |Line/column tracking is exact|14 CR/LF edge cases, plus 35 M lines end to end|
