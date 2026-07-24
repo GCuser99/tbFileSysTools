@@ -258,7 +258,7 @@ The large text file, encoding and long-path claims above are measured, not asser
 |Claim|Evidence|
 |-|-|
 |Streams > 2 GB text file|4.5 GB file written and read back block-by-block; every block verified in place|
-|Append to a > 2 GB file is correct and non-destructive|Head, size and tail all verified after appending to a 2.4 GB file|
+|Append to a > 2 GB text file is correct and non-destructive|Head, size and tail all verified after appending to a 2.4 GB file|
 |Multi-byte encodings survive chunk boundaries|54 M lines of UTF-16LE and UTF-8 containing 1-, 2-, 3- and 4-byte characters and surrogate pairs; line length chosen so chunk boundaries sweep every character position. Zero errors|
 |Line/column tracking is exact|14 CR/LF edge cases, plus 35 M lines end to end|
 |Long paths work end to end|>400-character folder tree built by the library's own `CreateFolder`; write, read, normalize and in-place merge round-trips all pass, including a temp name that crosses 260 during an atomic swap|
