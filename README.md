@@ -131,7 +131,7 @@ Multi-byte encodings are handled correctly across chunk boundaries, including su
 
 ## Long paths
 
-Windows' legacy `MAX_PATH` limit is 260 characters. `Scripting.FileSystemObject` is bound by it — and worse, bound by it **silently**: on a path longer than 260 characters, FSO's `FileExists` returns False for a file that exists, `GetFile` and `OpenTextFile` raise "path not found", and nothing distinguishes "too long" from "genuinely absent".
+Windows' legacy `MAX_PATH` limit is 260 characters. `Scripting.FileSystemObject` is bound by it - on a path longer than 260 characters, FSO's `FileExists` returns False for a file that exists, `GetFile` and `OpenTextFile` raise "path not found".
 
 This library supports long paths transparently. Reading, writing, creating, copying, moving, deleting, enumerating, normalizing and merging all work well past 260 characters — no prefix, no flag, no special call. You pass a normal path; the library canonicalizes it and applies the `\\?\` prefix to the underlying Win32 calls when needed.
 
@@ -144,7 +144,7 @@ Debug.Print FileExists(deep)                   ' True
 Debug.Print TextFileToString(deep)             ' hello
 ```
 
-A few members stay bound to 260 characters, because the specific Win32 APIs behind them don't honor the `\\?\` prefix. Each degrades or raises clearly rather than returning a wrong answer:
+A few members stay bound to 260 characters, because the specific Win32 APIs behind them don't honor the `\\?\` prefix. Each degrades or raises rather than returning a wrong answer:
 
 |Member|On a > 260 path|Why|
 |-|-|-|
@@ -175,7 +175,7 @@ For Each fl In f.Files
 Next
 ```
 
-`File` and `Folder` objects are **live**: every property read re-stats the path, so values are never stale — and a deleted file raises rather than reporting fossils. The trade-off is that each property read costs a round trip, so hoist values out of tight loops.
+`File` and `Folder` objects are **live**: every property read re-stats the path, so values are never stale — and a deleted file raises rather than reporting stale values. The trade-off is that each property read costs a round trip, so hoist values out of tight loops.
 
 `Folder.Files` and `Folder.SubFolders` return a **snapshot** of the membership. The objects inside are live; the list is not.
 
@@ -189,8 +189,6 @@ Parity is the goal, but not at any price. Each of these was checked against the 
 
 **An unreadable folder raises.** FSO silently reports it as empty. A size or file list that quietly omits a subtree that can't be read is worse than an error.
 
-**Long paths are supported, not rejected.** FSO caps at 260 and misreports; this library handles them (see [Long paths](#long-paths)). Matching FSO here would have meant matching a silent wrong answer.
-
 **`FileAttribute.Volume` and `.Alias` are not provided.** `Volume` has no Win32 equivalent (use `Drive.VolumeName`). `Alias` is `FILE\_ATTRIBUTE\_REPARSE\_POINT` under a misleading name — and collides with VBA's `vbAlias` (64 vs 1024). Use `ReparsePoint`.
 
 ---
@@ -202,7 +200,7 @@ The following members are either added, or their function significantly improved
 |Member|Description|
 |-|-|
 |`CreateTextFile`|Create any format - not just ascii/utf16|
-|`OpenTextFile`|Format auto-detection or user-specified|
+|`OpenTextFile`|Format auto-detection or user-specified code page|
 |`GetFileEncoding`|Detect a file's encoding|
 |`GetFileLineEnding`|Detect CRLF / LF / CR / mixed|
 |`MergeTextFiles`|Merges two text files, normalizing the encoding to the first|
@@ -253,7 +251,7 @@ Error numbers follow FSO convention, so existing handlers keep working:
 
 ## Verification
 
-The large text file, encoding and long-path claims above are measured, not asserted. The test modules can  be found in the [Tests](https://github.com/GCuser99/tbFileSysTools/tree/main/ActiveXDLL/Sources/Tests) folder.
+The large text file, encoding and long-path claims above were measured through comprehensive testing. The test modules can  be found in the [Tests](https://github.com/GCuser99/tbFileSysTools/tree/main/ActiveXDLL/Sources/Tests) folder.
 
 |Claim|Evidence|
 |-|-|
