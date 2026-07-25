@@ -8,7 +8,7 @@ It does everything FSO does, plus many things FSO cannot: **full text-encoding s
 ' Read a UTF-8 file with a BOM, a UTF-16LE file, and a Shift-JIS file.
 ' You don't have to know which is which.
 Dim text As String
-text = FileSystemTools.TextFileToString("data.txt")     ' encoding auto-detected
+text = TextFileToString("data.txt")     ' encoding auto-detected
 ```
 
 ---
@@ -48,8 +48,8 @@ The library has one implementation and two pathways in.
 Preferred for twinBASIC code. Call it directly; there's no object to create. Potentially smaller compile footprint than the object version.
 
 ```vb
-If FileSystemTools.FileExists(path) Then
-    Debug.Print FileSystemTools.GetFile(path).Size
+If FileExists(path) Then
+    Debug.Print GetFile(path).Size
 End If
 ```
 
@@ -75,16 +75,16 @@ The headline feature. FSO can read ASCII and UTF-16. This reads anything Windows
 ```vb
 ' Auto-detect: BOM first, then UTF-16/32 and UTF-8 heuristics, then system ANSI.
 Dim s As String
-s = FileSystemTools.TextFileToString("mystery.txt")
+s = TextFileToString("mystery.txt")
 
 ' Or be explicit. A BOM in the file still wins.
-s = FileSystemTools.TextFileToString("legacy.txt", encGB18030)
+s = TextFileToString("legacy.txt", encGB18030)
 
 ' Write with a BOM by choosing a BOM-bearing encoding.
-FileSystemTools.StringToTextFile s, "out.txt", encUtf8Bom
+StringToTextFile s, "out.txt", encUtf8Bom
 
 ' What encoding IS this file?
-Debug.Print FileSystemTools.GetFileEncoding("mystery.txt")   ' e.g. encUtf16Bom
+Debug.Print GetFileEncoding("mystery.txt")   ' e.g. encUtf16Bom
 ```
 
 Supported: UTF-8, UTF-16 LE/BE, UTF-32 LE/BE, UTF-7, GB2312, GB18030, Big5, Latin-1, Latin-9, US-ASCII, system ANSI — each with and without a BOM (if applicable) — plus any other code page installed on the machine.
@@ -94,11 +94,11 @@ Supported: UTF-8, UTF-16 LE/BE, UTF-32 LE/BE, UTF-7, GB2312, GB18030, Big5, Lati
 ### Line endings
 
 ```vb
-Debug.Print FileSystemTools.GetFileLineEnding("script.sh")   ' nlUnix
+Debug.Print GetFileLineEnding("script.sh")   ' nlUnix
 
 ' Rewrite in place: UTF-8, CRLF, attributes preserved. Skips the write if the
 ' file is already in that form.
-FileSystemTools.NormalizeTextFile "script.sh", encUtf8, nlWindows
+NormalizeTextFile "script.sh", encUtf8, nlWindows
 ```
 
 Appending to an existing file adopts **that file's** newline style, so you can't accidentally turn a clean file into a mixed one.
@@ -111,14 +111,14 @@ FSO cannot read a file larger than 2 GB. It doesn't error — it returns an empt
 
 ```vb
 Dim ts As TextStream
-Set ts = FileSystemTools.OpenTextFile("huge.log", ForReading)
+Set ts = OpenTextFile("huge.log", ForReading)
 Do Until ts.AtEndOfStream
     ProcessLine ts.ReadLine()       ' no size limit
 Loop
 ts.Close
 
 ' Appending to a 4 GB file also works.
-Set ts = FileSystemTools.OpenTextFile("huge.log", ForAppending)
+Set ts = OpenTextFile("huge.log", ForAppending)
 ts.WriteLine "another line"
 ts.Close
 ```
@@ -139,9 +139,9 @@ This library supports long paths transparently. Reading, writing, creating, copy
 ' A 400-plus-character path is just a path.
 Dim deep As String
 deep = "C:\...\a\very\deeply\nested\...\structure\notes.txt"   ' > 260 chars
-FileSystemTools.StringToTextFile "hello", deep
-Debug.Print FileSystemTools.FileExists(deep)                   ' True
-Debug.Print FileSystemTools.TextFileToString(deep)             ' hello
+StringToTextFile "hello", deep
+Debug.Print FileExists(deep)                   ' True
+Debug.Print TextFileToString(deep)             ' hello
 ```
 
 A few members stay bound to 260 characters, because the specific Win32 APIs behind them don't honor the `\\?\` prefix. Each degrades or raises clearly rather than returning a wrong answer:
@@ -167,7 +167,7 @@ A few members stay bound to 260 characters, because the specific Win32 APIs behi
 
 ```vb
 Dim f As Folder
-Set f = FileSystemTools.GetFolder("C:\\Projects")
+Set f = GetFolder("C:\\Projects")
 
 Debug.Print f.Size                          ' total bytes, subtree
 For Each fl In f.Files
@@ -221,7 +221,7 @@ The following members are either added, or their function significantly improved
 |`File.HasAttribute`|Determines is an attribute is set|
 |`File.LineEnding`|Detect CRLF / LF / CR / mixed|
 |`File.Normalize`|Rewrite encoding + newlines in place, idempotently|
-|`File.OpenAsTextStream`|Format auto-detection or user-specified|
+|`File.OpenAsTextStream`|Format auto-detection or user-specified codepage|
 |`File.SetAttribute`|Sets a single attribute|
 |`File.ToStream`|Reads file to byte array|
 |`File.ToString`|Reads file to string|
@@ -272,7 +272,7 @@ The large text file, encoding and long-path claims above are measured, not asser
 | File | Description |
 |-|-|
 |`FileSystemTools`|The API. All the logic lives here|
-|`FileSystemObject`|COM-creatable thin wrapper over the above|
+|`FileSystemObject`|COM-creatable thin wrapper class over the above|
 |`TextStream`|Streaming text reader/writer|
 |`TextCodec`|Encoding detection, encode/decode, BOM handling|
 |`FSTShared`|Shared file/folder/drive procs|
