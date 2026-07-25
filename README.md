@@ -4,7 +4,7 @@ A modern replacement for Scripting Runtime's `FileSystemObject`, written in [twi
 
 It does everything FSO does, plus many things FSO cannot: **full text-encoding support**, **files larger than 2 GB**, **line-ending detection and normalization**, and **long paths beyond the legacy 260-character limit**.
 
-```vb
+```vba
 ' Read a UTF-8 file with a BOM, a UTF-16LE file, and a Shift-JIS file.
 ' You don't have to know which is which.
 Dim text As String
@@ -47,7 +47,7 @@ The library has one implementation and two pathways in.
 
 Preferred for twinBASIC code. Call it directly; there's no object to create. Potentially smaller compile footprint than the object version.
 
-```vb
+```vba
 If FileExists(path) Then
     Debug.Print GetFile(path).Size
 End If
@@ -57,7 +57,7 @@ End If
 
 A drop-in replacement for the Scripting Runtime object. Use it for hosts that need an object, or when porting existing FSO code that you'd rather not rewrite.
 
-```vb
+```vba
 Dim fso As New FileSystemObject          ' or CreateObject("tbFileSysTools.FileSystemObject")
 Debug.Print fso.GetFile(path).Size
 ```
@@ -72,7 +72,7 @@ The class is a one-line delegation to the module for every member — same behav
 
 The headline feature. FSO can read ASCII and UTF-16. This reads anything Windows has a code page for.
 
-```vb
+```vba
 ' Auto-detect: BOM first, then UTF-16/32 and UTF-8 heuristics, then system ANSI.
 Dim s As String
 s = TextFileToString("mystery.txt")
@@ -93,7 +93,7 @@ Supported: UTF-8, UTF-16 LE/BE, UTF-32 LE/BE, UTF-7, GB2312, GB18030, Big5, Lati
 
 ### Line endings
 
-```vb
+```vba
 Debug.Print GetFileLineEnding("script.sh")   ' nlUnix
 
 ' Rewrite in place: UTF-8, CRLF, attributes preserved. Skips the write if the
@@ -109,7 +109,7 @@ Appending to an existing file adopts **that file's** newline style, so you can't
 
 FSO cannot read a file larger than 2 GB. It doesn't error — it returns an empty string. This library streams them.
 
-```vb
+```vba
 Dim ts As TextStream
 Set ts = OpenTextFile("huge.log", ForReading)
 Do Until ts.AtEndOfStream
@@ -135,7 +135,7 @@ Windows' legacy `MAX_PATH` limit is 260 characters. `Scripting.FileSystemObject`
 
 This library supports long paths transparently. Reading, writing, creating, copying, moving, deleting, enumerating, normalizing and merging all work well past 260 characters — no prefix, no flag, no special call. You pass a normal path; the library canonicalizes it and applies the `\\?\` prefix to the underlying Win32 calls when needed.
 
-```vb
+```vba
 ' A 400-plus-character path is just a path.
 Dim deep As String
 deep = "C:\...\a\very\deeply\nested\...\structure\notes.txt"   ' > 260 chars
@@ -165,7 +165,7 @@ A few members stay bound to 260 characters, because the specific Win32 APIs behi
 
 `File`, `Folder`, `Drive` and their collections work as they do in FSO.
 
-```vb
+```vba
 Dim f As Folder
 Set f = GetFolder("C:\\Projects")
 
