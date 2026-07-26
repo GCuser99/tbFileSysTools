@@ -59,7 +59,7 @@
 '   Added members       - GetRelativePath, CleanFileName, GetFilePaths,
 '                           GetCurrentDir, SetCurrentDir, GetFileEncoding,
 '                           GetFileType, GetFileLineEnding, Rename,
-'                           NormalizeTextFile, ReadStream/WriteStream,
+'                           NormalizeTextFile, MergeTextFiles, ReadStream/WriteStream,
 '                           and the TextFile<->String/Array helpers.
 ' ==========================================================================
 ' MIT License - Copyright (c) 2026, GCUser99 (https://github.com/GCUser99)

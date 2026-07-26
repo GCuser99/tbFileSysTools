@@ -60,7 +60,7 @@
 '   Added members       - GetRelativePath, CleanFileName, GetFilePaths,
 '                           GetCurrentDir, SetCurrentDir, GetFileEncoding,
 '                           GetFileType, GetFileLineEnding, Rename,
-'                           NormalizeTextFile, ReadStream/WriteStream,
+'                           NormalizeTextFile, MergeTextFiles, ReadStream/WriteStream,
 '                           and the TextFile<->String/Array helpers.
 ' ==========================================================================
 ' MIT License - Copyright (c) 2026, GCUser99 (https://github.com/GCUser99)
@@ -895,27 +895,6 @@ Public Module FileSystemTools
         ' If caller gives a base, only combine when Path is genuinely relative
         ' BUT: "C:foo" is special. We keep Windows semantics unless base is on same drive.
         If Len(baseDirectory) > 0 Then
-            /*
-            If IsDriveRelative(path) Then
-                ' Base overrides the per-drive current directory only when it's the same drive.
-                If UCase$(Left$(baseDirectory, 2)) = UCase$(Left$(path, 2)) Then
-                    combined = String$(MAX_PATH, vbNullChar)
-                    If PathCombineW(StrPtr(combined), StrPtr(baseDirectory), StrPtr(Mid$(path, 3))) = 0 Then
-                        Err.Raise 52, "GetAbsolutePathName", "Bad file name or number: " & path
-                    End If
-                    path = Left$(combined, InStr(combined, vbNullChar) - 1)
-                End If
-                ' Else: leave as "C:foo" and let GetFullPathNameW resolve via drive CWD
-            Else
-                ' For normal relative paths (including "\foo" which is drive-root relative),
-                ' PathCombineW matches Windows behavior.
-                combined = String$(MAX_PATH, vbNullChar)
-                If PathCombineW(StrPtr(combined), StrPtr(baseDirectory), StrPtr(path)) = 0 Then
-                    Err.Raise 52, "GetAbsolutePathName", "Bad file name or number: " & path
-                End If
-                path = Left$(combined, InStr(combined, vbNullChar) - 1)
-            End If
-            */
             If IsDriveRelative(path) Then
                 If UCase$(Left$(baseDirectory, 2)) = UCase$(Left$(path, 2)) Then
                     path = CombineLexical(baseDirectory, Mid$(path, 3))
@@ -937,10 +916,14 @@ Public Module FileSystemTools
             
         ' Normalize path to not end in "\" (a drive root "C:\" is the one exception -
         ' stripping it there would turn it into the drive-relative "C:").
-        If Right$(GetAbsolutePathName, 2) <> ":\" Then
-            If Right$(GetAbsolutePathName, 1) = "\" Then
-                GetAbsolutePathName = Left$(GetAbsolutePathName, length - 1)
-            End If
+        If Right$(GetAbsolutePathName, 2) = ":\" Then
+            ' Bare drive root: match FSO, which uppercases the drive letter here
+            ' ("c:\" -> "C:\"). Applied ONLY in this branch, so longer paths keep
+            ' the caller's casing (the lexical routine can't know true disk casing;
+            ' GetFile/GetFolder report that via StatPath).
+            Mid$(GetAbsolutePathName, 1, 1) = UCase$(Left$(GetAbsolutePathName, 1))
+        ElseIf Right$(GetAbsolutePathName, 1) = "\" Then
+            GetAbsolutePathName = Left$(GetAbsolutePathName, length - 1)
         End If
             
         If useLongPathPrefix Then
@@ -3651,11 +3634,9 @@ End Class
 ' An FSO-style Drive object. Obtained from FileSystemTools.GetDrive,
 ' FileSystemTools.GetDrives, File.Drive or Folder.Drive - never New'd directly.
 '
-' --- A different object model from File / Folder -------------------------
-' File and Folder cache a stat and refresh it through EnsureCurrent. Drive has
-' NOTHING to cache: its only state is mRoot, and every property queries Windows
-' live, on every read. That is deliberate - free space, readiness and media
-' presence change under you, so a cached snapshot would be worse than useless.
+' Drive has NOTHING to cache: its only state is mRoot, and every property
+' queries Windows live, on every read. That is deliberate - free space,
+' readiness and media presence can change.
 '
 ' Two consequences:
 '   * Always fresh. No Refresh method exists because none is needed.
@@ -3991,7 +3972,6 @@ Private Class Drive
         UnsignedSerialNumber = v
     End Property
 
-    ' The form everyone actually recognises - what `vol` and Explorer show.
     ' Always 8 hex digits, dash-separated in the middle: "D4A1-B2C3".
     ' Built from the unsigned value so a negative serial formats correctly (Hex$ on a
     ' negative Long would give the right digits by accident, but only because of

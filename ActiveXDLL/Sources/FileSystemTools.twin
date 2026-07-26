@@ -593,10 +593,14 @@ Public Module FileSystemTools
             
         ' Normalize path to not end in "\" (a drive root "C:\" is the one exception -
         ' stripping it there would turn it into the drive-relative "C:").
-        If Right$(GetAbsolutePathName, 2) <> ":\" Then
-            If Right$(GetAbsolutePathName, 1) = "\" Then
-                GetAbsolutePathName = Left$(GetAbsolutePathName, length - 1)
-            End If
+        If Right$(GetAbsolutePathName, 2) = ":\" Then
+            ' Bare drive root: match FSO, which uppercases the drive letter here
+            ' ("c:\" -> "C:\"). Applied ONLY in this branch, so longer paths keep
+            ' the caller's casing (the lexical routine can't know true disk casing;
+            ' GetFile/GetFolder report that via StatPath).
+            Mid$(GetAbsolutePathName, 1, 1) = UCase$(Left$(GetAbsolutePathName, 1))
+        ElseIf Right$(GetAbsolutePathName, 1) = "\" Then
+            GetAbsolutePathName = Left$(GetAbsolutePathName, length - 1)
         End If
             
         If useLongPathPrefix Then

@@ -6,22 +6,17 @@
 ' this library's output, so any future drift on GetFileName / GetBaseName /
 ' GetExtensionName / GetParentFolderName / GetDriveName / BuildPath fails here.
 '
-'   * Self-contained module: add it to the project and run RunParityTests, or
-'     run any of the three Public Subs on its own.
 '   * Uses the twinBASIC "Assert" package, like the rest of the suite.
 '   * Empty expectations are checked with Len(actual) = 0 rather than
 '     AreEqual "", so the vbNullString-vs-"" flavor can't cause a false failure
 '     (the same trap that surfaced while building this table).
 '
-' This SUPERSEDES the path-parsing rows of GeneralTests.Test_PathParsing.
-' Delete that sub (its content is fully covered here, and several of its old
-' assertions are now stale and would fail against the corrected functions), or
-' if you keep it, fix these lines first:
-'     BuildPath("C:\foo","")      -> "C:\foo"        (was "C:\foo\")
-'     BuildPath("C:/foo","b/c")   -> "C:/foo\b/c"    (was "C:\foo\b\c")
-'     GetExtensionName(".gitignore") -> "gitignore"  (was "")
-'     GetBaseName(".gitignore")   -> ""              (was ".gitignore")
-'     GetFileName("C:\foo\")      -> "foo"           (was "")
+' Special Note: FSO's lexical routines echo back whatever slashes you feed them:
+' GetParentFolderName("C:/a/b") returns C:/a in FSO - forward slashes and all -
+' because they only split on the separator, never rewrite it. This library 
+' normalizes "/" to "\" on the way in, so the same call returns "C:\a". 
+' Output is always canonical Windows separators regardless of what the input mixed.
+' So this represents a parity break although arguably cosmetic in function.
 ' ==========================================================================
 
 Private Module FsoParityTests
@@ -31,6 +26,8 @@ Private Module FsoParityTests
         Test_FsoParity_Components
         Test_FsoParity_ParentDrive
         Test_FsoParity_BuildPath
+        Test_FSO_Docs_Examples
+        Test_LateBinding_CreateObject
         Debug.Print "FSO parity: all rows match Scripting.FileSystemObject."
     End Sub
 
@@ -63,33 +60,16 @@ Private Module FsoParityTests
         CheckComp fso, "C:/foo/bar.txt", "bar.txt", "bar", "txt"
     End Sub
     
-    Sub TestFSODocs()
+    Sub Test_FSO_Docs_Examples()
         ' https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/getabsolutepathname-method
-        ' "c:"    "c:\mydocuments\reports"
-        ' "c:.."    "c:\mydocuments"
-        ' "c:\"    "c:"
-        ' "c:.\may97"    "c:\mydocuments\reports*.*\may97"
-        ' "region1"    "c:\mydocuments\reports\region1"
-        ' "c:....\mydocuments"    "c:\mydocuments"
-        'Dim fso As New Scripting.FileSystemObject
+        Dim fsoScript As New Scripting.FileSystemObject
         Dim fso As New FileSystemObject
-        If Not fso.FolderExists("c:\mydocuments") Then fso.CreateFolder "c:\mydocuments"
-        If Not fso.FolderExists("c:\mydocuments\reports") Then fso.CreateFolder "c:\mydocuments\reports"
-        'fso.GetFolder("c:\mydocuments").Attributes =
-        fso.SetCurrentDir "c:\mydocuments\reports"
-        'ChDir "c:\mydocuments\reports"
-        Debug.Print fso.GetAbsolutePathName("c:")
-        Debug.Print fso.GetAbsolutePathName("c:..")
-        Debug.Print fso.GetAbsolutePathName("c:\")
-        Debug.Print fso.GetAbsolutePathName("c:.\may97")
-        Debug.Print fso.GetAbsolutePathName("region1")
-        Debug.Print fso.GetAbsolutePathName("c:....\mydocuments")
-        'ChDir Environ("userprofile")
-        fso.SetCurrentDir Environ("userprofile")
-
-        fso.DeleteFolder "c:\mydocuments\reports"
-        fso.DeleteFolder "c:\mydocuments"
-        
+        Debug.Assert fso.GetAbsolutePathName("c:") = fsoScript.GetAbsolutePathName("c:")
+        Debug.Assert fso.GetAbsolutePathName("c:..") = fsoScript.GetAbsolutePathName("c:..")
+        Debug.Assert fso.GetAbsolutePathName("c:.\may97") = fsoScript.GetAbsolutePathName("c:.\may97")
+        Debug.Assert fso.GetAbsolutePathName("region1") = fsoScript.GetAbsolutePathName("region1")
+        Debug.Assert fso.GetAbsolutePathName("c:....\mydocuments") = fsoScript.GetAbsolutePathName("c:....\mydocuments")
+        Debug.Assert fso.GetAbsolutePathName("c:\") = fsoScript.GetAbsolutePathName("c:\")
     End Sub
 
     '----------------------------------------------------------------------
@@ -110,7 +90,7 @@ Private Module FsoParityTests
         CheckPD fso, "foo\bar", "foo", ""
         CheckPD fso, "bar", "", ""
         CheckPD fso, "", "", ""
-        'CheckPD fso, "C:/foo/bar", "C:/foo", "C:"
+        CheckPD fso, "C:/foo/bar", "C:\foo", "C:" '<- scripting.fso returns "C:/foo"
         CheckPD fso, "c:\Foo", "c:\", "c:"
     End Sub
 
@@ -129,7 +109,7 @@ Private Module FsoParityTests
         CheckBuild fso, "C:\", "foo", "C:\foo"
         CheckBuild fso, "\\server\share", "x", "\\server\share\x"
         CheckBuild fso, "C:\foo", "..\bar", "C:\foo\..\bar"
-        'CheckBuild fso, "C:/foo", "bar", "C:/foo\bar"
+        CheckBuild fso, "C:/foo", "bar", "C:\foo\bar" '<- scripting.fso returns "C:/foo\bar"
     End Sub
 
     '----------------------------------------------------------------------
