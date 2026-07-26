@@ -191,6 +191,8 @@ Parity is the goal, but not at any price. Each of these was checked against the 
 
 **`FileAttribute.Volume` and `.Alias` are not provided.** `Volume` has no Win32 equivalent (use `Drive.VolumeName`). `Alias` is `FILE\_ATTRIBUTE\_REPARSE\_POINT` under a misleading name — and collides with VBA's `vbAlias` (64 vs 1024). Use `ReparsePoint`.
 
+**`Path normalization.`** FSO will keep backslashes meant to be forward slashes in returns from lexical routines such as GetParentName - tBFileSysTools normalizes.
+
 ---
 
 ## Beyond FSO...
