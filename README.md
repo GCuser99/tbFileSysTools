@@ -41,6 +41,8 @@ The library comes in three forms — pick whichever fits how you work:
 |**Single-file drop-in**|You want one `.twin` in your project, no reference|Manual|
 |**ActiveX DLL**|You're calling from VBA, VBScript, or another COM host|Re-register the DLL|
 
+> **Note:** You don't have to clone this repo to use the package. In your own project, go to **Project → References → Available Packages** and check **tbFileSysTools** — twinBASIC pulls it from the package server. Clone the repo only if you want to build the DLL, modify the source, or host your own local package.
+
 ---
 
 ## Two ways in
@@ -68,7 +70,7 @@ Debug.Print fso.GetFile(path).Size
 
 The class is a one-line delegation to the module for every member — same behaviour, same defaults. It uses FSO's argument names (`fileSpec`, `folderSpec`) so named arguments in ported code keep working.
 
-> \*\*Note:\*\* the class is deliberately named `FileSystemObject`, the same as Scripting's. In a project referencing both, qualify it — `tbFileSysTools.FileSystemObject` — or drop the Scripting Runtime reference.
+> **Note:** the class is deliberately named `FileSystemObject`, the same as Scripting's. In a project referencing both, qualify it — `tbFileSysTools.FileSystemObject` — or drop the Scripting Runtime reference.
 
 ---
 
