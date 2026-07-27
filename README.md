@@ -208,7 +208,7 @@ The following members are either added, or their function significantly improved
 |`GetFilePaths`|Enumerate with a wildcard, recursion, hidden/system filters|
 |`GetRelativePath`|Path from A to B|
 |`CleanFileName`|Strip reserved characters and device names|
-|`Rename`|In-place rename (FSO makes you assign to `.Name`)|
+|`Rename`|In-place rename|
 |`GetFileType`|Shell type description ("Text Document")|
 |`GetCurrentDir` / `SetCurrentDir`|Gets/Sets the current directory or folder.|
 |`GetSpecialFolder`|25 known folders, including FSO's 3|
