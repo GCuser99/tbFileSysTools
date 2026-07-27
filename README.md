@@ -59,12 +59,12 @@ If FileExists(path) Then
 End If
 ```
 
-### FileSystemObject — the COM class
+### FileSystemObject — the Class
 
 A drop-in replacement for the Scripting Runtime object. Use it for hosts that need an object, or when porting existing FSO code that you'd rather not rewrite.
 
 ```vba
-Dim fso As New FileSystemObject          ' or CreateObject("tbFileSysTools.FileSystemObject")
+Dim fso As New FileSystemObject
 Debug.Print fso.GetFile(path).Size
 ```
 
