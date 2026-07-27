@@ -59,7 +59,7 @@ If FileExists(path) Then
 End If
 ```
 
-### FileSystemObject — the Class
+### FileSystemObject — the Class Module
 
 A drop-in replacement for the Scripting Runtime object. Use it for hosts that need an object, or when porting existing FSO code that you'd rather not rewrite.
 
