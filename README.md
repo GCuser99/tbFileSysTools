@@ -33,9 +33,13 @@ Everything above is measured - see [Verification](#verification).
 
 ## Install
 
-> \*\*TODO:\*\* installation instructions - package/`.twinpack` reference, or "add the `src/` modules to your project."
+The repo contains the library in three forms — pick whichever fits how you work:
 
-**Requires:** twinBASIC. *(TODO: minimum build number.)*
+**twinBASIC package (recommended).** A `.twinpack` you reference from your own project. Nothing is copied into your code, and if you reference it through twinBASIC's package server you get updates automatically. Best for most users.
+
+**Single-file drop-in.** One `.twin` file you drop straight into a project — no reference, no package. Simplest to start with; the trade-off is that each project carries its own copy, so updates are manual and code is duplicated across projects.
+
+**ActiveX DLL.** A complete project that builds a registered COM DLL, with an Inno Setup script and installer. Use this to call the library from VBA, VBScript, or any other COM host — or when you want one shared binary rather than source in each project.
 
 ---
 
