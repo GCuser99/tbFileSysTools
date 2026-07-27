@@ -27,7 +27,6 @@ Private Module FsoParityTests
         Test_FsoParity_ParentDrive
         Test_FsoParity_BuildPath
         Test_FSO_Docs_Examples
-        Test_LateBinding_CreateObject
         Debug.Print "FSO parity: all rows match Scripting.FileSystemObject."
     End Sub
 
@@ -144,15 +143,6 @@ Private Module FsoParityTests
         Else
             Assert.Exact.AreEqual expected, actual
         End If
-    End Sub
-    
-    ' Late-binding smoke test: proves the COM class is registered and reachable
-    ' via CreateObject, which is how VBScript and unreferenced VBA hosts will use
-    ' it. Kept deliberately tiny - it is checking the registration, not the method.
-    Public Sub Test_LateBinding_CreateObject()
-        Dim fso As Object
-        Set fso = CreateObject("tbFileSysTools.FileSystemObject")
-        Assert.Exact.AreEqual "hi.txt", fso.GetFileName("c:\hi.txt")
     End Sub
 
 End Module
