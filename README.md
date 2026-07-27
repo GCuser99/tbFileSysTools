@@ -41,7 +41,7 @@ Everything above is measured - see [Verification](#verification).
 
 ## Two ways in
 
-The library has one implementation and two pathways in.
+The library has one implementation and two pathways to it.
 
 ### FileSystemTools — the standard module
 
@@ -208,7 +208,7 @@ The following members are either added, or their function significantly improved
 |`GetFilePaths`|Enumerate with a wildcard, recursion, hidden/system filters|
 |`GetRelativePath`|Path from A to B|
 |`CleanFileName`|Strip reserved characters and device names|
-|`Rename`|In-place rename (FSO makes you assign to `.Name`)|
+|`Rename`|In-place rename|
 |`GetFileType`|Shell type description ("Text Document")|
 |`GetCurrentDir` / `SetCurrentDir`|Gets/Sets the current directory or folder.|
 |`GetSpecialFolder`|25 known folders, including FSO's 3|
@@ -216,7 +216,7 @@ The following members are either added, or their function significantly improved
 |`TextFileToString` / `StringToTextFile`|Whole-file text I/O|
 |`TextFileToArray` / `ArrayToTextFile`|Whole-file line I/O|
 |`File.Encoding`|Detect a file's encoding|
-|`File.HasAttribute`|Determines is an attribute is set|
+|`File.HasAttribute`|Determines if an attribute is set|
 |`File.LineEnding`|Detect CRLF / LF / CR / mixed|
 |`File.Normalize`|Rewrite encoding + newlines in place, idempotently|
 |`File.OpenAsTextStream`|Format auto-detection or user-specified codepage|
@@ -224,7 +224,7 @@ The following members are either added, or their function significantly improved
 |`File.ToStream`|Reads file to byte array|
 |`File.ToString`|Reads file to string|
 |`File.Version`|Gets the file version string|
-|`Folder.HasAttribute`|Determines is an attribute is set|
+|`Folder.HasAttribute`|Determines if an attribute is set|
 |`Folder.SetAttribute`|Sets a single attribute|
 |`TextStream.IsStreaming`|Whether byte-streaming or buffered access is supported|
 |`TextStream.Encoding`|Returns a file's encoding|
@@ -274,7 +274,7 @@ The large text file, encoding and long-path claims above were measured through c
 |`TextStream`|Streaming text reader/writer|
 |`TextCodec`|Encoding detection, encode/decode, BOM handling|
 |`FSTShared`|Shared file/folder/drive procs|
-|`WinAPI`|WinDevLib's Win32 declarations|
+|`WinAPI`|WinDevLib's Win32 declarations - not needed if reference to WinDevLib|
 |`File`, `Folder`, `Drive`|Objects|
 |`Files`, `Folders`, `Drives`|Collections|
 
