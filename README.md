@@ -49,7 +49,7 @@ The library comes in three forms — pick whichever fits how you work:
 
 The library has one implementation and two pathways to it.
 
-### FileSystemTools — the standard module
+### FileSystemTools — the Standard Module
 
 Preferred for twinBASIC code. Call it directly; there's no object to create. Potentially smaller compile footprint than the object version.
 
