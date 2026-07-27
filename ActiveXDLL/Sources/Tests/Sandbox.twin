@@ -1,6 +1,7 @@
 'Not offical tests - place to apply various ideas
 Private Module Sandbox
 
+    /*
     Sub test_merge()
         Dim codeFolder As String, f As File, c As New Collection
         For Each f In GetFolder(".\Sources").Files
@@ -86,8 +87,8 @@ Private Module Sandbox
         ReDim Preserve o(0 To j)
         ArrayToTextFile o, ".\Sources\tbFileSysTools.twin", encoding:=enc, lineEnding:=le
     End Sub
-
-    Sub test_merge_for_dropin()
+    */
+    Sub prep_for_dropin()
         Dim c As New Collection
         c.Add ".\Sources\FileSystemObject.twin"
         c.Add ".\Sources\FileSystemTools.twin"
@@ -110,11 +111,14 @@ Private Module Sandbox
         enc = GetFileEncoding(c(1))
         le = GetFileLineEnding(c(1))
         ReDim o(0 To 1000000)
-        o(0) = "' This file was automatically generated from the ActiveX DLL version source."
-        o(1) = "' COM machinery stipped out, public interface made private, and combined"
-        o(2) = "' into one file for easy project drop-in."
-        o(3) = "' --------------------------------------------------------------------------"
-        j = 3
+        o(0) = "' ======================================================================================="
+        o(1) = "' MIT License - Copyright (c) 2026, GCUser99 (https://github.com/GCUser99/tbFileSysTools)"
+        o(2) = "' ======================================================================================="
+        o(3) = "' This file was automatically generated from the ActiveX DLL version source."
+        o(4) = "' COM machinery stipped out, public class/modules made private, and combined"
+        o(5) = "' into one file for easy project drop-in."
+        o(6) = "' ======================================================================================="
+        j = 6
         For Each p In c.Items
             s = TextFileToArray(p)
             For i = LBound(s) To UBound(s)
@@ -123,6 +127,9 @@ Private Module Sandbox
                 If Trim(s(i)) Like "[[]InterfaceId*[]]" Then GoTo skip
                 If Trim(s(i)) Like "Public Class*" Then
                     s(i) = VBA.Replace(s(i), "Public Class", "Private Class")
+                End If
+                If Trim(s(i)) Like "Public Module*" Then
+                    s(i) = VBA.Replace(s(i), "Public Module", "Private Module")
                 End If
                 j = j + 1
                 o(j) = s(i)
@@ -134,7 +141,7 @@ Private Module Sandbox
         ArrayToTextFile o, "..\Single-File-Drop-in\Sources\tbFileSysTools.twin", encoding:=enc, lineEnding:=le
     End Sub
     
-    Sub test_merge_for_package()
+    Sub prep_for_package()
         Dim c As New Collection
         c.Add ".\Sources\FileSystemObject.twin"
         c.Add ".\Sources\FileSystemTools.twin"
