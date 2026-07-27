@@ -37,7 +37,7 @@ The library comes in three forms — pick whichever fits how you work:
 
 | Form | Use it when | Updates |
 |-|-|-|
-|**twinBASIC package** *(recommended)*|You want a referenced `.twinpack`, no copied code|Automatic via the package server|
+|**twinBASIC package**|You want a referenced `.twinpack`, no copied code|Automatic via the package server|
 |**Single-file drop-in**|You want one `.twin` in your project, no reference|Manual|
 |**ActiveX DLL**|You're calling from VBA, VBScript, or another COM host|Re-register the DLL|
 
