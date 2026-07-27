@@ -274,7 +274,7 @@ The large text file, encoding and long-path claims above were measured through c
 |`TextStream`|Streaming text reader/writer|
 |`TextCodec`|Encoding detection, encode/decode, BOM handling|
 |`FSTShared`|Shared file/folder/drive procs|
-|`WinAPI`|WinDevLib's Win32 declarations - not needed if ref to WinDevLib|
+|`WinAPI`|WinDevLib's Win32 declarations - not needed if reference to WinDevLib|
 |`File`, `Folder`, `Drive`|Objects|
 |`Files`, `Folders`, `Drives`|Collections|
 
