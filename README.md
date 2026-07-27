@@ -216,7 +216,7 @@ The following members are either added, or their function significantly improved
 |`TextFileToString` / `StringToTextFile`|Whole-file text I/O|
 |`TextFileToArray` / `ArrayToTextFile`|Whole-file line I/O|
 |`File.Encoding`|Detect a file's encoding|
-|`File.HasAttribute`|Determines is an attribute is set|
+|`File.HasAttribute`|Determines if an attribute is set|
 |`File.LineEnding`|Detect CRLF / LF / CR / mixed|
 |`File.Normalize`|Rewrite encoding + newlines in place, idempotently|
 |`File.OpenAsTextStream`|Format auto-detection or user-specified codepage|
@@ -224,7 +224,7 @@ The following members are either added, or their function significantly improved
 |`File.ToStream`|Reads file to byte array|
 |`File.ToString`|Reads file to string|
 |`File.Version`|Gets the file version string|
-|`Folder.HasAttribute`|Determines is an attribute is set|
+|`Folder.HasAttribute`|Determines if an attribute is set|
 |`Folder.SetAttribute`|Sets a single attribute|
 |`TextStream.IsStreaming`|Whether byte-streaming or buffered access is supported|
 |`TextStream.Encoding`|Returns a file's encoding|
