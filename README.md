@@ -41,7 +41,7 @@ Everything above is measured - see [Verification](#verification).
 
 ## Two ways in
 
-The library has one implementation and two pathways in.
+The library has one implementation and two pathways to it.
 
 ### FileSystemTools — the standard module
 
