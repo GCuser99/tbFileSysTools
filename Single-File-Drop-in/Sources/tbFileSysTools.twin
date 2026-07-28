@@ -2,7 +2,7 @@
 ' MIT License - Copyright (c) 2026, GCUser99 (https://github.com/GCUser99/tbFileSysTools)
 ' =======================================================================================
 ' This file was automatically generated from the ActiveX DLL version source.
-' COM machinery stipped out, public class/modules made private, and combined
+' COM machinery stripped out, public class/modules made private, and combined
 ' into one file for easy project drop-in.
 ' =======================================================================================
 ' ==========================================================================
@@ -14,7 +14,6 @@
 ' All the real work lives in the FileSystemTools standard module. This class adds
 ' nothing but a COM-creatable surface over it, because a standard module cannot be
 ' one. It is the entry point for:
-'   * late binding      - CreateObject("tbFileworks.FileSystemObject")
 '   * VBA / VBScript / any COM host that expects an OBJECT, not a module
 '   * code being ported from Scripting.FileSystemObject, which can keep its
 '     "Set fso = New FileSystemObject" shape unchanged
@@ -24,8 +23,8 @@
 '
 ' It may also compile smaller. Every member of a COM-creatable class is reachable
 ' by definition - the type library exposes it - so the compiler cannot strip the
-' parts never called. Reach the module directly and unused procedures can be
-' eliminated.
+' parts never called (dead code). Reach the module directly and unused procedures
+' can be eliminated.
 '
 ' Argument NAMES do differ with the module version, deliberately: this class uses 
 ' FSO's names (fileSpec,folderSpec, driveSpec) so that IntelliSense and named 

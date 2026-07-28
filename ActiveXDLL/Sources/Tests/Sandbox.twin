@@ -1,93 +1,6 @@
 'Not offical tests - place to apply various ideas
 Private Module Sandbox
 
-    /*
-    Sub test_merge()
-        Dim codeFolder As String, f As File, c As New Collection
-        For Each f In GetFolder(".\Sources").Files
-        'Debug.Print f.Name
-        Next f
-        c.Add ".\Sources\FileSystemObject.twin"
-        c.Add ".\Sources\FileSystemTools.twin"
-        c.Add ".\Sources\File.twin"
-        c.Add ".\Sources\Files.twin"
-        c.Add ".\Sources\Folder.twin"
-        c.Add ".\Sources\Folders.twin"
-        c.Add ".\Sources\Drive.twin"
-        c.Add ".\Sources\Drives.twin"
-        c.Add ".\Sources\TextStream.twin"
-        c.Add ".\Sources\TextCodec.twin"
-        c.Add ".\Sources\Shared.twin"
-        c.Add ".\Sources\WinAPI.twin"
-    
-        'determine encoding for first file
-        Dim enc As TextEncoding
-        Dim lineEnding As String, lineEndingCode As NewlineType
-        Dim p As String
-        Dim s As String
-        enc = GetFileEncoding(c(1))
-        lineEndingCode = GetFileLineEnding(c(1))
-        Select Case GetFileLineEnding(c(1))
-            Case NewlineType.nlWindows
-                lineEnding = vbCrLf
-            Case NewlineType.nlUnix
-                lineEnding = vbLf
-            Case NewlineType.nlMacintosh
-                lineEnding = vbCr
-            Case NewlineType.nlMixed
-                lineEnding = vbCrLf
-        End Select
-        For Each p In c.Items
-            s = s & TextFileToString (p, outlineending:=lineEndingCode) & lineEnding
-        Next p
-        Debug.Print s
-        StringToTextFile s, ".\Sources\AIO.twin", encoding:=enc
-    End Sub
-
-    Sub test_merge_for_project_dropin()
-        Dim c As New Collection
-    
-        c.Add ".\Sources\FileSystemObject.twin"
-        c.Add ".\Sources\FileSystemTools.twin"
-        c.Add ".\Sources\File.twin"
-        c.Add ".\Sources\Files.twin"
-        c.Add ".\Sources\Folder.twin"
-        c.Add ".\Sources\Folders.twin"
-        c.Add ".\Sources\Drive.twin"
-        c.Add ".\Sources\Drives.twin"
-        c.Add ".\Sources\TextStream.twin"
-        c.Add ".\Sources\TextCodec.twin"
-        c.Add ".\Sources\FSTShared.twin"
-        c.Add ".\Sources\WinAPI.twin"
-    
-        'determine encoding for first file
-        Dim enc As TextEncoding
-        Dim le As NewlineType
-        Dim p As String
-        Dim s() As String, o() As String, i As Long, j As Long
-        enc = GetFileEncoding(c(1))
-        le = GetFileLineEnding(c(1))
-        ReDim o(0 To 1000000)
-        j = -1
-        For Each p In c.Items
-            s = TextFileToArray(p)
-            For i = LBound(s) To UBound(s)
-                If Trim(s(i)) Like "[[]COMCreatable*[]]" Then GoTo skip
-                If Trim(s(i)) Like "[[]ClassId*[]]" Then GoTo skip
-                If Trim(s(i)) Like "[[]InterfaceId*[]]" Then GoTo skip
-                If Trim(s(i)) Like "Public Class*" Then
-                    s(i) = VBA.Replace(s(i), "Public Class", "Private Class")
-                End If
-                j = j + 1
-                o(j) = s(i)
-                skip:
-            Next
-            j = j + 1
-        Next p
-        ReDim Preserve o(0 To j)
-        ArrayToTextFile o, ".\Sources\tbFileSysTools.twin", encoding:=enc, lineEnding:=le
-    End Sub
-    */
     Sub prep_for_dropin()
         Dim c As New Collection
         c.Add ".\Sources\FileSystemObject.twin"
@@ -115,7 +28,7 @@ Private Module Sandbox
         o(1) = "' MIT License - Copyright (c) 2026, GCUser99 (https://github.com/GCUser99/tbFileSysTools)"
         o(2) = "' ======================================================================================="
         o(3) = "' This file was automatically generated from the ActiveX DLL version source."
-        o(4) = "' COM machinery stipped out, public class/modules made private, and combined"
+        o(4) = "' COM machinery stripped out, public class/modules made private, and combined"
         o(5) = "' into one file for easy project drop-in."
         o(6) = "' ======================================================================================="
         j = 6
@@ -175,9 +88,6 @@ Private Module Sandbox
                 If Trim(s(i)) Like "[[]COMCreatable*[]]" Then GoTo skip
                 If Trim(s(i)) Like "[[]ClassId*[]]" Then GoTo skip
                 If Trim(s(i)) Like "[[]InterfaceId*[]]" Then GoTo skip
-                'If Trim(s(i)) Like "Public Class*" Then
-                '    s(i) = VBA.Replace(s(i), "Public Class", "Private Class")
-                'End If
                 j = j + 1
                 o(j) = s(i)
                 skip:
