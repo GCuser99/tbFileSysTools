@@ -69,7 +69,7 @@ Private Module AutoPackage
         Dim readMePath As String
         readMePath = BuildPath(GetSpecialFolder(Documents), "GitHub\tbFileSysTools\README.md")
         txt = TextFileToString(readMePath)
-        txt = VBA.Replace$(txt, "[twinBASIC](https://twinbasic.com)", "twinBASIC <https://twinbasic.com>")
+        txt = VBA.Replace$(txt, "[twinBASIC](https://twinbasic.com)", "twinBASIC")
         txt = VBA.Replace$(txt, "[Tests](https://github.com/GCuser99/tbFileSysTools/tree/main/ActiveXDLL/Sources/Tests) folder", "**Tests** folder")
         txt = VBA.Replace$(txt, "[Verification](#verification)", "**Verification** section below")
         StringToTextFile txt, BuildPath(tbFolderPath, "README.md")
@@ -132,7 +132,7 @@ Private Module AutoPackage
         
         tbFolderPath = """" & tbFolderPath & """"
         outProjPath = """" & outProjPath & """"
-        'Shell exePath & " export " & tbFolderPath & " " & outProjPath, vbNormalFocus
+        Shell exePath & " export " & tbFolderPath & " " & outProjPath, vbNormalFocus
         ' impexp export <input_dir> <output.twinproj|.twinpack>
         
         ' C:\Users\waite\Documents\GitHub\tbFileSysTools\Package

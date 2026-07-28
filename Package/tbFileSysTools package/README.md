@@ -1,6 +1,6 @@
 # tbFileSysTools
 
-A modern replacement for Scripting Runtime's `FileSystemObject`, written in twinBASIC <https://twinbasic.com>.
+A modern replacement for Scripting Runtime's `FileSystemObject`, written in twinBASIC.
 
 It does everything FSO does, plus many things FSO cannot: **full text-encoding support**, **files larger than 2 GB**, **line-ending detection and normalization**, and **long paths beyond the legacy 260-character limit**.
 
