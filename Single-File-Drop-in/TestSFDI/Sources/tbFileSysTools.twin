@@ -69,7 +69,7 @@
 ' ==========================================================================
 [Hidden(False)]
 [Description("This class replaces or improves on most functionality of the FileSystemObject, adding reading and writing on non-UTF16 encoded files.")]
-Private Class FileSystemObject
+Public Class FileSystemObject
     Option Explicit
 
     [Description("Returns the file's version. By default (fvFixed) returns the binary version as major.minor.build.revision, fvFileString returns the authored StringFileInfo FileVersion string and fvProductString returns the ProductVersion string; both fall back to the fixed version when the file has no string block. Returns an empty string when the file carries no version resource, and also for paths longer than 260 characters, which the version-resource APIs do not support.")]
@@ -322,7 +322,6 @@ Private Class FileSystemObject
     End Sub
     
 End Class
-
 ' ==========================================================================
 ' FileSystemTools
 '
@@ -359,7 +358,7 @@ End Class
 ' MIT License - Copyright (c) 2026, GCUser99 (https://github.com/GCUser99)
 ' ==========================================================================
 
-Private Module FileSystemTools
+Public Module FileSystemTools
     Option Explicit
 
     Private Const ERR_NOT_TEXT As Long = 5   ' shared "refused: content isn't decodable text"
@@ -2677,7 +2676,6 @@ Private Module FileSystemTools
     
 End Module
 
-
 ' ==========================================================================
 ' File
 '
@@ -2717,7 +2715,7 @@ End Module
 ' ==========================================================================
 [Hidden(False)]
 [Description("An FSO-style File object. Obtain via FileSystem.GetFile or Folder.Files; Not New-able directly.")]
-Private Class File
+Public Class File
     Option Explicit
 
     ' Cached stat fields. Refreshed by EnsureCurrent on every public access - see
@@ -3046,7 +3044,6 @@ Private Class File
 
 End Class
 
-
 ' ==========================================================================
 ' Files
 '
@@ -3074,7 +3071,7 @@ End Class
 
 [Hidden(False)]
 [Description("A read-only collection of File objects, enumerable with For Each.")]
-Private Class Files
+Public Class Files
     Option Explicit
     
     Private mItems As Collection                       ' File objects, keyed by name
@@ -3100,7 +3097,6 @@ Private Class Files
         Set NewEnum = mItems.[_NewEnum]
     End Function
 End Class
-
 
 ' ==========================================================================
 ' Folder
@@ -3137,7 +3133,7 @@ End Class
 ' ==========================================================================
 [Hidden(False)]
 [Description("An FSO-style Folder object. Obtain via FileSystem.GetFolder or Folder.SubFolders; Not New-able directly.")]
-Private Class Folder
+Public Class Folder
     Option Explicit
 
     ' Cached stat fields. Refreshed by EnsureCurrent on every public access - see
@@ -3574,7 +3570,6 @@ Private Class Folder
 
 End Class
 
-
 ' ==========================================================================
 ' Folders
 '
@@ -3602,7 +3597,7 @@ End Class
 ' ==========================================================================
 [Hidden(False)]
 [Description("A read-only collection of Folder objects, enumerable with For Each.")]
-Private Class Folders
+Public Class Folders
     Option Explicit
     
     Private mItems As Collection
@@ -3628,7 +3623,6 @@ Private Class Folders
         Set NewEnum = mItems.[_NewEnum]
     End Function
 End Class
-
 
 ' ==========================================================================
 ' Drive
@@ -3682,7 +3676,7 @@ End Class
 ' ==========================================================================
 [Hidden(False)]
 [Description("Provides access to the properties of a particular disk drive or network share")]
-Private Class Drive
+Public Class Drive
     Option Explicit
 
     ' FSO's values, NOT Win32's - the two disagree by one. GetDriveTypeW returns
@@ -3997,7 +3991,6 @@ Private Class Drive
 End Class
 
 
-
 ' ==========================================================================
 ' Drives
 '
@@ -4024,7 +4017,7 @@ End Class
 
 [Hidden(False)]
 [Description("A read-only collection of Drive objects, enumerable with For Each.")]
-Private Class Drives
+Public Class Drives
     Option Explicit
     Private mItems As Collection                       ' Drive objects, keyed by letter
 
@@ -4049,7 +4042,6 @@ Private Class Drives
         Set NewEnum = mItems.[_NewEnum]
     End Function
 End Class
-
 
 ' ==========================================================================
 ' TextStream
@@ -4128,7 +4120,7 @@ End Class
 ' ==========================================================================
 [Hidden(False)]
 [Description("A streaming text reader/writer returned by FileSystem.OpenTextFile, supporting auto-detected and explicit encodings with large-file streaming.")]
-Private Class TextStream
+Public Class TextStream
     Option Explicit
     
     Private Const ERR_NOT_TEXT As Long = 5   ' shared "refused: content isn't decodable text"
@@ -5444,7 +5436,6 @@ Private Class TextStream
     
 End Class
 
-
 ' ==========================================================================
 ' TextCodec
 '
@@ -6441,7 +6432,6 @@ Private Module TextCodec
 End Module
 
 
-
 ' ==========================================================================
 ' Shared
 '
@@ -6847,7 +6837,6 @@ Private Module FSTShared
     End Function
     
 End Module
-
 
 Private Module WinAPI
     
