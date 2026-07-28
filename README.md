@@ -70,7 +70,7 @@ Debug.Print fso.GetFile(path).Size
 
 The class is a one-line delegation to the module for every member — same behaviour, same defaults. It uses FSO's argument names (`fileSpec`, `folderSpec`) so named arguments in ported code keep working.
 
-> **Note:** the class is deliberately named `FileSystemObject`, the same as Scripting's. In a project referencing both, qualify it — `tbFileSysTools.FileSystemObject` — or drop the Scripting Runtime reference.
+> **Note:** the class is deliberately named `FileSystemObject`, the same as Scripting's. In a project referencing both, qualify it — `tbFileSysTools.FileSystemObject` — drop the Scripting Runtime reference, or move tbFileSysTools position in the References dialog ABOVE Scripting Runtime.
 
 ---
 
