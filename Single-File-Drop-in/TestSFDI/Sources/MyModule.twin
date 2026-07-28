@@ -1,0 +1,26 @@
+Module MyModule
+
+    Sub test_fso()
+        Dim fso As New FileSystemObject
+        Dim p As String
+        p = fso.BuildPath(fso.GetSpecialFolder(Documents), fso.GetTempName())
+        fso.StringToTextFile "hello from tB", p
+        Debug.Assert fso.FileExists(p)
+        Debug.Assert fso.TextFileToString(p) = "hello from tB"
+        ' clean up
+        fso.DeleteFile p
+        Debug.Assert Not FileExists(p)
+    End Sub
+    
+    Sub test_fst()
+        Dim p As String
+        p = BuildPath(GetSpecialFolder(Documents), GetTempName())
+        StringToTextFile "hello from tB", p
+        Debug.Assert FileExists(p)
+        Debug.Assert TextFileToString(p) = "hello from tB"
+        ' clean up
+        DeleteFile p
+        Debug.Assert Not FileExists(p)
+    End Sub
+
+End Module

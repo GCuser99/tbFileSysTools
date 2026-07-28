@@ -1,60 +1,12 @@
 'Not offical tests - place to apply various ideas
-Private Module Sandbox
+Private Module AutoPackage
 
-    Sub prep_for_dropin()
-        Dim c As New Collection
-        c.Add ".\Sources\FileSystemObject.twin"
-        c.Add ".\Sources\FileSystemTools.twin"
-        c.Add ".\Sources\File.twin"
-        c.Add ".\Sources\Files.twin"
-        c.Add ".\Sources\Folder.twin"
-        c.Add ".\Sources\Folders.twin"
-        c.Add ".\Sources\Drive.twin"
-        c.Add ".\Sources\Drives.twin"
-        c.Add ".\Sources\TextStream.twin"
-        c.Add ".\Sources\TextCodec.twin"
-        c.Add ".\Sources\FSTShared.twin"
-        c.Add ".\Sources\WinAPI.twin"
-    
-        'determine encoding for first file
-        Dim enc As TextEncoding
-        Dim le As NewlineType
-        Dim p As String
-        Dim s() As String, o() As String, i As Long, j As Long
-        enc = GetFileEncoding(c(1))
-        le = GetFileLineEnding(c(1))
-        ReDim o(0 To 1000000)
-        o(0) = "' ======================================================================================="
-        o(1) = "' MIT License - Copyright (c) 2026, GCUser99 (https://github.com/GCUser99/tbFileSysTools)"
-        o(2) = "' ======================================================================================="
-        o(3) = "' This file was automatically generated from the ActiveX DLL version source."
-        o(4) = "' COM machinery stripped out, public class/modules made private, and combined"
-        o(5) = "' into one file for easy project drop-in."
-        o(6) = "' ======================================================================================="
-        j = 6
-        For Each p In c.Items
-            s = TextFileToArray(p)
-            For i = LBound(s) To UBound(s)
-                If Trim(s(i)) Like "[[]COMCreatable*[]]" Then GoTo skip
-                If Trim(s(i)) Like "[[]ClassId*[]]" Then GoTo skip
-                If Trim(s(i)) Like "[[]InterfaceId*[]]" Then GoTo skip
-                If Trim(s(i)) Like "Public Class*" Then
-                    s(i) = VBA.Replace(s(i), "Public Class", "Private Class")
-                End If
-                If Trim(s(i)) Like "Public Module*" Then
-                    s(i) = VBA.Replace(s(i), "Public Module", "Private Module")
-                End If
-                j = j + 1
-                o(j) = s(i)
-                skip:
-            Next
-            j = j + 1
-        Next p
-        ReDim Preserve o(0 To j)
-        ArrayToTextFile o, "..\Single-File-Drop-in\Sources\tbFileSysTools.twin", encoding:=enc, lineEnding:=le
-    End Sub
-    
     Sub prep_for_package()
+        Dim tbFolderPath As String
+        tbFolderPath = BuildPath(GetSpecialFolder(Documents), "GitHub\tbFileSysTools\Package\tbFileSysTools package")
+        Dim tbSourcesPath As String
+        tbSourcesPath = BuildPath(tbFolderPath, "Sources")
+        
         Dim c As New Collection
         c.Add ".\Sources\FileSystemObject.twin"
         c.Add ".\Sources\FileSystemTools.twin"
@@ -68,7 +20,7 @@ Private Module Sandbox
         c.Add ".\Sources\TextCodec.twin"
         c.Add ".\Sources\FSTShared.twin"
         c.Add ".\Sources\WinAPI.twin"
-    
+        
         'determine encoding for first file
         Dim enc As TextEncoding
         Dim le As NewlineType
@@ -93,68 +45,69 @@ Private Module Sandbox
                 skip:
             Next
             ReDim Preserve o(0 To j)
-            ArrayToTextFile o, "..\Package\tbFileSysTools package\Sources\" & GetFileName(p), encoding:=enc, lineEnding:=le
+            ArrayToTextFile o, BuildPath (tbSourcesPath, GetFileName(p)), encoding:=enc, lineEnding:=le
         Next p
-        
+
         'modify version
         Dim txt As String
+            
+        Dim fp As String
+        tbFolderPath = BuildPath(GetSpecialFolder(Documents), "GitHub\tbFileSysTools\Package\tbFileSysTools package")
+        fp = BuildPath(tbFolderPath, "Settings")
+        txt = TextFileToString(fp)
+        Dim d As Dictionary
+        Set d = LibJSON.Parse(txt).Value
+        d("project.versionMajor") = App.Major
+        d("project.versionMinor") = App.Minor
+        d("project.versionBuild") = App.Build
+        d("project.versionRevision") = App.Revision
         
-        ' "project.versionBuild": 0,
-        ' "project.versionMajor": 1,
-        ' "project.versionMinor": 0,
-        ' "project.versionRevision": 0,
-         
+        txt = LibJSON.Serialize(d, indentspaces:=8)
+        StringToTextFile txt, BuildPath(tbFolderPath, "Settings")
         
-        Dim exePath As String, tbFolderPath As String, outProjPath As String
+        'modify readme file
+        Dim readMePath As String
+        readMePath = BuildPath(GetSpecialFolder(Documents), "GitHub\tbFileSysTools\README.md")
+        txt = TextFileToString(readMePath)
+        txt = VBA.Replace$(txt, "[twinBASIC](https://twinbasic.com)", "twinBASIC <https://twinbasic.com>")
+        txt = VBA.Replace$(txt, "[Tests](https://github.com/GCuser99/tbFileSysTools/tree/main/ActiveXDLL/Sources/Tests) folder", "**Tests** folder")
+        txt = VBA.Replace$(txt, "[Verification](#verification)", "**Verification** section below")
+        StringToTextFile txt, BuildPath(tbFolderPath, "README.md")
+        
+        'process the CHANGELOG.md
+        
+        txt = "# Change Log"
+        txt = txt & vbCrLf & "[v1.0.1.0, 28 July 2026]"
+        txt = txt & vbCrLf & "- Added automation code for building Package and SFDI twinproj files"
+        txt = txt & vbCrLf & "[v1.0.0.0, 27 July 2026]"
+        txt = txt & vbCrLf & "- Initial publication"
+
+        StringToTextFile txt, BuildPath(tbFolderPath, "CHANGELOG.md")
+        
+        'copy license file
+        Dim licensePath As String
+        licensePath = BuildPath(GetSpecialFolder(Documents), "GitHub\tbFileSysTools\LICENSE")
+        tbFolderPath = BuildPath(GetSpecialFolder(Documents), "GitHub\tbFileSysTools\Package\tbFileSysTools package\LICENSE.md")
+        CopyFile licensePath, tbFolderPath
+
+        Dim exePath As String, outProjPath As String
         exePath = BuildPath(GetSpecialFolder(Documents), "GitHub\tbImportExport\Build\ImpExp.exe")
-        
-        
+            
         tbFolderPath = BuildPath(GetSpecialFolder(Documents), "GitHub\tbFileSysTools\Package\tbFileSysTools package")
         outProjPath = BuildPath(GetSpecialFolder(Documents), "GitHub\tbFileSysTools\Package\tbFileSysTools package.twinproj")
-        
+            
         DeleteFile outProjPath, ignoreMissing:=True
-        
+            
         tbFolderPath = """" & tbFolderPath & """"
         outProjPath = """" & outProjPath & """"
         exePath = """" & exePath & """"
         Shell exePath & " export " & tbFolderPath & " " & outProjPath, vbNormalFocus
-        
-    End Sub
-
-    Private Sub Normalize_Eg()
-        Dim fso As New tbFileSysTools.FileSystemObject
-        Dim folderPath As String
-        Dim f As tbFileSysTools.File
-    
-        folderPath = fso.BuildPath(fso.GetSpecialFolder(Documents), "GitHub\tbFileSysTools\ActiveXDLL\Dev")
-        For Each f In fso.GetFolder(folderPath).Files
-            f.Normalize toEncoding:=encUtf8, toLineEnding:=nlWindows
-        Next f
-    End Sub
-    
-    Private Sub Merge_tests()
-        Dim fso As New tbFileSysTools.FileSystemObject
-        Dim folderPath As String
-        Dim filePath As String
-        Dim f As tbFileSysTools.File
-    
-        folderPath = fso.BuildPath(fso.GetSpecialFolder(Documents), "GitHub\tbFileSysTools\ActiveXDLL\Sources\Tests")
-        filePath = fso.BuildPath(folderPath, "all_tests.twin")
-        fso.StringToTextFile "' All-in-one Test Files Suite", filePath
-        
-        For Each f In fso.GetFolder(folderPath).Files
-            If f.Path <> filePath Then
-                Debug.Print f.Name
-                fso.MergeTextFiles filePath, f.Path, insertBlankLineBetween:=True
-            End If
-        Next f
+            
     End Sub
     
     Sub testCommandLine()
         Dim exePath As String
         Dim tbProjPath As String
-        
-        
         
         tbProjPath = BuildPath(GetSpecialFolder(Documents), "GitHub\tbFileSysTools\Single-File-Drop-in\TestSFDI.twinproj")
         exePath = BuildPath(GetSpecialFolder(Documents), "GitHub\tbImportExport\Build\ImpExp.exe")
@@ -179,7 +132,7 @@ Private Module Sandbox
         
         tbFolderPath = """" & tbFolderPath & """"
         outProjPath = """" & outProjPath & """"
-        Shell exePath & " export " & tbFolderPath & " " & outProjPath, vbNormalFocus
+        'Shell exePath & " export " & tbFolderPath & " " & outProjPath, vbNormalFocus
         ' impexp export <input_dir> <output.twinproj|.twinpack>
         
         ' C:\Users\waite\Documents\GitHub\tbFileSysTools\Package
