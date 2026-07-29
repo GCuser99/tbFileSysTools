@@ -193,7 +193,7 @@ Public Class Folder
         Attributes = mAttrs
     End Property
     Public Property Let Attributes(ByVal value As FileAttribute)
-        If value = NoChange Then Exit Property
+        If value = faNoChange Then Exit Property
         EnsureCurrent                      ' fail-fast with 76 if gone, before attempting the set
         FSTShared.SetPathAttributes mPath, value
         Refresh                            ' re-stat: mAttrs mirrors disk

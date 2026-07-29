@@ -40,13 +40,13 @@ Private Module FSTShared
     ' Normal is IN the mask on purpose: SanitizeAttrs needs it to survive the AND so
     ' its "Normal dominates" rule can fire (see below).
     Public Const SETTABLE_ATTRS As Long = _
-        FileAttribute.ReadOnly Or _
-        FileAttribute.Hidden Or _
-        FileAttribute.System Or _
-        FileAttribute.Archive Or _
-        FileAttribute.Temporary Or _
-        FileAttribute.NotContentIndexed Or _
-        FileAttribute.Normal
+        FileAttribute.faReadOnly Or _
+        FileAttribute.faHidden Or _
+        FileAttribute.faSystem Or _
+        FileAttribute.faArchive Or _
+        FileAttribute.faTemporary Or _
+        FileAttribute.faNotContentIndexed Or _
+        FileAttribute.faNormal
 
     '======================================================================
     ' Stat

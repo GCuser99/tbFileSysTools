@@ -141,10 +141,6 @@ Public Module FileSystemTools
     ' The first three members must keep their FSO values (0/1/2). Everything
     ' from SystemX86Folder on is an extension and maps to a KNOWNFOLDERID.
     Public Enum SpecialFolderConst
-        ' --- FSO enums ---
-        WindowsFolder = 0       'scripting.fso = 0
-        SystemFolder = 1        'scripting.fso = 1
-        TemporaryFolder = 2     'scripting.fso = 2
         sfWindowsFolder = 0
         sfSystemFolder = 1
         sfTemporaryFolder = 2
@@ -171,6 +167,12 @@ Public Module FileSystemTools
         sfFonts = 22
         sfStartup = 23
         sfCommonStartup = 24
+        ' -------------------------
+        ' For FSO compaibility
+        ' -------------------------
+        WindowsFolder = sfWindowsFolder
+        SystemFolder = sfSystemFolder
+        TemporaryFolder = sfTemporaryFolder
     End Enum
 
     ' NOT INCLUDED, deliberately: FSO's Volume (8) and Alias (1024).
@@ -184,40 +186,50 @@ Public Module FileSystemTools
     '            REPARSE_POINT, which we already have under its real name.
     ' Both are read-only in FSO anyway, so nothing is lost on the write side.
     Public Enum FileAttribute
-        NoChange = -1               ' sentinel: "preserve current attributes"
+        faNoChange = -1               ' sentinel: "preserve current attributes"
 
         ' --- SETTABLE: these are the only bits SetFileAttributesW honors ---
-        Normal = &H00000080                 ' "no attributes"; must appear alone - see below
-        ReadOnly = &H00000001
-        Hidden = &H00000002
-        System = &H00000004
-        Archive = &H00000020
-        Temporary = &H00000100              ' Excluded from Windows Search indexing
-        NotContentIndexed = &H00002000
+        faNormal = &H00000080                 ' "no attributes"; must appear alone - see below
+        faReadOnly = &H00000001
+        faHidden = &H00000002
+        faSystem = &H00000004
+        faArchive = &H00000020
+        faTemporary = &H00000100              ' Excluded from Windows Search indexing
+        faNotContentIndexed = &H00002000
 
         ' --- READ-ONLY: filesystem-managed. Reported by a stat; silently ignored
         '     on a write. Set them through their own APIs, not through here.
-        Directory = &H00000010              ' inherent to the object
-        Compressed = &H00000800             ' DeviceIoControl(FSCTL_SET_COMPRESSION)
-        Encrypted = &H00004000              ' EncryptFile / DecryptFile
+        faDirectory = &H00000010              ' inherent to the object
+        faCompressed = &H00000800             ' DeviceIoControl(FSCTL_SET_COMPRESSION)
+        faEncrypted = &H00004000              ' EncryptFile / DecryptFile
         ' FSO's "Alias" is this same bit as "ReparsePoint" (1024).
         ' see the exclusion note above.
-        ReparsePoint = &H00000400           ' CreateSymbolicLink / junction APIs
-        SparseFile = &H00000200
-        Offline = &H00001000                ' HSM/OneDrive
-        IntegrityStream = &H00008000&       ' NTFS integrity stream (checksummed)
-        Virtual = &H00010000                ' Obsolete virtualization flag (rare)
-        NoScrubData = &H00020000            ' Do not scrub integrity data (ReFS/NTFS)
-        EA = &H00040000                     ' Extended attributes present
-        RecallOnOpen = &H00040000           ' Cloud/HSM: recall file on open (same bit as EA)
-        Pinned = &H00080000                 ' Cloud file pinned locally
-        Unpinned = &H00100000               ' Cloud file unpinned (evictable)
-        RecallOnDataAccess = &H00400000     ' Recall file when data is accessed
-        StrictlySequential = &H20000000     ' Optimize for sequential access
+        faReparsePoint = &H00000400           ' CreateSymbolicLink / junction APIs
+        faSparseFile = &H00000200
+        faOffline = &H00001000                ' HSM/OneDrive
+        faIntegrityStream = &H00008000&       ' NTFS integrity stream (checksummed)
+        faVirtual = &H00010000                ' Obsolete virtualization flag (rare)
+        faNoScrubData = &H00020000            ' Do not scrub integrity data (ReFS/NTFS)
+        faEA = &H00040000                     ' Extended attributes present
+        faRecallOnOpen = &H00040000           ' Cloud/HSM: recall file on open (same bit as EA)
+        faPinned = &H00080000                 ' Cloud file pinned locally
+        faUnpinned = &H00100000               ' Cloud file unpinned (evictable)
+        faRecallOnDataAccess = &H00400000     ' Recall file when data is accessed
+        faStrictlySequential = &H20000000     ' Optimize for sequential access
         ' -------------------------
         ' Special cases
         ' -------------------------
-        'Device = &H00000040                ' Reserved; never used by NTFS
+        'faDevice = &H00000040                ' Reserved; never used by NTFS
+        ' -------------------------
+        ' For FSO compaibility
+        ' -------------------------
+        Normal = faNormal
+        ReadOnly = faReadOnly
+        Hidden = faHidden
+        System = faSystem
+        Directory = faDirectory
+        Archive = faArchive
+        Compressed = faCompressed
     End Enum
         
     Public Enum FileVersionSource
@@ -1259,7 +1271,7 @@ Public Module FileSystemTools
         Optional ByVal toEncoding As TextEncoding = encUtf8, _
         Optional ByVal toNewLine As NewlineType = nlWindows, _
         Optional ByVal fromEncoding As TextEncoding = encAutoDetect, _
-        Optional ByVal toAttributes As FileAttribute = NoChange, _
+        Optional ByVal toAttributes As FileAttribute = faNoChange, _
         Optional ByVal skipIfUnchanged As Boolean = True) As Boolean
 
         ' Flow: read raw -> refuse binary -> decode -> convert newlines -> re-encode
@@ -1314,7 +1326,7 @@ Public Module FileSystemTools
         End If
 
         ' Attribute normalization
-        If toAttributes <> NoChange Then
+        If toAttributes <> faNoChange Then
             ' Enforce: drive the settable attributes to the sanitized target. Compare
             ' only the settable bits, so filesystem-managed bits (ReparsePoint, etc.)
             ' neither trigger a spurious change nor block idempotency.

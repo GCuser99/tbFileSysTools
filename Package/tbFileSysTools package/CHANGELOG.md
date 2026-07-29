@@ -4,6 +4,8 @@
 
  - Prefixed SpecialFolderConst enums so they don't clutter Intellisense
 
+ - Prefixed FileAttribute enums so they don't clutter Intellisense
+
 [v1.0.1.0, 28 July 2026]
 
  - Added automation code for building Package and SFDI twinproj files

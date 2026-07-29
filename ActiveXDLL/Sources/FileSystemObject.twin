@@ -298,7 +298,7 @@ Public Class FileSystemObject
         Optional ByVal toEncoding As TextEncoding = encUtf8, _
         Optional ByVal toNewLine As NewlineType = nlWindows, _
         Optional ByVal fromEncoding As TextEncoding = encAutoDetect, _
-        Optional ByVal toAttributes As FileAttribute = NoChange, _
+        Optional ByVal toAttributes As FileAttribute = faNoChange, _
         Optional ByVal skipIfUnchanged As Boolean = True) As Boolean
         Return FileSystemTools.NormalizeTextFile(filePath, toEncoding, toNewLine, fromEncoding, toAttributes, skipIfUnchanged)
     End Function

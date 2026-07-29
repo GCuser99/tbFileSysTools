@@ -1772,9 +1772,9 @@ Private Module GeneralTests
         Dim wf As String: wf = CleanFolder("normattr")
 
         ' Real (non-Normal) settable bits, for "everything cleared" checks.
-        Const REAL_ATTRS As Long = FileAttribute.ReadOnly Or FileAttribute.Hidden Or _
-            FileAttribute.System Or FileAttribute.Archive Or _
-            FileAttribute.Temporary Or FileAttribute.NotContentIndexed
+        Const REAL_ATTRS As Long = FileAttribute.faReadOnly Or FileAttribute.faHidden Or _
+            FileAttribute.faSystem Or FileAttribute.faArchive Or _
+            FileAttribute.faTemporary Or FileAttribute.faNotContentIndexed
         Dim p As String, a As Long
         p = fso.BuildPath(wf, "norm_attr.txt")
 
@@ -1860,39 +1860,39 @@ Private Module GeneralTests
         Dim f As File: Set f = fso.GetFile(p)
 
         ' Wholesale set composes multiple attributes
-        f.Attributes = FileAttribute.ReadOnly Or FileAttribute.Hidden
+        f.Attributes = FileAttribute.faReadOnly Or FileAttribute.faHidden
         a = fso.GetFile(p).Attributes
-        Assert.Exact.IsTrue (((a And FileAttribute.ReadOnly) <> 0) And ((a And FileAttribute.Hidden) <> 0))
+        Assert.Exact.IsTrue (((a And FileAttribute.faReadOnly) <> 0) And ((a And FileAttribute.faHidden) <> 0))
 
         ' RMW clears one bit, leaves the other
-        f.Attributes = a And Not FileAttribute.Hidden
+        f.Attributes = a And Not FileAttribute.faHidden
         a = fso.GetFile(p).Attributes
-        Assert.Exact.IsTrue (((a And FileAttribute.ReadOnly) <> 0) And ((a And FileAttribute.Hidden) = 0))
+        Assert.Exact.IsTrue (((a And FileAttribute.faReadOnly) <> 0) And ((a And FileAttribute.faHidden) = 0))
 
         ' Clearing the ONLY attribute must actually clear (regression guard for NoChange=-1).
-        f.Attributes = FileAttribute.ReadOnly
+        f.Attributes = FileAttribute.faReadOnly
         a = fso.GetFile(p).Attributes
         Assert.Exact.IsTrue ((a And FileAttribute.Archive) = 0)  ' wholesale set drops Archive
-        f.Attributes = a And Not FileAttribute.ReadOnly          ' mask becomes 0
+        f.Attributes = a And Not FileAttribute.faReadOnly          ' mask becomes 0
         a = fso.GetFile(p).Attributes
-        Assert.Exact.IsTrue ((a And FileAttribute.ReadOnly) = 0)
+        Assert.Exact.IsTrue ((a And FileAttribute.faReadOnly) = 0)
 
         ' Normal dominates: ORing Normal with anything clears all settable bits
-        f.Attributes = FileAttribute.ReadOnly
-        f.Attributes = FileAttribute.ReadOnly Or FileAttribute.Normal
+        f.Attributes = FileAttribute.faReadOnly
+        f.Attributes = FileAttribute.faReadOnly Or FileAttribute.faNormal
         a = fso.GetFile(p).Attributes
-        Assert.Exact.IsTrue ((a And FileAttribute.ReadOnly) = 0)
+        Assert.Exact.IsTrue ((a And FileAttribute.faReadOnly) = 0)
 
         ' Non-settable bits in the mask are stripped, not errored
         On Error Resume Next
-        f.Attributes = FileAttribute.ReadOnly Or FileAttribute.ReparsePoint
+        f.Attributes = FileAttribute.faReadOnly Or FileAttribute.faReparsePoint
         e = Err.Number
         On Error GoTo 0
         Assert.Strict.AreEqual 0&, CLng(e)                       ' does not raise
         a = fso.GetFile(p).Attributes
-        Assert.Exact.IsTrue (((a And FileAttribute.ReadOnly) <> 0) And ((a And FileAttribute.ReparsePoint) = 0))
+        Assert.Exact.IsTrue (((a And FileAttribute.faReadOnly) <> 0) And ((a And FileAttribute.faReparsePoint) = 0))
 
-        fso.GetFile(p).Attributes = FileAttribute.Normal         ' clear RO so teardown can delete
+        fso.GetFile(p).Attributes = FileAttribute.faNormal         ' clear RO so teardown can delete
         fso.DeleteFolder wf, True
     End Sub
 
