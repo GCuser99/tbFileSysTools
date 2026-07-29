@@ -150,7 +150,7 @@ Private Module TestSuite
         If MsgBox("The large-file probes write multi-gigabyte files to %TEMP% and " & _
                   "take several minutes." & vbCrLf & vbCrLf & _
                   "Free space needed: about 15 GB." & vbCrLf & _
-                  "Location: " & FileSystemTools.GetSpecialFolder(TemporaryFolder) & vbCrLf & vbCrLf & _
+                  "Location: " & FileSystemTools.GetSpecialFolder(sfTemporaryFolder) & vbCrLf & vbCrLf & _
                   "Continue?", vbYesNo Or vbQuestion, "Large-file probes") <> vbYes Then
             Debug.Print "Large-file probes skipped."
             Exit Sub
@@ -199,7 +199,7 @@ Private Module TestSuite
 
         ' Anything the suites name predictably, swept in one pass.
         Dim tmp As String
-        tmp = FileSystemTools.GetSpecialFolder(TemporaryFolder)
+        tmp = FileSystemTools.GetSpecialFolder(sfTemporaryFolder)
         SweepDelete FileSystemTools.BuildPath(tmp, "_probe_*.bin")
         SweepDelete FileSystemTools.BuildPath(tmp, "_probe_*.txt")
 
@@ -255,7 +255,7 @@ Private Module TestSuite
         Dim d As Drive
         Set d = FileSystemTools.GetDrive( _
                     FileSystemTools.GetDriveName( _
-                        FileSystemTools.GetSpecialFolder(TemporaryFolder)))
+                        FileSystemTools.GetSpecialFolder(sfTemporaryFolder)))
         If Err.Number <> 0 Then HasFreeSpace = True: Exit Function   ' can't tell -> don't block
         Dim free As LongLong
         free = d.AvailableSpace

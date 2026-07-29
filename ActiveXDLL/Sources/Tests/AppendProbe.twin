@@ -34,12 +34,12 @@ Private Module AppendProbe
     ' existing call site is unchanged). RAW_PATH must match LargeFileProbe's.
     Private Function RAW_PATH() As String
         RAW_PATH = FileSystemTools.BuildPath( _
-                       FileSystemTools.GetSpecialFolder(TemporaryFolder), "_probe_raw.bin")
+                       FileSystemTools.GetSpecialFolder(sfTemporaryFolder), "_probe_raw.bin")
     End Function
 
     Private Function SMALL_PATH() As String
         SMALL_PATH = FileSystemTools.BuildPath( _
-                       FileSystemTools.GetSpecialFolder(TemporaryFolder), "_probe_append_small.txt")
+                       FileSystemTools.GetSpecialFolder(sfTemporaryFolder), "_probe_append_small.txt")
     End Function
 
     Private Const HEAD_CHECK_BYTES As Long = 4096              ' how much of the head we fingerprint

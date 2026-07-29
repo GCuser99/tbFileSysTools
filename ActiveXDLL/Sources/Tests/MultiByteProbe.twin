@@ -244,7 +244,7 @@ Private Module MultiByteProbe
     '======================================================================
     Private Function TempPath(ByVal leaf As String) As String
         TempPath = FileSystemTools.BuildPath( _
-            FileSystemTools.GetSpecialFolder(TemporaryFolder), leaf)
+            FileSystemTools.GetSpecialFolder(sfTemporaryFolder), leaf)
     End Function
 
     Private Function FileSize(ByVal path As String) As LongLong
@@ -284,7 +284,7 @@ Private Module MultiByteProbe
         Dim fso As Object
         Set fso = CreateObject("Scripting.FileSystemObject")
         Dim root As String
-        root = FileSystemTools.BuildPath(FileSystemTools.GetSpecialFolder(TemporaryFolder), "sizeoracle")
+        root = FileSystemTools.BuildPath(FileSystemTools.GetSpecialFolder(sfTemporaryFolder), "sizeoracle")
 
         ' --- setup: a folder with a known payload -------------------------------
         FileSystemTools.DeleteFolder root, True, True
@@ -306,7 +306,7 @@ Private Module MultiByteProbe
     Public Sub SizeOracle2()
         Dim fso As Object: Set fso = CreateObject("Scripting.FileSystemObject")
         Dim root As String
-        root = FileSystemTools.BuildPath(FileSystemTools.GetSpecialFolder(TemporaryFolder), "sizeoracle")
+        root = FileSystemTools.BuildPath(FileSystemTools.GetSpecialFolder(sfTemporaryFolder), "sizeoracle")
         Report fso, root, "CASE 2: junction to sibling" & vbCrLf & _
             "        ours = 1500 (skips it)   FSO = 2500 if it FOLLOWS the junction"
     End Sub
@@ -335,7 +335,7 @@ Private Module MultiByteProbe
         Dim sh As Object:  Set sh = CreateObject("WScript.Shell")
 
         Dim root As String, locked As String, user As String
-        root = FileSystemTools.BuildPath(FileSystemTools.GetSpecialFolder(TemporaryFolder), "denyoracle")
+        root = FileSystemTools.BuildPath(FileSystemTools.GetSpecialFolder(sfTemporaryFolder), "denyoracle")
         locked = FileSystemTools.BuildPath(root, "locked")
         user = Environ$("USERDOMAIN") & "\" & Environ$("USERNAME")
 

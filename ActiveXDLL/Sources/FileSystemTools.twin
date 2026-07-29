@@ -145,29 +145,32 @@ Public Module FileSystemTools
         WindowsFolder = 0       'scripting.fso = 0
         SystemFolder = 1        'scripting.fso = 1
         TemporaryFolder = 2     'scripting.fso = 2
+        sfWindowsFolder = 0
+        sfSystemFolder = 1
+        sfTemporaryFolder = 2
         ' --- Extensions start here ---
-        SystemX86Folder = 3
-        ProgramFiles = 4
-        ProgramFilesX86 = 5
-        ProgramData = 6
-        UserProfile = 7
-        Desktop = 8
-        Documents = 9
-        Downloads = 10
-        Pictures = 11
-        Music = 12
-        Videos = 13
-        LocalAppData = 14
-        RoamingAppData = 15
-        PublicDesktop = 16
-        PublicDocuments = 17
-        PublicDownloads = 18
-        PublicPictures = 19
-        PublicMusic = 20
-        PublicVideos = 21
-        Fonts = 22
-        Startup = 23
-        CommonStartup = 24
+        sfSystemX86Folder = 3
+        sfProgramFiles = 4
+        sfProgramFilesX86 = 5
+        sfProgramData = 6
+        sfUserProfile = 7
+        sfDesktop = 8
+        sfDocuments = 9
+        sfDownloads = 10
+        sfPictures = 11
+        sfMusic = 12
+        sfVideos = 13
+        sfLocalAppData = 14
+        sfRoamingAppData = 15
+        sfPublicDesktop = 16
+        sfPublicDocuments = 17
+        sfPublicDownloads = 18
+        sfPublicPictures = 19
+        sfPublicMusic = 20
+        sfPublicVideos = 21
+        sfFonts = 22
+        sfStartup = 23
+        sfCommonStartup = 24
     End Enum
 
     ' NOT INCLUDED, deliberately: FSO's Volume (8) and Alias (1024).
@@ -790,30 +793,30 @@ Public Module FileSystemTools
         Dim hr As Long
 
         Select Case specialFolder
-            Case WindowsFolder:        guid = GuidFromString(KFID_Windows_STR)
-            Case SystemFolder:         guid = GuidFromString(KFID_System_STR)
-            Case SystemX86Folder:      guid = GuidFromString(KFID_SystemX86_STR)
-            Case ProgramFiles:         guid = GuidFromString(KFID_ProgramFiles_STR)
-            Case ProgramFilesX86:      guid = GuidFromString(KFID_ProgramFilesX86_STR)
-            Case ProgramData:          guid = GuidFromString(KFID_ProgramData_STR)
-            Case UserProfile:          guid = GuidFromString(KFID_Profile_STR)
-            Case Desktop:              guid = GuidFromString(KFID_Desktop_STR)
-            Case Documents:            guid = GuidFromString(KFID_Documents_STR)
-            Case Downloads:            guid = GuidFromString(KFID_Downloads_STR)
-            Case Pictures:             guid = GuidFromString(KFID_Pictures_STR)
-            Case Music:                guid = GuidFromString(KFID_Music_STR)
-            Case Videos:               guid = GuidFromString(KFID_Videos_STR)
-            Case LocalAppData:         guid = GuidFromString(KFID_LocalAppData_STR)
-            Case RoamingAppData:       guid = GuidFromString(KFID_RoamingAppData_STR)
-            Case PublicDesktop:        guid = GuidFromString(KFID_PublicDesktop_STR)
-            Case PublicDocuments:      guid = GuidFromString(KFID_PublicDocuments_STR)
-            Case PublicDownloads:      guid = GuidFromString(KFID_PublicDownloads_STR)
-            Case PublicPictures:       guid = GuidFromString(KFID_PublicPictures_STR)
-            Case PublicMusic:          guid = GuidFromString(KFID_PublicMusic_STR)
-            Case PublicVideos:         guid = GuidFromString(KFID_PublicVideos_STR)
-            Case Fonts:                guid = GuidFromString(KFID_Fonts_STR)
-            Case Startup:              guid = GuidFromString(KFID_Startup_STR)
-            Case CommonStartup:        guid = GuidFromString(KFID_CommonStartup_STR)
+            Case WindowsFolder, sfWindowsFolder:        guid = GuidFromString(KFID_Windows_STR)
+            Case SystemFolder, sfSystemFolder:         guid = GuidFromString(KFID_System_STR)
+            Case sfSystemX86Folder:      guid = GuidFromString(KFID_SystemX86_STR)
+            Case sfProgramFiles:         guid = GuidFromString(KFID_ProgramFiles_STR)
+            Case sfProgramFilesX86:      guid = GuidFromString(KFID_ProgramFilesX86_STR)
+            Case sfProgramData:          guid = GuidFromString(KFID_ProgramData_STR)
+            Case sfUserProfile:          guid = GuidFromString(KFID_Profile_STR)
+            Case sfDesktop:              guid = GuidFromString(KFID_Desktop_STR)
+            Case sfDocuments:            guid = GuidFromString(KFID_Documents_STR)
+            Case sfDownloads:            guid = GuidFromString(KFID_Downloads_STR)
+            Case sfPictures:             guid = GuidFromString(KFID_Pictures_STR)
+            Case sfMusic:                guid = GuidFromString(KFID_Music_STR)
+            Case sfVideos:               guid = GuidFromString(KFID_Videos_STR)
+            Case sfLocalAppData:         guid = GuidFromString(KFID_LocalAppData_STR)
+            Case sfRoamingAppData:       guid = GuidFromString(KFID_RoamingAppData_STR)
+            Case sfPublicDesktop:        guid = GuidFromString(KFID_PublicDesktop_STR)
+            Case sfPublicDocuments:      guid = GuidFromString(KFID_PublicDocuments_STR)
+            Case sfPublicDownloads:      guid = GuidFromString(KFID_PublicDownloads_STR)
+            Case sfPublicPictures:       guid = GuidFromString(KFID_PublicPictures_STR)
+            Case sfPublicMusic:          guid = GuidFromString(KFID_PublicMusic_STR)
+            Case sfPublicVideos:         guid = GuidFromString(KFID_PublicVideos_STR)
+            Case sfFonts:                guid = GuidFromString(KFID_Fonts_STR)
+            Case sfStartup:              guid = GuidFromString(KFID_Startup_STR)
+            Case sfCommonStartup:        guid = GuidFromString(KFID_CommonStartup_STR)
             /*
             'this method requires the reference to WinDevLib
             Case WindowsFolder:        guid = FOLDERID_Windows()
@@ -843,7 +846,7 @@ Public Module FileSystemTools
             */
             ' TEMP is the one folder with no KNOWNFOLDERID - it is per-process and
             ' environment-driven, so it short-circuits out before the shell call.
-            Case TemporaryFolder
+            Case TemporaryFolder, sfTemporaryFolder
                 GetSpecialFolder = Environ$("TEMP")
                 Exit Function
             Case Else

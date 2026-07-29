@@ -254,7 +254,7 @@ Private Module NameValidationTests
     Private Function CleanFolder(ByVal label As String) As String
         Dim fso As New FileSystemObject
         Dim base As String
-        base = fso.BuildPath(fso.GetSpecialFolder(TemporaryFolder), "tbFileworks_tests")
+        base = fso.BuildPath(fso.GetSpecialFolder(sfTemporaryFolder), "tbFileSysTools_tests")
         Dim path As String
         path = fso.BuildPath(base, label)
 

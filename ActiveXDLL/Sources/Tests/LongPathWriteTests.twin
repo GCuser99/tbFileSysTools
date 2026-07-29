@@ -45,7 +45,7 @@ Private Module LongPathWriteTests
         On Error GoTo Fatal
 
         mBase = FileSystemTools.BuildPath( _
-                    FileSystemTools.GetSpecialFolder(TemporaryFolder), "lpwrite")
+                    FileSystemTools.GetSpecialFolder(sfTemporaryFolder), "lpwrite")
 
         ' --- Build the deep fixture with OUR now-long-path-capable CreateFolder ---
         CleanTree                                    ' remove any leftover from a prior run

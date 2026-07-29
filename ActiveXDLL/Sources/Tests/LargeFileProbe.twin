@@ -50,12 +50,12 @@ Private Module LargeFileProbe
     ' Phase D appends to the file Phase A leaves behind.
     Private Function RAW_PATH() As String
         RAW_PATH = FileSystemTools.BuildPath( _
-                       FileSystemTools.GetSpecialFolder(TemporaryFolder), "_probe_raw.bin")
+                       FileSystemTools.GetSpecialFolder(sfTemporaryFolder), "_probe_raw.bin")
     End Function
 
     Private Function TS_PATH() As String
         TS_PATH = FileSystemTools.BuildPath( _
-                       FileSystemTools.GetSpecialFolder(TemporaryFolder), "_probe_textstream.txt")
+                       FileSystemTools.GetSpecialFolder(sfTemporaryFolder), "_probe_textstream.txt")
     End Function
 
     '======================================================================

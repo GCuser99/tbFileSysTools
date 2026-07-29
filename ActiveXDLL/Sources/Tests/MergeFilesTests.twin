@@ -34,7 +34,7 @@ Private Module MergeTextFilesTests
         mFailed = 0
         mSavedCwd = FileSystemTools.GetCurrentDir()
         mRoot = FileSystemTools.BuildPath( _
-                    FileSystemTools.GetSpecialFolder(TemporaryFolder), "mergetests")
+                    FileSystemTools.GetSpecialFolder(sfTemporaryFolder), "mergetests")
 
         Debug.Print "=== MergeTextFiles: path aliasing / in-place safety ==="
 

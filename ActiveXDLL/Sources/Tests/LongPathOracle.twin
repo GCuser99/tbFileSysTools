@@ -40,7 +40,7 @@ Private Module LongPathOracle
         Set fso = CreateObject("Scripting.FileSystemObject")
         Set sh = CreateObject("WScript.Shell")
 
-        base = FileSystemTools.BuildPath(FileSystemTools.GetSpecialFolder(TemporaryFolder), "longpath")
+        base = FileSystemTools.BuildPath(FileSystemTools.GetSpecialFolder(sfTemporaryFolder), "longpath")
 
         Debug.Print "=== Long-path oracle (FSO vs >260 chars) ==="
         Debug.Print "  MAX_PATH (legacy) = 260"

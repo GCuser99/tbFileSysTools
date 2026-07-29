@@ -692,7 +692,7 @@ Private Module GeneralTests
     ' to redirect the write. IsStreaming must be False here or the test proves nothing.
     Public Sub Test_BufferedPath_IgnoresCwdChange()
         Dim tmp As String, dirA As String, dirB As String
-        tmp = FileSystemTools.GetSpecialFolder(TemporaryFolder)
+        tmp = FileSystemTools.GetSpecialFolder(sfTemporaryFolder)
         dirA = FileSystemTools.BuildPath(tmp, "cwdtest_a")
         dirB = FileSystemTools.BuildPath(tmp, "cwdtest_b")
         FileSystemTools.DeleteFolder dirA, True, True
@@ -1014,7 +1014,7 @@ Private Module GeneralTests
     Public Sub Test_RelativePaths()
         Dim fso As New FileSystemObject
         Dim base As String
-        base = fso.GetSpecialFolder(Documents)
+        base = fso.GetSpecialFolder(sfDocuments)
 
         Assert.Exact.AreEqual "sub\file.txt", _
             fso.GetRelativePath(base, fso.BuildPath(base, "sub\file.txt"))             ' descend
@@ -1025,8 +1025,8 @@ Private Module GeneralTests
 
         ' Real sibling folders, only when they actually share a parent on this box
         Dim docs As String, desk As String
-        docs = fso.GetSpecialFolder(Documents)
-        desk = fso.GetSpecialFolder(Desktop)
+        docs = fso.GetSpecialFolder(sfDocuments)
+        desk = fso.GetSpecialFolder(sfDesktop)
         If StrComp(fso.GetParentFolderName(docs), fso.GetParentFolderName(desk), vbTextCompare) = 0 Then
             Assert.Exact.AreEqual "..\" & fso.GetFileName(desk), fso.GetRelativePath(docs, desk)
         End If
@@ -1034,12 +1034,12 @@ Private Module GeneralTests
 
     Public Sub Test_SpecialFolders()
         Dim fso As New FileSystemObject
-        Assert.Exact.AreEqual fso.GetSpecialFolder(Documents), fso.BuildPath(Environ$("UserProfile"), "Documents")
-        Assert.Exact.IsTrue fso.FolderExists(fso.GetSpecialFolder(WindowsFolder))
-        Assert.Exact.IsTrue fso.FolderExists(fso.GetSpecialFolder(SystemFolder))
-        Assert.Exact.IsTrue fso.FolderExists(fso.GetSpecialFolder(TemporaryFolder))
+        Assert.Exact.AreEqual fso.GetSpecialFolder(sfDocuments), fso.BuildPath(Environ$("UserProfile"), "Documents")
+        Assert.Exact.IsTrue fso.FolderExists(fso.GetSpecialFolder(sfWindowsFolder))
+        Assert.Exact.IsTrue fso.FolderExists(fso.GetSpecialFolder(sfSystemFolder))
+        Assert.Exact.IsTrue fso.FolderExists(fso.GetSpecialFolder(sfTemporaryFolder))
         ' Documented contract: no trailing backslash (drive roots excepted)
-        Assert.Exact.IsTrue Right$(fso.GetSpecialFolder(WindowsFolder), 1) <> "\"
+        Assert.Exact.IsTrue Right$(fso.GetSpecialFolder(sfWindowsFolder), 1) <> "\"
     End Sub
 
     '----------------------------------------------------------------------

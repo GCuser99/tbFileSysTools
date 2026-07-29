@@ -170,7 +170,7 @@ Private Module AdvancePositionTests
 
     Private Function TempFile() As String
         Dim tmp As String
-        tmp = FileSystemTools.GetSpecialFolder(TemporaryFolder)
+        tmp = FileSystemTools.GetSpecialFolder(sfTemporaryFolder)
         TempFile = FileSystemTools.BuildPath(tmp, FileSystemTools.GetTempName("aptest_", ".txt", tmp))
     End Function
 
