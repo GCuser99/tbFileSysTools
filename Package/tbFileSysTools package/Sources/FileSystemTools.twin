@@ -172,7 +172,7 @@ Public Module FileSystemTools
         sfStartup = 23
         sfCommonStartup = 24
         ' -------------------------
-        ' For FSO compaibility
+        ' For FSO compatibility
         ' -------------------------
         WindowsFolder = sfWindowsFolder
         SystemFolder = sfSystemFolder
@@ -225,7 +225,7 @@ Public Module FileSystemTools
         ' -------------------------
         'faDevice = &H00000040                ' Reserved; never used by NTFS
         ' -------------------------
-        ' For FSO compaibility
+        ' For FSO compatibility
         ' -------------------------
         Normal = faNormal
         ReadOnly = faReadOnly
