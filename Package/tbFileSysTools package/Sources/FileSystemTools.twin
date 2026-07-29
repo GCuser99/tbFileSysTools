@@ -833,33 +833,6 @@ Public Module FileSystemTools
             Case sfFonts:                guid = GuidFromString(KFID_Fonts_STR)
             Case sfStartup:              guid = GuidFromString(KFID_Startup_STR)
             Case sfCommonStartup:        guid = GuidFromString(KFID_CommonStartup_STR)
-            /*
-            'this method requires the reference to WinDevLib
-            Case WindowsFolder:        guid = FOLDERID_Windows()
-            Case SystemFolder:         guid = FOLDERID_System()
-            Case SystemX86Folder:      guid = FOLDERID_SystemX86
-            Case ProgramFiles:         guid = FOLDERID_ProgramFiles
-            Case ProgramFilesX86:      guid = FOLDERID_ProgramFilesX86
-            Case ProgramData:          guid = FOLDERID_ProgramData
-            Case UserProfile:          guid = FOLDERID_Profile
-            Case Desktop:              guid = FOLDERID_Desktop()
-            Case Documents:            guid = FOLDERID_Documents()
-            Case Downloads:            guid = FOLDERID_Downloads()
-            Case Pictures:             guid = FOLDERID_Pictures()
-            Case Music:                guid = FOLDERID_Music()
-            Case Videos:               guid = FOLDERID_Videos()
-            Case LocalAppData:         guid = FOLDERID_LocalAppData()
-            Case RoamingAppData:       guid = FOLDERID_RoamingAppData()
-            Case PublicDesktop:        guid = FOLDERID_PublicDesktop()
-            Case PublicDocuments:      guid = FOLDERID_PublicDocuments()
-            Case PublicDownloads:      guid = FOLDERID_PublicDownloads()
-            Case PublicPictures:       guid = FOLDERID_PublicPictures()
-            Case PublicMusic:          guid = FOLDERID_PublicMusic()
-            Case PublicVideos:         guid = FOLDERID_PublicVideos()
-            Case Fonts:                guid = FOLDERID_Fonts()
-            Case Startup:              guid = FOLDERID_Startup()
-            Case CommonStartup:        guid = FOLDERID_CommonStartup()
-            */
             ' TEMP is the one folder with no KNOWNFOLDERID - it is per-process and
             ' environment-driven, so it short-circuits out before the shell call.
             Case TemporaryFolder, sfTemporaryFolder
@@ -1878,27 +1851,6 @@ Public Module FileSystemTools
         IsDriveRelative = (Len(p) >= 2 And Mid$(p, 2, 1) = ":" And (Len(p) = 2 Or Mid$(p, 3, 1) <> "\"))
     End Function
 
-    /* 'Moved to Shared
-    ' A UNC path that is not ALREADY long-path-prefixed (\\?\ paths start with "\\"
-    ' too, so the second test is required).
-    Private Function IsUNC(ByVal p As String) As Boolean
-        IsUNC = (Left$(p, 2) = "\\" And Left$(p, 4) <> "\\?\")
-    End Function
-
-    ' Adds the \\?\ prefix that lifts the 260-char limit. UNC needs the special
-    ' \\?\UNC\server\share form (the leading "\\" is replaced, not kept).
-    ' Idempotent. Caution: \\?\ paths bypass normalization, so they must already be
-    ' fully canonical - always feed this the output of GetAbsolutePathName.
-    Private Function AddLongPathPrefix(ByVal p As String) As String
-        If Left$(p, 4) = "\\?\" Then
-            AddLongPathPrefix = p
-        ElseIf IsUNC(p) Then
-            AddLongPathPrefix = "\\?\UNC\" & Mid$(p, 3)
-        Else
-            AddLongPathPrefix = "\\?\" & p
-        End If
-    End Function
-    */     
     ' Single-file copy core. Input assumed slash-normalized and wildcard-free.
     Private Sub CopyOneFile(ByVal source As String, _
         ByVal destination As String, _
