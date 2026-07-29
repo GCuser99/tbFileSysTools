@@ -76,7 +76,7 @@ Private Module AutoPackage
         txt = "# Change Log"
         txt = txt & vbCrLf & vbCrLf & "[v1.1.0.0, 29 July 2026]"
         txt = txt & vbCrLf & vbCrLf & " - Prefixed SpecialFolderConst enums so they don't clutter Intellisense"
-        txt = txt & vbCrLf & vbCrLf & " - Prefixed FileAttribute enums so they don't clutter Intellisense"
+        txt = txt & vbCrLf & " - Prefixed FileAttribute enums so they don't clutter Intellisense"
         txt = txt & vbCrLf & vbCrLf & "[v1.0.1.0, 28 July 2026]"
         txt = txt & vbCrLf & vbCrLf & " - Added automation code for building Package and SFDI twinproj files"
         txt = txt & vbCrLf & vbCrLf & "[v1.0.0.0, 27 July 2026]"
