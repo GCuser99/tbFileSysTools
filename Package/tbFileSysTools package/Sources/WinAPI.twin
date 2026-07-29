@@ -1,6 +1,7 @@
+' ==========================================================================
 ' This file was automatically generated from the ActiveX DLL version source.
 ' COM machinery stripped out for twinBASIC package.
-' --------------------------------------------------------------------------
+' ==========================================================================
 Private Module WinAPI
     
     'The Windows API declarations used here are from Jon Johnson's WinDevLib tB package (https://github.com/fafalone/WinDevLib).
