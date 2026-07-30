@@ -237,24 +237,6 @@ The following members are either added, or their function significantly improved
 
 ---
 
-## Errors
-
-Error numbers follow FSO convention, so existing handlers keep working:
-
-|||
-|-|-|
-|**5**|Invalid argument, or content isn't decodable text|
-|**52**|Bad file name|
-|**53**|File not found|
-|**58**|File already exists|
-|**61**|Disk full|
-|**68**|Device unavailable|
-|**70**|Permission denied|
-|**71**|Disk not ready|
-|**76**|Path not found|
-
----
-
 ## Verification
 
 The large text file, encoding and long-path claims above were measured through comprehensive testing. The test modules can  be found in the [Tests](https://github.com/GCuser99/tbFileSysTools/tree/main/ActiveXDLL/Sources/Tests) folder.
@@ -271,7 +253,7 @@ The large text file, encoding and long-path claims above were measured through c
 
 ---
 
-## Structure
+## Project Structure
 
 | File | Description |
 |-|-|
