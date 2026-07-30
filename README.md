@@ -27,7 +27,7 @@ text = TextFileToString("data.txt")     ' encoding auto-detected
 |Junction in a folder tree|`Folder.Size` double-counts, or recurses forever|Skipped|
 |Unreadable folder|Reports it as empty|Raises|
 
-The large text file, encoding and long-path claims above were measured through comprehensive testing. The test modules can  be found in the [Tests](https://github.com/GCuser99/tbFileSysTools/tree/main/ActiveXDLL/Sources/Tests) folder.
+The claims above were measured through comprehensive testing. The test modules can  be found in the [Tests](https://github.com/GCuser99/tbFileSysTools/tree/main/ActiveXDLL/Sources/Tests) folder.
 
 ---
 
