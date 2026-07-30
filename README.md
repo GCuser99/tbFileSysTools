@@ -27,7 +27,7 @@ text = TextFileToString("data.txt")     ' encoding auto-detected
 |Junction in a folder tree|`Folder.Size` double-counts, or recurses forever|Skipped|
 |Unreadable folder|Reports it as empty|Raises|
 
-Everything above is measured - see [Verification](#verification).
+The large text file, encoding and long-path claims above were measured through comprehensive testing. The test modules can  be found in the [Tests](https://github.com/GCuser99/tbFileSysTools/tree/main/ActiveXDLL/Sources/Tests) folder.
 
 ---
 
@@ -234,22 +234,6 @@ The following members are either added, or their function significantly improved
 |`Folder.SetAttribute`|Sets a single attribute|
 |`TextStream.IsStreaming`|Whether byte-streaming or buffered access is supported|
 |`TextStream.Encoding`|Returns a file's encoding|
-
----
-
-## Verification
-
-The large text file, encoding and long-path claims above were measured through comprehensive testing. The test modules can  be found in the [Tests](https://github.com/GCuser99/tbFileSysTools/tree/main/ActiveXDLL/Sources/Tests) folder.
-
-|Claim|Evidence|
-|-|-|
-|Streams > 2 GB text file|4.5 GB file written and read back block-by-block; every block verified in place|
-|Append to a > 2 GB text file is correct and non-destructive|Head, size and tail all verified after appending to a 2.4 GB file|
-|Multi-byte encodings survive chunk boundaries|54 M lines of UTF-16LE and UTF-8 containing 1-, 2-, 3- and 4-byte characters and surrogate pairs; line length chosen so chunk boundaries sweep every character position. Zero errors|
-|Line/column tracking is exact|14 CR/LF edge cases, plus 35 M lines end to end|
-|Long paths work end to end|>400-character folder tree built by the library's own `CreateFolder`; write, read, normalize and in-place merge round-trips all pass, including a temp name that crosses 260 during an atomic swap|
-|FSO is 260-bound and misreports|Oracle test: on a >260 file, the real `Scripting.FileSystemObject` returns `FileExists = False` and raises 53/76 from `GetFile` / `OpenTextFile`|
-|FSO parity|Differential tests against the real `Scripting.FileSystemObject`|
 
 ---
 
