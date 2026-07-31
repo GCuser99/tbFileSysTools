@@ -99,6 +99,8 @@ Supported: UTF-8, UTF-16 LE/BE, UTF-32 LE/BE, UTF-7, GB2312, GB18030, Big5, Lati
 
 ### Line endings
 
+Windows (CRLF), Unix (LF) and classic-Mac (CR) endings are all supported and auto-detected on read — and a file that mixes styles is reported as mixed rather than guessed at. You don't have to know a file's convention to read, normalize, or append to it.
+
 ```vba
 Debug.Print GetFileLineEnding("script.sh")   ' nlUnix
 
