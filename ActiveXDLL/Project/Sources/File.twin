@@ -1,8 +1,4 @@
 ' ==========================================================================
-' This file was automatically generated from the ActiveX DLL version source.
-' COM machinery stripped out for twinBASIC package.
-' ==========================================================================
-' ==========================================================================
 ' File
 '
 ' An FSO-style File object. Obtained from FileSystemTools.GetFile or
@@ -39,7 +35,9 @@
 ' ==========================================================================
 ' MIT License - Copyright (c) 2026, GCUser99 (https://github.com/GCUser99)
 ' ==========================================================================
+[COMCreatable(False)]
 [Hidden(False)]
+[InterfaceId("56FFD6A7-62C4-4182-B289-72889B60DF6C")]
 [Description("An FSO-style File object. Obtain via FileSystem.GetFile or Folder.Files; Not New-able directly.")]
 Public Class File
     Option Explicit
@@ -56,7 +54,7 @@ Public Class File
     ' Friend, not Public: only FileSystemTools.GetFile and Folder's enumerator may
     ' construct one. The caller injects stat data it already holds, so building a
     ' Files collection costs one directory walk rather than N stats.
-    Friend Sub Init(ByVal path As String, ByVal attrs As Long, ByVal size As LongLong, ByVal created As Date, ByVal modified As Date, ByVal accessed As Date)
+    Friend Sub Internal_Init(ByVal path As String, ByVal attrs As Long, ByVal size As LongLong, ByVal created As Date, ByVal modified As Date, ByVal accessed As Date)
         mPath = path
         mAttrs = attrs
         mSize = size

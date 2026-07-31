@@ -34,7 +34,7 @@ Public Class Files
     
     Private mItems As Collection                       ' File objects, keyed by name
 
-    Friend Sub Init(ByVal items As Collection)
+    Friend Sub Internal_Init(ByVal items As Collection)
         Set mItems = items
     End Sub
     

@@ -1477,7 +1477,7 @@ Public Module FileSystemTools
         ' StatPath hands back the leaf as stored on disk; re-attach it so the object
         ' reports the true casing rather than whatever the caller typed.
         If Len(leaf) > 0 Then filePath = BuildPath(GetParentFolderName(filePath), leaf)   ' disk casing
-        f.Init filePath, attrs, size, created, modified, accessed
+        f.Internal_Init filePath, attrs, size, created, modified, accessed
 
         Set GetFile = f
     End Function
@@ -1494,7 +1494,7 @@ Public Module FileSystemTools
         ' A drive root has no leaf to enumerate, so StatPath returns "" and the path
         ' is left as-is. (Note: 'size' is stat'd but unused - Folder computes it.)
         If Len(leaf) > 0 Then folderPath = BuildPath(GetParentFolderName(folderPath), leaf)   ' "" for root -> unchanged
-        d.Init folderPath, attrs, created, modified, accessed
+        d.Internal_Init folderPath, attrs, created, modified, accessed
 
         Set GetFolder = d
     End Function
@@ -1518,7 +1518,7 @@ Public Module FileSystemTools
 
         Dim dr As Drive
         Set dr = New Drive
-        dr.Init root
+        dr.Internal_Init root
         Set GetDrive = dr
     End Function
 
@@ -1534,7 +1534,7 @@ Public Module FileSystemTools
             End If
         Next
         Dim out As New Drives
-        out.Init c
+        out.Internal_Init c
         Set GetDrives = out
     End Function
 
@@ -2697,7 +2697,7 @@ Public Class File
     ' Friend, not Public: only FileSystemTools.GetFile and Folder's enumerator may
     ' construct one. The caller injects stat data it already holds, so building a
     ' Files collection costs one directory walk rather than N stats.
-    Friend Sub Init(ByVal path As String, ByVal attrs As Long, ByVal size As LongLong, ByVal created As Date, ByVal modified As Date, ByVal accessed As Date)
+    Friend Sub Internal_Init(ByVal path As String, ByVal attrs As Long, ByVal size As LongLong, ByVal created As Date, ByVal modified As Date, ByVal accessed As Date)
         mPath = path
         mAttrs = attrs
         mSize = size
@@ -3043,7 +3043,7 @@ Public Class Files
     
     Private mItems As Collection                       ' File objects, keyed by name
 
-    Friend Sub Init(ByVal items As Collection)
+    Friend Sub Internal_Init(ByVal items As Collection)
         Set mItems = items
     End Sub
     
@@ -3114,7 +3114,7 @@ Public Class Folder
     ' Friend, not Public: only FileSystemTools.GetFolder and this class's own
     ' MakeFolderObject may construct one. The caller supplies stat data it already
     ' holds, so building a subfolder list does not re-stat every child.
-    Friend Sub Init(ByVal path As String, ByVal attrs As Long, ByVal created As Date, ByVal modified As Date, ByVal accessed As Date)
+    Friend Sub Internal_Init(ByVal path As String, ByVal attrs As Long, ByVal created As Date, ByVal modified As Date, ByVal accessed As Date)
         mPath = path
         mAttrs = attrs
         mCreated = created
@@ -3316,7 +3316,7 @@ Public Class Folder
     Public Property Get Files() As Files
         EnsureCurrent
         Dim out As New Files
-        out.Init EnumChildren(mPath, wantFolders:=False, includeHidden:=True, includeSystem:=True)     ' wantFolders:=False
+        out.Internal_Init EnumChildren(mPath, wantFolders:=False, includeHidden:=True, includeSystem:=True)     ' wantFolders:=False
         Set Files = out
     End Property
 
@@ -3324,7 +3324,7 @@ Public Class Folder
     Public Property Get SubFolders() As Folders
         EnsureCurrent
         Dim out As New Folders
-        out.Init EnumChildren(mPath, wantFolders:=True, includeHidden:=True, includeSystem:=True)      ' wantFolders:=True
+        out.Internal_Init EnumChildren(mPath, wantFolders:=True, includeHidden:=True, includeSystem:=True)      ' wantFolders:=True
         Set SubFolders = out
     End Property
     
@@ -3451,14 +3451,14 @@ Public Class Folder
     Private Function MakeFileObject(ByVal path As String, ByVal attrs As Long, ByVal size As LongLong, ByVal created As Date, ByVal modified As Date, ByVal accessed As Date) As File
         Dim f As File
         Set f = New File
-        f.Init path, attrs, size, created, modified, accessed
+        f.Internal_Init path, attrs, size, created, modified, accessed
         Set MakeFileObject = f
     End Function
 
     Private Function MakeFolderObject(ByVal path As String, ByVal attrs As Long, ByVal created As Date, ByVal modified As Date, ByVal accessed As Date) As Folder
         Dim d As Folder
         Set d = New Folder
-        d.Init path, attrs, created, modified, accessed
+        d.Internal_Init path, attrs, created, modified, accessed
         Set MakeFolderObject = d
     End Function
 
@@ -3569,7 +3569,7 @@ Public Class Folders
     
     Private mItems As Collection
 
-    Friend Sub Init(ByVal items As Collection)
+    Friend Sub Internal_Init(ByVal items As Collection)
         Set mItems = items
     End Sub
     
@@ -3673,7 +3673,7 @@ Public Class Drive
     ' Validates that the DEVICE exists (FSO parity - fso.GetDrive("D:") raises 68 on
     ' a machine with no D:). It does NOT validate readiness: an empty optical bay has
     ' a letter and constructs fine, and IsReady is the live question.
-    Friend Sub Init(ByVal root As String)
+    Friend Sub Internal_Init(ByVal root As String)
         mRoot = root
         If Not DeviceExists() Then
             Err.Raise 68, "Drive", "Device unavailable: " & mRoot
@@ -3988,7 +3988,7 @@ Public Class Drives
     Option Explicit
     Private mItems As Collection                       ' Drive objects, keyed by letter
 
-    Friend Sub Init(ByVal items As Collection)
+    Friend Sub Internal_Init(ByVal items As Collection)
         Set mItems = items
     End Sub
     

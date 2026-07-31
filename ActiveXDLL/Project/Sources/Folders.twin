@@ -1,8 +1,4 @@
 ' ==========================================================================
-' This file was automatically generated from the ActiveX DLL version source.
-' COM machinery stripped out for twinBASIC package.
-' ==========================================================================
-' ==========================================================================
 ' Folders
 '
 ' A read-only wrapper around a Collection of Folder objects.
@@ -27,14 +23,16 @@
 ' ==========================================================================
 ' MIT License - Copyright (c) 2026, GCUser99 (https://github.com/GCUser99)
 ' ==========================================================================
+[COMCreatable(False)]
 [Hidden(False)]
+[InterfaceId("56FFD6A7-62C4-4182-B289-3226BC488082")]
 [Description("A read-only collection of Folder objects, enumerable with For Each.")]
 Public Class Folders
     Option Explicit
     
     Private mItems As Collection
 
-    Friend Sub Init(ByVal items As Collection)
+    Friend Sub Internal_Init(ByVal items As Collection)
         Set mItems = items
     End Sub
     

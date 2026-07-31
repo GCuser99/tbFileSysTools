@@ -2,23 +2,23 @@ Module AutoSFDI
 
     Sub prep_for_SFDI()
         Dim tbFolderPath As String
-        tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Single-File-Drop-in\TestSFDI")
+        tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Single-File-Drop-in\Project")
         Dim tbSourcesPath As String
         tbSourcesPath = BuildPath(tbFolderPath, "Sources")
         
         Dim c As New Collection
-        c.Add ".\Sources\FileSystemObject.twin"
-        c.Add ".\Sources\FileSystemTools.twin"
-        c.Add ".\Sources\File.twin"
-        c.Add ".\Sources\Files.twin"
-        c.Add ".\Sources\Folder.twin"
-        c.Add ".\Sources\Folders.twin"
-        c.Add ".\Sources\Drive.twin"
-        c.Add ".\Sources\Drives.twin"
-        c.Add ".\Sources\TextStream.twin"
-        c.Add ".\Sources\TextCodec.twin"
-        c.Add ".\Sources\FSTShared.twin"
-        c.Add ".\Sources\WinAPI.twin"
+        c.Add ".\Project\Sources\FileSystemObject.twin"
+        c.Add ".\Project\Sources\FileSystemTools.twin"
+        c.Add ".\Project\Sources\File.twin"
+        c.Add ".\Project\Sources\Files.twin"
+        c.Add ".\Project\Sources\Folder.twin"
+        c.Add ".\Project\Sources\Folders.twin"
+        c.Add ".\Project\Sources\Drive.twin"
+        c.Add ".\Project\Sources\Drives.twin"
+        c.Add ".\Project\Sources\TextStream.twin"
+        c.Add ".\Project\Sources\TextCodec.twin"
+        c.Add ".\Project\Sources\FSTShared.twin"
+        c.Add ".\Project\Sources\WinAPI.twin"
         
         'determine encoding for first file
         Dim enc As TextEncoding
@@ -61,7 +61,7 @@ Module AutoSFDI
         Dim exePath As String, outProjPath As String
         exePath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbImportExport\Build\ImpExp.exe")
             
-        tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Single-File-Drop-in\TestSFDI")
+        tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Single-File-Drop-in\Project")
         outProjPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Single-File-Drop-in\TestSFDI.twinproj")
             
         DeleteFile outProjPath, ignoreMissing:=True
@@ -69,7 +69,7 @@ Module AutoSFDI
         tbFolderPath = """" & tbFolderPath & """"
         outProjPath = """" & outProjPath & """"
         exePath = """" & exePath & """"
-        Shell exePath & " export " & tbFolderPath & " " & outProjPath, vbNormalFocus
+        Shell exePath & " pack " & tbFolderPath & " " & outProjPath, vbNormalFocus
     End Sub
     
     Sub UnpackTwinProj()
@@ -79,8 +79,8 @@ Module AutoSFDI
         Dim tbFolderPath As String
         
         exePath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbImportExport\Build\ImpExp.exe")
-        tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Single-File-Drop-in\TestSFDI")
-        inProjPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Single-File-Drop-in\TestSFDI.twinproj")
+        tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Single-File-Drop-in\Project")
+        inProjPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Single-File-Drop-in\tbFileSysTools.twinproj")
         
         DeleteFolder tbFolderPath, ignoreMissing:=True
         
@@ -89,10 +89,10 @@ Module AutoSFDI
         exePath = """" & exePath & """"
         
         ' Run unpack
-        Shell exePath & " import " & inProjPath & " " & tbFolderPath, vbNormalFocus
+        Shell exePath & " unpack " & inProjPath & " " & tbFolderPath, vbNormalFocus
         
         ' .meta could have personal info - not needed for re-pack to work
-        DeleteFile BuildPath(tbFolderPath, ".meta"), ignoreMissing:=True
+        'DeleteFile BuildPath(tbFolderPath, ".meta"), ignoreMissing:=True
     End Sub
 
 End Module

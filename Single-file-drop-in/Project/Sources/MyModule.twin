@@ -3,7 +3,7 @@ Module MyModule
     Sub test_fso()
         Dim fso As New FileSystemObject
         Dim p As String
-        p = fso.BuildPath(fso.GetSpecialFolder(Documents), fso.GetTempName())
+        p = fso.BuildPath(fso.GetSpecialFolder(sfDocuments), fso.GetTempName())
         fso.StringToTextFile "hello from tB", p
         Debug.Assert fso.FileExists(p)
         Debug.Assert fso.TextFileToString(p) = "hello from tB"
@@ -14,13 +14,24 @@ Module MyModule
     
     Sub test_fst()
         Dim p As String
-        p = BuildPath(GetSpecialFolder(Documents), GetTempName())
+        p = BuildPath(GetSpecialFolder(sfDocuments), GetTempName())
         StringToTextFile "hello from tB", p
         Debug.Assert FileExists(p)
         Debug.Assert TextFileToString(p) = "hello from tB"
         ' clean up
         DeleteFile p
         Debug.Assert Not FileExists(p)
+    End Sub
+    
+    Sub test_fst_qualified()
+        Dim p As String
+        p = FileSystemTools.BuildPath(FileSystemTools.GetSpecialFolder(sfDocuments), FileSystemTools.GetTempName())
+        FileSystemTools.StringToTextFile "hello from tB", p
+        Debug.Assert FileSystemTools.FileExists(p)
+        Debug.Assert FileSystemTools.TextFileToString(p) = "hello from tB"
+        ' clean up
+        FileSystemTools.DeleteFile p
+        Debug.Assert Not FileSystemTools.FileExists(p)
     End Sub
 
 End Module

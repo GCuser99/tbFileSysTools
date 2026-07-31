@@ -27,7 +27,7 @@ text = TextFileToString("data.txt")     ' encoding auto-detected
 |Junction in a folder tree|`Folder.Size` double-counts, or recurses forever|Skipped|
 |Unreadable folder|Reports it as empty|Raises|
 
-Everything above is measured - see **Verification** section below.
+The claims above were measured through comprehensive testing. The test modules can  be found in the **Tests** folder.
 
 ---
 
@@ -70,7 +70,7 @@ Debug.Print fso.GetFile(path).Size
 
 The class is a one-line delegation to the module for every member — same behaviour, same defaults. It uses FSO's argument names (`fileSpec`, `folderSpec`) so named arguments in ported code keep working.
 
-> **Note:** the class is deliberately named `FileSystemObject`, the same as Scripting's. In a project referencing both, qualify it — `tbFileSysTools.FileSystemObject` — drop the Scripting Runtime reference, or move tbFileSysTools position in the References dialog ABOVE Scripting Runtime.
+> **Note:** the class is deliberately named `FileSystemObject`, the same as Scripting's. In a project referencing both, qualify it - `tbFileSysTools.FileSystemObject`, drop the Scripting Runtime reference, or move tbFileSysTools position in the References dialog ABOVE Scripting Runtime so that it takes unqualified precedence.
 
 ---
 
@@ -237,41 +237,7 @@ The following members are either added, or their function significantly improved
 
 ---
 
-## Errors
-
-Error numbers follow FSO convention, so existing handlers keep working:
-
-|||
-|-|-|
-|**5**|Invalid argument, or content isn't decodable text|
-|**52**|Bad file name|
-|**53**|File not found|
-|**58**|File already exists|
-|**61**|Disk full|
-|**68**|Device unavailable|
-|**70**|Permission denied|
-|**71**|Disk not ready|
-|**76**|Path not found|
-
----
-
-## Verification
-
-The large text file, encoding and long-path claims above were measured through comprehensive testing. The test modules can  be found in the **Tests** folder.
-
-|Claim|Evidence|
-|-|-|
-|Streams > 2 GB text file|4.5 GB file written and read back block-by-block; every block verified in place|
-|Append to a > 2 GB text file is correct and non-destructive|Head, size and tail all verified after appending to a 2.4 GB file|
-|Multi-byte encodings survive chunk boundaries|54 M lines of UTF-16LE and UTF-8 containing 1-, 2-, 3- and 4-byte characters and surrogate pairs; line length chosen so chunk boundaries sweep every character position. Zero errors|
-|Line/column tracking is exact|14 CR/LF edge cases, plus 35 M lines end to end|
-|Long paths work end to end|>400-character folder tree built by the library's own `CreateFolder`; write, read, normalize and in-place merge round-trips all pass, including a temp name that crosses 260 during an atomic swap|
-|FSO is 260-bound and misreports|Oracle test: on a >260 file, the real `Scripting.FileSystemObject` returns `FileExists = False` and raises 53/76 from `GetFile` / `OpenTextFile`|
-|FSO parity|Differential tests against the real `Scripting.FileSystemObject`|
-
----
-
-## Structure
+## Project Structure
 
 | File | Description |
 |-|-|

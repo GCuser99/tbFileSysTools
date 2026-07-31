@@ -30,7 +30,7 @@ Public Class Drives
     Option Explicit
     Private mItems As Collection                       ' Drive objects, keyed by letter
 
-    Friend Sub Init(ByVal items As Collection)
+    Friend Sub Internal_Init(ByVal items As Collection)
         Set mItems = items
     End Sub
     

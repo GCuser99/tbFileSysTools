@@ -1,8 +1,4 @@
 ' ==========================================================================
-' This file was automatically generated from the ActiveX DLL version source.
-' COM machinery stripped out for twinBASIC package.
-' ==========================================================================
-' ==========================================================================
 ' FileSystemTools
 '
 ' A replacement for Scripting Runtime's FileSystemObject.
@@ -1157,7 +1153,7 @@ Public Module FileSystemTools
         ' StatPath hands back the leaf as stored on disk; re-attach it so the object
         ' reports the true casing rather than whatever the caller typed.
         If Len(leaf) > 0 Then filePath = BuildPath(GetParentFolderName(filePath), leaf)   ' disk casing
-        f.Init filePath, attrs, size, created, modified, accessed
+        f.Internal_Init filePath, attrs, size, created, modified, accessed
 
         Set GetFile = f
     End Function
@@ -1174,7 +1170,7 @@ Public Module FileSystemTools
         ' A drive root has no leaf to enumerate, so StatPath returns "" and the path
         ' is left as-is. (Note: 'size' is stat'd but unused - Folder computes it.)
         If Len(leaf) > 0 Then folderPath = BuildPath(GetParentFolderName(folderPath), leaf)   ' "" for root -> unchanged
-        d.Init folderPath, attrs, created, modified, accessed
+        d.Internal_Init folderPath, attrs, created, modified, accessed
 
         Set GetFolder = d
     End Function
@@ -1198,7 +1194,7 @@ Public Module FileSystemTools
 
         Dim dr As Drive
         Set dr = New Drive
-        dr.Init root
+        dr.Internal_Init root
         Set GetDrive = dr
     End Function
 
@@ -1214,7 +1210,7 @@ Public Module FileSystemTools
             End If
         Next
         Dim out As New Drives
-        out.Init c
+        out.Internal_Init c
         Set GetDrives = out
     End Function
 

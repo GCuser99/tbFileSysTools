@@ -2,23 +2,23 @@ Private Module AutoPackage
 
     Sub prep_for_package()
         Dim tbFolderPath As String
-        tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Package\tbFileSysTools package")
+        tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Package\Project")
         Dim tbSourcesPath As String
         tbSourcesPath = BuildPath(tbFolderPath, "Sources")
         
         Dim c As New Collection
-        c.Add ".\Sources\FileSystemObject.twin"
-        c.Add ".\Sources\FileSystemTools.twin"
-        c.Add ".\Sources\File.twin"
-        c.Add ".\Sources\Files.twin"
-        c.Add ".\Sources\Folder.twin"
-        c.Add ".\Sources\Folders.twin"
-        c.Add ".\Sources\Drive.twin"
-        c.Add ".\Sources\Drives.twin"
-        c.Add ".\Sources\TextStream.twin"
-        c.Add ".\Sources\TextCodec.twin"
-        c.Add ".\Sources\FSTShared.twin"
-        c.Add ".\Sources\WinAPI.twin"
+        c.Add ".\Project\Sources\FileSystemObject.twin"
+        c.Add ".\Project\Sources\FileSystemTools.twin"
+        c.Add ".\Project\Sources\File.twin"
+        c.Add ".\Project\Sources\Files.twin"
+        c.Add ".\Project\Sources\Folder.twin"
+        c.Add ".\Project\Sources\Folders.twin"
+        c.Add ".\Project\Sources\Drive.twin"
+        c.Add ".\Project\Sources\Drives.twin"
+        c.Add ".\Project\Sources\TextStream.twin"
+        c.Add ".\Project\Sources\TextCodec.twin"
+        c.Add ".\Project\Sources\FSTShared.twin"
+        c.Add ".\Project\Sources\WinAPI.twin"
         
         Dim p As String
         Dim s() As String
@@ -50,7 +50,7 @@ Private Module AutoPackage
         Dim fp As String
         Dim d As Dictionary
         
-        tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Package\tbFileSysTools package")
+        tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Package\Project")
         fp = BuildPath(tbFolderPath, "Settings")
         txt = TextFileToString(fp)
         
@@ -86,14 +86,14 @@ Private Module AutoPackage
         ' Copy license file over
         Dim licensePath As String
         licensePath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\LICENSE")
-        tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Package\tbFileSysTools package\LICENSE.md")
+        tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Package\Project\LICENSE.md")
         CopyFile licensePath, tbFolderPath
 
         ' Build the .twinproj file - requires ImpExp console app (https://github.com/GCuser99/tbImportExport)
         Dim exePath As String, outProjPath As String
         exePath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbImportExport\Build\ImpExp.exe")
             
-        tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Package\tbFileSysTools package")
+        tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Package\Project")
         outProjPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Package\tbFileSysTools package.twinproj")
             
         DeleteFile outProjPath, ignoreMissing:=True
@@ -101,7 +101,7 @@ Private Module AutoPackage
         tbFolderPath = """" & tbFolderPath & """"
         outProjPath = """" & outProjPath & """"
         exePath = """" & exePath & """"
-        Shell exePath & " export " & tbFolderPath & " " & outProjPath, vbNormalFocus
+        Shell exePath & " pack " & tbFolderPath & " " & outProjPath, vbNormalFocus
     End Sub
     
     Sub UnpackTwinProj()
@@ -111,8 +111,8 @@ Private Module AutoPackage
         Dim tbFolderPath As String
         
         exePath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbImportExport\Build\ImpExp.exe")
-        tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Package\tbFileSysTools package")
-        inProjPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Package\tbFileSysTools package.twinproj")
+        tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Package\Project")
+        inProjPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Package\tbFileSysTools.twinproj")
         
         DeleteFolder tbFolderPath, ignoreMissing:=True
         
@@ -121,10 +121,12 @@ Private Module AutoPackage
         exePath = """" & exePath & """"
         
         ' Run unpack
-        Shell exePath & " import " & inProjPath & " " & tbFolderPath, vbNormalFocus
+        Shell exePath & " unpack " & inProjPath & " " & tbFolderPath, vbNormalFocus
         
         ' .meta could have personal info - not needed for re-pack to work
-        DeleteFile BuildPath(tbFolderPath, ".meta"), ignoreMissing:=True
+        'tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Package\tbFileSysTools package")
+        'Debug.Print FileExists(BuildPath(tbFolderPath, ".meta"))
+        'DeleteFile BuildPath(tbFolderPath, ".meta"), ignoreMissing:=True
     End Sub
     
 End Module

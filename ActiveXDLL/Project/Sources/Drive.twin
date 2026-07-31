@@ -82,7 +82,7 @@ Public Class Drive
     ' Validates that the DEVICE exists (FSO parity - fso.GetDrive("D:") raises 68 on
     ' a machine with no D:). It does NOT validate readiness: an empty optical bay has
     ' a letter and constructs fine, and IsReady is the live question.
-    Friend Sub Init(ByVal root As String)
+    Friend Sub Internal_Init(ByVal root As String)
         mRoot = root
         If Not DeviceExists() Then
             Err.Raise 68, "Drive", "Device unavailable: " & mRoot
