@@ -42,7 +42,7 @@ Private Module AutoPackage
                 skip:
             Next
             ReDim Preserve o(0 To j)
-            ArrayToTextFile o, BuildPath(tbSourcesPath, GetFileName(p)) ',  encoding:=enc, lineEnding:=le
+            ArrayToTextFile o, BuildPath(tbSourcesPath, GetFileName(p))
         Next p
 
         ' Modify version to match version from this project
@@ -94,7 +94,7 @@ Private Module AutoPackage
         exePath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbImportExport\Build\ImpExp.exe")
             
         tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Package\Project")
-        outProjPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Package\tbFileSysTools package.twinproj")
+        outProjPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Package\tbFileSysTools.twinproj")
             
         DeleteFile outProjPath, ignoreMissing:=True
             
