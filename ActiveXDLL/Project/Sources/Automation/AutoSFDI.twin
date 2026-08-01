@@ -1,10 +1,16 @@
 Module AutoSFDI
 
     Sub prep_for_SFDI()
-        Dim tbFolderPath As String
-        tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Single-File-Drop-in\Project")
-        Dim tbSourcesPath As String
-        tbSourcesPath = BuildPath(tbFolderPath, "Sources")
+        Dim inProjFolderPath As String
+        Dim outProjFilePath As String
+        Dim exePath As String
+        
+        exePath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbImportExport\Build\ImpExp.exe")
+        outProjFilePath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Single-file-drop-in\tbFileSysTools.twinproj")
+        inProjFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Single-file-drop-in\Project")
+        
+        Dim outSourcesPath As String
+        outSourcesPath = BuildPath(inProjFolderPath, "Sources")
         
         Dim c As New Collection
         c.Add ".\Project\Sources\FileSystemObject.twin"
@@ -50,15 +56,14 @@ Module AutoSFDI
         Next p
         
         ReDim Preserve o(0 To j)
-        ArrayToTextFile o, BuildPath (tbFolderPath, "Sources\tbFileSysTools.twin")
+        ArrayToTextFile o, BuildPath (outSourcesPath, "tbFileSysTools.twin")
         
         ' Modify version to match version from this project
         Dim txt As String
         Dim fp As String
         Dim d As Dictionary
-        
-        tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Single-File-Drop-in\Project")
-        fp = BuildPath(tbFolderPath, "Settings")
+
+        fp = BuildPath(inProjFolderPath, "Settings")
         txt = TextFileToString(fp)
         
         Set d = LibJSON.Parse(txt).Value
@@ -68,41 +73,38 @@ Module AutoSFDI
         d("project.versionRevision") = App.Revision
         
         txt = LibJSON.Serialize(d, indentspaces:=8)
-        StringToTextFile txt, BuildPath(tbFolderPath, "Settings")
+        StringToTextFile txt, BuildPath(inProjFolderPath, "Settings")
         
-        ' Pack the modfied source into a .twinproj file
-        Dim exePath As String, outProjPath As String
-        exePath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbImportExport\Build\ImpExp.exe")
+        ' Copy license file over
+        Dim inLicensePath As String, outLicensePath As String
+        inLicensePath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\LICENSE")
+        outLicensePath = BuildPath(inProjFolderPath, "LICENSE.md")
+        CopyFile inLicensePath, outLicensePath
             
-        tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Single-File-Drop-in\Project")
-        outProjPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Single-File-Drop-in\tbFileSysTools.twinproj")
-            
-        DeleteFile outProjPath, ignoreMissing:=True
-            
-        tbFolderPath = """" & tbFolderPath & """"
-        outProjPath = """" & outProjPath & """"
-        exePath = """" & exePath & """"
-        Shell exePath & " pack " & tbFolderPath & " " & outProjPath, vbNormalFocus
+        DeleteFile outProjFilePath, ignoreMissing:=True
+        
+        ' Build the .twinproj file - requires ImpExp console app (https://github.com/GCuser99/tbImportExport)
+
+        ' Run pack
+        Shell "cmd.exe /k """"" & exePath & """ pack """ & inProjFolderPath & """ """ & outProjFilePath & """""", vbNormalFocus
+        'Shell """" & exePath & """ pack """ & inProjFolderPath & """ """ & outProjFilePath & """", vbNormalFocus
     End Sub
     
     Sub UnpackTwinProj()
         ' Requires ImpExp console app (https://github.com/GCuser99/tbImportExport)
         Dim exePath As String
-        Dim inProjPath As String
-        Dim tbFolderPath As String
+        Dim inProjFilePath As String
+        Dim outProjFolderPath As String
         
         exePath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbImportExport\Build\ImpExp.exe")
-        tbFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Single-File-Drop-in\Project")
-        inProjPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Single-File-Drop-in\tbFileSysTools.twinproj")
+        inProjFilePath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Single-File-Drop-in\tbFileSysTools.twinproj")
+        outProjFolderPath = BuildPath(GetSpecialFolder(sfDocuments), "GitHub\tbFileSysTools\Single-File-Drop-in\Project")
         
-        DeleteFolder tbFolderPath, ignoreMissing:=True
-        
-        tbFolderPath = """" & tbFolderPath & """"
-        inProjPath = """" & inProjPath & """"
-        exePath = """" & exePath & """"
+        DeleteFolder outProjFolderPath, ignoreMissing:=True
         
         ' Run unpack
-        Shell exePath & " unpack " & inProjPath & " " & tbFolderPath, vbNormalFocus
+        'Shell "cmd.exe /k """"" & exePath & """ unpack """ & inProjFilePath & """ """ & outProjFolderPath & """""", vbNormalFocus
+        Shell """" & exePath & """ unpack """ & inProjFilePath & """ """ & outProjFolderPath & """", vbNormalFocus
     End Sub
 
 End Module

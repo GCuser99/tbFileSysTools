@@ -39,7 +39,7 @@ The library comes in three forms — pick whichever fits how you work:
 |-|-|-|
 |**twinBASIC package**|You want a referenced `.twinpack`, no copied code|Automatic via the package server|
 |**Single-file drop-in**|You want one `.twin` in your project, no reference|Manual|
-|**ActiveX DLL**|You're calling from VBA, VBScript, or another COM host|Re-register the DLL|
+|**ActiveX DLL**|You're calling from VBA, twinBASIC, or another COM host|Re-register the DLL|
 
 > **Note:** You don't have to clone this repo to use the package. In your own project, go to **Project → References → Available Packages** and check **File System Tools** - twinBASIC pulls it from the package server. Clone the repo only if you want to build the DLL, modify the source, or host your own local package.
 
@@ -70,7 +70,7 @@ Debug.Print fso.GetFile(path).Size
 
 The class is a one-line delegation to the module for every member — same behaviour, same defaults. It uses FSO's argument names (`fileSpec`, `folderSpec`) so named arguments in ported code keep working.
 
-> **Note:** the class is deliberately named `FileSystemObject`, the same as Scripting's. In a project referencing both, qualify it - `tbFileSysTools.FileSystemObject`, drop the Scripting Runtime reference, or move tbFileSysTools position in the References dialog ABOVE Scripting Runtime so that it takes unqualified precedence.
+> **Note:** the class is deliberately named `FileSystemObject`, the same as Scripting's. In a project referencing both, qualify it - `tbFileSysTools.FileSystemObject`, drop the Scripting Runtime reference, or move tbFileSysTools' position in the References dialog ABOVE Scripting Runtime so that it takes unqualified precedence.
 
 ---
 
@@ -98,6 +98,8 @@ Supported: UTF-8, UTF-16 LE/BE, UTF-32 LE/BE, UTF-7, GB2312, GB18030, Big5, Lati
 **Auto-detection on Read.** Defaults to auto-detect using a reliable heuristical algorithm but user can specify a code-page if known.
 
 ### Line endings
+
+Windows (CRLF), Unix (LF) and classic-Mac (CR) endings are all supported and auto-detected on read — and a file that mixes styles is reported as mixed rather than guessed at. You don't have to know a file's convention to read, normalize, or append to it.
 
 ```vba
 Debug.Print GetFileLineEnding("script.sh")   ' nlUnix
@@ -137,9 +139,9 @@ Multi-byte encodings are handled correctly across chunk boundaries, including su
 
 ## Long paths
 
-Windows' legacy `MAX_PATH` limit is 260 characters. `Scripting.FileSystemObject` is bound by it - on a path longer than 260 characters, FSO's `FileExists` returns False for a file that exists, `GetFile` and `OpenTextFile` raise "path not found".
+Windows' legacy `MAX_PATH` limit is 260 characters. `Scripting.FileSystemObject` is bound by it — on a longer path, `FileExists` returns False for a file that exists, and `GetFile` and `OpenTextFile` raise "path not found". This library supports long paths transparently: reading, writing, creating, copying, moving, deleting, enumerating, normalizing and merging all work well past 260 characters. You pass a normal path; the library canonicalizes it and applies the `\\?\` prefix to the underlying Win32 calls when needed. No prefix, no flag, no manifest — it works regardless of the `LongPathsEnabled` registry setting, and identically with it enabled.
 
-This library supports long paths transparently. Reading, writing, creating, copying, moving, deleting, enumerating, normalizing and merging all work well past 260 characters — no prefix, no flag, no special call. You pass a normal path; the library canonicalizes it and applies the `\\?\` prefix to the underlying Win32 calls when needed.
+A few members remain 260-bound because the specific Win32 APIs behind them don't accept the prefix: `GetFileType`, `GetFileVersion`, `GetRelativePath`, `File.ShortPath`, `SetCurrentDir`, and wildcard *patterns* (matched items are unaffected). Each degrades or raises clearly rather than returning a wrong answer — see each member's description for its exact behavior.
 
 ```vba
 ' A 400-plus-character path is just a path.
@@ -147,24 +149,7 @@ Dim deep As String
 deep = "C:\...\a\very\deeply\nested\...\structure\notes.txt"   ' > 260 chars
 StringToTextFile "hello", deep
 Debug.Print FileExists(deep)                   ' True
-Debug.Print TextFileToString(deep)             ' hello
 ```
-
-A few members stay bound to 260 characters, because the specific Win32 APIs behind them don't honor the `\\?\` prefix. Each degrades or raises rather than returning a wrong answer:
-
-|Member|On a > 260 path|Why|
-|-|-|-|
-|`GetFileType` / `File.Type`|Falls back to the lexical `"<EXT> File"`|`SHGetFileInfoW` (shell API) rejects `\\?\`|
-|`GetFileVersion` / `File.Version`|Returns `""`, as for a file with no version resource|Version-resource APIs don't honor `\\?\`|
-|`GetRelativePath`|Falls back to the absolute target path|`PathRelativePathToW` is capped at `MAX_PATH`|
-|`File.ShortPath`|Returns the full path unchanged|8.3 shortening is a legacy-`MAX_PATH` mechanism|
-|Wildcard patterns in `CopyFile` / `MoveFile` / `DeleteFile` / `CopyFolder` / `MoveFolder` / `DeleteFolder` / `GetFilePaths`|The pattern is 260-bound; matched items are handled normally|A wildcard pattern can't be safely `\\?\`-prefixed|
-|`SetCurrentDir`|Raises; the CWD is left unchanged|`SetCurrentDirectoryW` loses the limit only under the process-wide long-path opt-in, which a library can't guarantee|
-
-> **Note:** tbFileSysTools does not require the Windows long-path opt-in
-> (`LongPathsEnabled` + `longPathAware`). Long paths work regardless of registry
-> or manifest configuration, and behave identically with the opt-in enabled.
-
 ---
 
 ## Objects
