@@ -14,8 +14,8 @@ Module AutoDLL
         DeleteFolder outProjFolderPath, ignoreMissing:=True
         
         ' Run unpack
-        Shell "cmd.exe /k """"" & exePath & """ unpack """ & inProjFilePath & """ """ & outProjFolderPath & """""", vbNormalFocus
-        'Shell """" & exePath & """ unpack """ & inProjFilePath & """ """ & outProjFolderPath & """", vbNormalFocus
+        'Shell "cmd.exe /k """"" & exePath & """ unpack """ & inProjFilePath & """ """ & outProjFolderPath & """""", vbNormalFocus
+        Shell """" & exePath & """ unpack """ & inProjFilePath & """ """ & outProjFolderPath & """", vbNormalFocus
     End Sub
 
 End Module
