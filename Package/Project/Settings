@@ -9,7 +9,6 @@
         "project.licence": "MIT",
         "project.name": "tbFileSysTools",
         "project.optionExplicit": true,
-        "project.packageVisibility": "PRIVATE",
         "project.references": [
                 {
                         "id": "{00020430-0000-0000-C000-000000000046}",
@@ -26,7 +25,7 @@
         "project.versionBuild": 0,
         "project.versionMajor": 1,
         "project.versionMinor": 1,
-        "project.versionRevision": 0,
+        "project.versionRevision": 1,
         "project.warnings": {
                 "errors": [],
                 "hints": [],
@@ -34,5 +33,6 @@
                 "info": [],
                 "warnings": []
         },
-        "runtime.useUnicodeStandardLibrary": true
+        "runtime.useUnicodeStandardLibrary": true,
+        "project.packageVisibility": "PRIVATE"
 }
