@@ -60,7 +60,7 @@
 #define AppGUID "{56FFD6A7-62C4-4182-B289-8B84164166A6}"
 #define AppPublisher "GCUser99"
 #define AppURL "https://github.com/GCuser99/tbFileSysTools"
-#define AppHelpURL "https://github.com/GCuser99/tbFileSysTools/wiki"
+#define AppHelpURL "https://github.com/GCuser99/tbFileSysTools"
 #define InstallerName "tbFileSysToolsDLLSetup"
 #define DLL64FilePath "..\Build\tbFileSysTools_win64.dll"
 #define DLL32FilePath "..\Build\tbFileSysTools_win32.dll"
