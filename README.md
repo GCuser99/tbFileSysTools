@@ -237,6 +237,13 @@ The following members are either added, or their function significantly improved
 
 ---
 
+## Acknowledgements
+
+* **fafalone** — for [WinDevLib](https://github.com/fafalone/WinDevLib), source of standardized Win32 api declares.
+* **Wayne Phillips** — for [twinBASIC](https://twinbasic.com).
+
+---
+
 ## License
 
 MIT © 2026 GCUser99
