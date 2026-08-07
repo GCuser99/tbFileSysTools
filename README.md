@@ -241,7 +241,7 @@ The following members are either added, or their function significantly improved
 
 ## Acknowledgements
 
-* **fafalone** — for [WinDevLib](https://github.com/fafalone/WinDevLib), source of standardized Win32 api declares.
+* **fafalone** — for [WinDevLib](https://github.com/fafalone/WinDevLib), source of standardized Win32 API declares.
 * **Wayne Phillips** — for [twinBASIC](https://twinbasic.com).
 
 ---
