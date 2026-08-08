@@ -19,7 +19,7 @@ text = TextFileToString("data.txt")     ' encoding auto-detected
 
 |Feature|FSO|tbFileSysTools|
 |-|-|-|
-|Text encodings|ASCII and UTF-16 only|Any Windows code page, with BOM handling and auto-detection|
+|Text encodings|ANSI and UTF-16 only|Any Windows code page, with BOM handling and auto-detection|
 |Files > 2 GB|Reads them as **empty**, silently|Streams them, in both directions|
 |Appending to a > 2 GB file|Not possible|Works|
 |Line endings|No support|Detect, preserve, normalize|
@@ -75,7 +75,7 @@ The class is a one-line delegation to the module for every member — same behav
 
 ## Text encodings
 
-The headline feature. FSO can read ASCII and UTF-16. This reads anything Windows has a code page for.
+The headline feature. FSO can read system ANSI and UTF-16. This reads anything Windows has a code page for.
 
 ```vba
 ' Auto-detect: BOM first, then UTF-16/32 and UTF-8 heuristics, then system ANSI.
@@ -189,7 +189,7 @@ The following members are either added, or their function significantly improved
 
 |Member|Description|
 |-|-|
-|`CreateTextFile`|Create any format - not just ascii/utf16|
+|`CreateTextFile`|Create any format - not just ANSI/UTF-16|
 |`OpenTextFile`|Format auto-detection or user-specified code page|
 |`GetFileEncoding`|Detect a file's encoding|
 |`GetFileLineEnding`|Detect CRLF / LF / CR / mixed|
