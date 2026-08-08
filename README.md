@@ -158,7 +158,7 @@ Debug.Print FileExists(deep)                   ' True
 
 ```vba
 Dim f As Folder
-Set f = GetFolder("C:\\Projects")
+Set f = GetFolder("C:\Projects")
 
 Debug.Print f.Size                          ' total bytes, subtree
 For Each fl In f.Files
