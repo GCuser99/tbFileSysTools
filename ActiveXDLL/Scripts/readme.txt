@@ -5,7 +5,6 @@ Please Note: This Setup Program uses Jordan Russell's Inno Setup.
 What are the system requirements for the tbFileSysTools DLL?
 
 64-bit MS Windows
-32- or 64-bit MS Office
 
 Where should the tbFileSysTools DLL be installed on my User Account?
 
