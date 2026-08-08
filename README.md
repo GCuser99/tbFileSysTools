@@ -26,6 +26,7 @@ text = TextFileToString("data.txt")     ' encoding auto-detected
 |Paths > 260 chars|Fails, and `FileExists` **returns False** on a file that exists|Supported transparently|
 
 The claims above were measured through comprehensive testing.
+
 ---
 
 ## Install
