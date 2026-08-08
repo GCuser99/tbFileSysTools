@@ -24,11 +24,8 @@ text = TextFileToString("data.txt")     ' encoding auto-detected
 |Appending to a > 2 GB file|Not possible|Works|
 |Line endings|No support|Detect, preserve, normalize|
 |Paths > 260 chars|Fails, and `FileExists` **returns False** on a file that exists|Supported transparently|
-|Junction in a folder tree|`Folder.Size` double-counts, or recurses forever|Skipped|
-|Unreadable folder|Reports it as empty|Raises|
 
-The claims above were measured through comprehensive testing. The test modules can  be found in the [Tests](https://github.com/GCuser99/tbFileSysTools/tree/main/ActiveXDLL/Sources/Tests) folder.
-
+The claims above were measured through comprehensive testing.
 ---
 
 ## Install
@@ -70,7 +67,7 @@ Dim fso As New FileSystemObject
 Debug.Print fso.GetFile(path).Size
 ```
 
-The class is a one-line delegation to the module for every member — same behaviour, same defaults. It uses FSO's argument names (`fileSpec`, `folderSpec`) so named arguments in ported code keep working.
+The class is a one-line delegation to the module for every member — same behavior, same defaults. It uses FSO's argument names (`fileSpec`, `folderSpec`) so named arguments in ported code keep working.
 
 > **Note:** the class is deliberately named `FileSystemObject`, the same as Scripting's. In a project referencing both, qualify it - `tbFileSysTools.FileSystemObject`, drop the Scripting Runtime reference, or move tbFileSysTools' position in the References dialog ABOVE Scripting Runtime so that it takes unqualified precedence.
 
