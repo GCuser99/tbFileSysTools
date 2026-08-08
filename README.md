@@ -133,7 +133,7 @@ ts.Close
 
 `ReadLine`, `Read`, `Write` and append are **unbounded**. `ReadAll` is capped at 2 GB by the size of a VB `String` and raises a clear error rather than misbehaving — use `ReadLine` for anything larger.
 
-Multi-byte encodings are handled correctly across chunk boundaries, including surrogate pairs split by a 64 KB read. This is verified against 54 million lines of mixed 1-, 2-, 3- and 4-byte characters (see below).
+Multi-byte encodings are handled correctly across chunk boundaries, including surrogate pairs split by a 64 KB read. This is verified against 54 million lines of mixed 1-, 2-, 3- and 4-byte characters.
 
 ---
 
