@@ -798,8 +798,6 @@ Public Module FileSystemTools
         
     ' Note that there are two ways we can go here - one that requires WinDevLib (FOLDERID_*() method)
     ' and the other using GuidFromString which the one that is currently implemented.
-    ' Keeping both here with FOLDERID_*() method commented out in case later it is decided
-    ' to make this class dependent on WinDevLib which would reduce code significantly.
     [Description("Returns the absolute path to the requested known folder. The returned path does NOT include a trailing backslash.")]
     Public Function GetSpecialFolder(ByVal specialFolder As SpecialFolderConst) As String
         Dim guid As UUID
