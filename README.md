@@ -110,7 +110,7 @@ Set ts = CreateTextFile(filePath, lineEnding:=nlUnix)
 ```
 Appending to an existing file adopts **that file's** newline style, so you can't accidentally turn a clean file into a mixed one.
 
-### File Normalization
+### Textfile Normalization
 
 The `NormalizeTextFile`/`File.Normalize` methods make checking and normalizing encoding and line endings easy: 
 ```vba
