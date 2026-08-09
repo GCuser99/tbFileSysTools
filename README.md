@@ -200,7 +200,7 @@ The following members are either added, or their function significantly improved
 |`GetFilePaths`|Enumerate with a wildcard, recursion, hidden/system filters|
 |`GetRelativePath`|Path from A to B|
 |`CleanFileName`|Strip reserved characters and device names|
-|`DeleteFile/DeleteFolder`|optional `ignoreMissing` argument|
+|`DeleteFile / DeleteFolder`|optional `ignoreMissing` argument|
 |`Rename`|In-place rename|
 |`GetFileType`|Shell type description ("Text Document")|
 |`GetCurrentDir` / `SetCurrentDir`|Gets/Sets the current directory or folder.|
