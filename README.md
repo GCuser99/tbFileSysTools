@@ -192,7 +192,7 @@ The following members are either added, or their function significantly improved
 |`CleanFileName`|Strip reserved characters and device names|
 |`CreateFolder`|Optionally create path intermediates|
 |`CreateTextFile`|Create any format - not just ANSI/UTF-16|
-|`DeleteFile / DeleteFolder`|Optional `ignoreMissing` argument|
+|`DeleteFile` / `DeleteFolder`|Optional `ignoreMissing` argument|
 |`GetAbsolutePathName`|Optional baseDirectory argument|
 |`GetCurrentDir` / `SetCurrentDir`|Gets/Sets the current directory or folder|
 |`GetFileEncoding`|Detect a file's encoding|
