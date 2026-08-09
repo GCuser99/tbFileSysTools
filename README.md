@@ -185,34 +185,33 @@ Parity is the goal, but not at any price. Each of these was checked against the 
 ---
 
 ## Beyond FSO...
-
 The following members are either added, or their function significantly improved.
 
 |Member|Enhancement Description|
 |-|-|
-|`CreateTextFile`|Create any format - not just ANSI/UTF-16|
-|`OpenTextFile`|Format auto-detection or user-specified code page|
+|`CleanFileName`|Strip reserved characters and device names|
 |`CreateFolder`|Optionally create path intermediates|
+|`CreateTextFile`|Create any format - not just ANSI/UTF-16|
+|`DeleteFile / DeleteFolder`|Optional `ignoreMissing` argument|
+|`GetAbsolutePathName`|Optional baseDirectory argument|
+|`GetCurrentDir` / `SetCurrentDir`|Gets/Sets the current directory or folder|
 |`GetFileEncoding`|Detect a file's encoding|
 |`GetFileLineEnding`|Detect CRLF / LF / CR / mixed|
+|`GetFilePaths`|Enumerate with a wildcard, recursion, hidden/system filters|
+|`GetFileType`|Shell type description ("Text Document")|
+|`GetRelativePath`|Path from A to B|
+|`GetSpecialFolder`|25 known folders, including FSO's 3|
+|`IsFileLocked`|Determines if locked by another process|
 |`MergeTextFiles`|Merges two text files, normalizing the encoding to the first|
 |`NormalizeTextFile`|Rewrite encoding + newlines in place, idempotently|
-|`GetFilePaths`|Enumerate with a wildcard, recursion, hidden/system filters|
-|`GetRelativePath`|Path from A to B|
-|`GetAbsolutePathName`|Optional baseDirectory argument|
-|`CleanFileName`|Strip reserved characters and device names|
-|`DeleteFile / DeleteFolder`|optional `ignoreMissing` argument|
-|`Rename`|In-place rename|
-|`GetFileType`|Shell type description ("Text Document")|
-|`IsFileLocked`|is locked by another process|
-|`GetCurrentDir` / `SetCurrentDir`|Gets/Sets the current directory or folder.|
-|`GetSpecialFolder`|25 known folders, including FSO's 3|
+|`OpenTextFile`|Format auto-detection or user-specified code page|
 |`ReadStream` / `WriteStream`|Raw bytes, Unicode-safe|
-|`TextFileToString` / `StringToTextFile`|Whole-file text I/O|
+|`Rename`|In-place rename|
 |`TextFileToArray` / `ArrayToTextFile`|Whole-file line I/O|
+|`TextFileToString` / `StringToTextFile`|Whole-file text I/O|
 |`File.Encoding`|Detect a file's encoding|
 |`File.HasAttribute`|Determines if an attribute is set|
-|`File.IsLocked`|is locked by another process|
+|`File.IsLocked`|Determines if locked by another process|
 |`File.LineEnding`|Detect CRLF / LF / CR / mixed|
 |`File.Normalize`|Rewrite encoding + newlines in place, idempotently|
 |`File.OpenAsTextStream`|Format auto-detection or user-specified codepage|
@@ -222,8 +221,8 @@ The following members are either added, or their function significantly improved
 |`File.Version`|Gets the file version string|
 |`Folder.HasAttribute`|Determines if an attribute is set|
 |`Folder.SetAttribute`|Sets a single attribute|
-|`TextStream.IsStreaming`|Whether byte-streaming or buffered access is supported|
 |`TextStream.Encoding`|Returns a file's encoding|
+|`TextStream.IsStreaming`|Whether byte-streaming or buffered access is supported|
 
 ---
 
