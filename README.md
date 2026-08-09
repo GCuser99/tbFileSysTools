@@ -104,12 +104,28 @@ Windows (CRLF), Unix (LF) and classic-Mac (CR) endings are all supported and aut
 ```vba
 Debug.Print GetFileLineEnding("script.sh")   ' nlUnix
 
-' Rewrite in place: UTF-8, CRLF, attributes preserved. Skips the write if the
-' file is already in that form.
-NormalizeTextFile "script.sh", encUtf8, nlWindows
+' All textfile read/write procedures allow for lineEnding control
+Dim ts as TextStream
+Set ts = CreateTextFile(filePath, lineEnding:=nlUnix)
 ```
-
 Appending to an existing file adopts **that file's** newline style, so you can't accidentally turn a clean file into a mixed one.
+
+### File Normalization
+
+The `NormalizeTextFile`/`File.Normalize` methods make checking and normalizing encoding and line endings easy: 
+```vba
+Dim f As File
+Dim fdrPath As String
+
+fdrPath = "path\to\my\twin\files"
+
+' Normalize .twin files to twinBASIC encoding and line endings (skipped if already there)
+For Each f In GetFolder(fdrPath).Files
+    If f.ExtensionName = "twin" Then
+        f.Normalize toEncoding:=encUtf8, toLineEnding:=nlWindows
+    End If
+Next f
+```
 
 ---
 
