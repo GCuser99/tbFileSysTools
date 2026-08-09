@@ -192,6 +192,7 @@ The following members are either added, or their function significantly improved
 |-|-|
 |`CreateTextFile`|Create any format - not just ANSI/UTF-16|
 |`OpenTextFile`|Format auto-detection or user-specified code page|
+|`CreateFolder`|Optionally create path intermediates|
 |`GetFileEncoding`|Detect a file's encoding|
 |`GetFileLineEnding`|Detect CRLF / LF / CR / mixed|
 |`MergeTextFiles`|Merges two text files, normalizing the encoding to the first|
