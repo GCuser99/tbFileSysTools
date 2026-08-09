@@ -199,10 +199,12 @@ The following members are either added, or their function significantly improved
 |`NormalizeTextFile`|Rewrite encoding + newlines in place, idempotently|
 |`GetFilePaths`|Enumerate with a wildcard, recursion, hidden/system filters|
 |`GetRelativePath`|Path from A to B|
+|`GetAbsolutePathName`|Optional baseDirectory argument|
 |`CleanFileName`|Strip reserved characters and device names|
 |`DeleteFile / DeleteFolder`|optional `ignoreMissing` argument|
 |`Rename`|In-place rename|
 |`GetFileType`|Shell type description ("Text Document")|
+|`IsFileLocked`|is locked by another process|
 |`GetCurrentDir` / `SetCurrentDir`|Gets/Sets the current directory or folder.|
 |`GetSpecialFolder`|25 known folders, including FSO's 3|
 |`ReadStream` / `WriteStream`|Raw bytes, Unicode-safe|
@@ -210,6 +212,7 @@ The following members are either added, or their function significantly improved
 |`TextFileToArray` / `ArrayToTextFile`|Whole-file line I/O|
 |`File.Encoding`|Detect a file's encoding|
 |`File.HasAttribute`|Determines if an attribute is set|
+|`File.IsLocked`|is locked by another process|
 |`File.LineEnding`|Detect CRLF / LF / CR / mixed|
 |`File.Normalize`|Rewrite encoding + newlines in place, idempotently|
 |`File.OpenAsTextStream`|Format auto-detection or user-specified codepage|
