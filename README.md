@@ -188,7 +188,7 @@ Parity is the goal, but not at any price. Each of these was checked against the 
 
 The following members are either added, or their function significantly improved.
 
-|Member|Description|
+|Member|Enhancement Description|
 |-|-|
 |`CreateTextFile`|Create any format - not just ANSI/UTF-16|
 |`OpenTextFile`|Format auto-detection or user-specified code page|
