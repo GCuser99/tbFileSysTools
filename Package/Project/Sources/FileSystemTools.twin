@@ -1,5 +1,6 @@
 ' ==========================================================================
-' See https://github.com/GCuser99/tbFileSysTools for more info.
+' This is the Package version of tbFileSysTools. To find out more or to
+' report issues, please see https://github.com/GCuser99/tbFileSysTools.
 ' ==========================================================================
 ' ==========================================================================
 ' FileSystemTools
@@ -577,8 +578,8 @@ Public Module FileSystemTools
         GetTempName = candidate
     End Function
         
-    [Description("Returns a complete and unambiguous path from a provided path specification.")]
-    Public Function GetAbsolutePathName(ByVal path As String, Optional ByVal baseDirectory As String = "", Optional ByVal useLongPathPrefix As Boolean = False) As String
+    [Description("Returns a complete and unambiguous path from a path specification, resolving from the current directory or baseDirectory if supplied. The input path need not exist.")]
+    Public Function GetAbsolutePathName(ByVal path As String, Optional ByVal baseDirectory As String = "") As String
         ' MAX_PATH here is the long-path ceiling (32767+1), not the legacy 260.
         ' Both APIs used below accept it. PathRelativePathToW (in GetRelativePath)
         ' does NOT - see the separate MAX_PATH_API const there.
@@ -619,10 +620,6 @@ Public Module FileSystemTools
             Mid$(GetAbsolutePathName, 1, 1) = UCase$(Left$(GetAbsolutePathName, 1))
         ElseIf Right$(GetAbsolutePathName, 1) = "\" Then
             GetAbsolutePathName = Left$(GetAbsolutePathName, length - 1)
-        End If
-            
-        If useLongPathPrefix Then
-            GetAbsolutePathName = AddLongPathPrefix(GetAbsolutePathName)
         End If
     End Function
         
@@ -1398,6 +1395,24 @@ Public Module FileSystemTools
         On Error GoTo 0
         Err.Raise e, "MergeTextFiles", d
     End Sub
+    
+    [Description("Returns True if the file is currently locked by another process - that is, if it cannot be opened for exclusive read/write access right now. The answer is only valid for the instant of the call. Raises if the file does not exist.")]
+    Public Function IsFileLocked(ByVal filePath As String) As Boolean
+        filePath = VBA.Replace$(filePath, "/", "\")
+        If Not FileExists(filePath) Then
+            Err.Raise 53, "IsFileLocked", "File not found: " & filePath
+        End If
+
+        Dim fn As Long
+        fn = FreeFile()                          ' NOT a hard-coded number
+        On Error Resume Next
+        Open filePath For Binary Access Read Write Lock Read Write As #fn
+        Dim e As Long: e = Err.Number            ' capture the OPEN result only
+        On Error GoTo 0
+
+        If e = 0 Then Close #fn                   ' opened cleanly -> not locked
+        IsFileLocked = (e <> 0)
+    End Function
     
     '-------------------------------------------------------------------------------------------------
     '--------------------------------------- Private Members -----------------------------------------

@@ -345,6 +345,11 @@ Public Class File
         FileSystemTools.ReadStream mPath, ToStream, maxBytesToRead
     End Function
     
+    [Description("Returns True if the file is currently locked by another process - that is, if it cannot be opened for exclusive read/write access right now. The answer is only valid for the instant of the call. Raises if the file does not exist.")]
+    Public Function IsLocked() As Boolean
+        IsLocked = FileSystemTools.IsFileLocked(mPath)
+    End Function
+    
     ' Re-stat, refresh cached fields, adopt true on-disk leaf casing; raise 53 if gone.
     ' Every public read routes through here so a deleted file fails uniformly and
     ' the reported name always matches the disk (matching live FSO on both axes).

@@ -54,8 +54,8 @@
         "project.useProjectIdForTypeLibraryId": true,
         "project.versionBuild": 0,
         "project.versionMajor": 1,
-        "project.versionMinor": 1,
-        "project.versionRevision": 1,
+        "project.versionMinor": 2,
+        "project.versionRevision": 0,
         "project.warnings": {
                 "errors": [],
                 "hints": [],

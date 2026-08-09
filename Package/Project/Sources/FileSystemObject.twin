@@ -1,5 +1,6 @@
 ' ==========================================================================
-' See https://github.com/GCuser99/tbFileSysTools for more info.
+' This is the Package version of tbFileSysTools. To find out more or to
+' report issues, please see https://github.com/GCuser99/tbFileSysTools.
 ' ==========================================================================
 ' ==========================================================================
 ' FileSystemObject
@@ -138,9 +139,9 @@ Public Class FileSystemObject
         Return FileSystemTools.GetTempName(prefix, extension, inFolder)
     End Function
     
-    [Description("Returns a complete and unambiguous path from a provided path specification.")]
-    Public Function GetAbsolutePathName(ByVal path As String, Optional ByVal baseDirectory As String = "", Optional ByVal useLongPathPrefix As Boolean = False) As String
-        Return FileSystemTools.GetAbsolutePathName(path, baseDirectory, useLongPathPrefix)
+    [Description("Returns a complete and unambiguous path from a path specification, resolving from the current directory or baseDirectory if supplied. The input path need not exist.")]
+    Public Function GetAbsolutePathName(ByVal path As String, Optional ByVal baseDirectory As String = "") As String
+        Return FileSystemTools.GetAbsolutePathName(path, baseDirectory)
     End Function
     
     [Description("Cleans a file name (not a path) of items that are invalid in Windows: the reserved characters \ / : * ? "" < > |, control characters, leading/trailing spaces, trailing dots, and reserved device names such as CON, PRN, NUL, COM0-9 and LPT0-9.")]
@@ -316,5 +317,10 @@ Public Class FileSystemObject
                           Optional ByVal secondFileEncoding As TextEncoding = encAutoDetect)
         FileSystemTools.MergeTextFiles(firstFilePath, secondFilePath, outputFilePath, insertBlankLineBetween, firstFileEncoding, secondFileEncoding)
     End Sub
+    
+    [Description("Returns True if the file is currently locked by another process - that is, if it cannot be opened for exclusive read/write access right now. The answer is only valid for the instant of the call. Raises if the file does not exist.")]
+    Public Function IsFileLocked(ByVal filePath As String) As Boolean
+        IsFileLocked = FileSystemTools.IsFileLocked(filePath)
+    End Function
     
 End Class
