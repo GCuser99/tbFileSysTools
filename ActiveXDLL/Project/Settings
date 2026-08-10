@@ -3,7 +3,7 @@
         "project.appTitle": "tbFileSysTools",
         "project.buildPath": "${SourcePath}\\\\Build\\\\${ProjectName}_${Architecture}.${FileExtension}",
         "project.buildType": "ActiveX DLL",
-        "project.description": "tbFileSysTools ActiveXDLL",
+        "project.description": "tbFileSysTools",
         "project.dllRegisterAfterBuild": false,
         "project.dllRegisterLocalMachine": false,
         "project.exportPathIsV2": true,
