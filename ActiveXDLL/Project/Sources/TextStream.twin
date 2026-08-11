@@ -180,7 +180,15 @@ Public Class TextStream
         mPath = FileSystemTools.GetAbsolutePathName(filePath)
         ' Bad-name guard: only creation can hit an illegal name. Validating up front
         ' keeps the error identical (FSO's 52) regardless of which open path is taken.
-        If create Then GuardCreateName filePath, "CreateTextFile"
+        '
+        ' allowColon:=True is deliberate and specific to this path: CreateTextFile
+        ' writes the target DIRECTLY, so a colon in the leaf is a valid alternate-
+        ' data-stream write ("notes.txt:meta"). The whole-file writers
+        ' (StringToTextFile/ArrayToTextFile) call GuardLeafName with allowColon:=False,
+        ' because their atomic temp-swap builds "<name>.~tmp", which a stream name
+        ' can't survive. Same guard, one parameter, opposite answer - by design.
+        If create Then FSTShared.GuardLeafName filePath, "CreateTextFile", allowColon:=True
+
         mMode = ioMode
         mPos = 1
         mLine = 1
@@ -188,7 +196,6 @@ Public Class TextStream
         mClosed = False
         mDirty = False
         ReDim mLeadRanges(0 To 11)          ' CPINFO.LeadByte is 12 bytes: 6 lo/hi pairs
-
         ' nlNoChange/nlUnknown/nlMixed (all 0) land in Else -> CRLF. A stream always
         ' needs a concrete newline to emit, so there is no "leave it alone" option.
         Select Case lineEnding
@@ -196,7 +203,6 @@ Public Class TextStream
             Case nlMacintosh: mLineEnding = vbCr
             Case Else:        mLineEnding = vbCrLf
         End Select
-
         Select Case ioMode
             Case ForReading:   InitReading format
             Case ForWriting:   InitWriting format, create
@@ -1366,29 +1372,4 @@ Public Class TextStream
         Loop
         Gb18030PrefixLen = total
     End Function
-    
-    ' Raises 52 if the LEAF of a create path has illegal filename chars. Used only
-    ' for CREATE (an existing file can't have an illegal name). Validating up front
-    ' keeps the error identical (FSO's 52) regardless of which open path is taken.
-    ' Colon is EXCLUDED: a direct write to "<file>:<stream>" is a valid ADS write
-    ' that FSO (and we) succeed on (oracle: bad:colon -> 0). Leaf-only.
-    '
-    ' Contrast FileSystemTools.GuardWriteName, which DOES reject the colon: that path
-    ' goes through WriteStream's temp-file swap, which cannot express an ADS write.
-    ' The two guards differ by exactly that one character, on purpose.
-    Private Sub GuardCreateName(ByVal path As String, ByVal opName As String)
-        Dim leaf As String
-        leaf = FileSystemTools.GetFileName(path)
-        If leaf Like "*[<>""|?*]*" Then           ' NO colon: ':' in a leaf is a valid ADS write
-            Err.Raise 52, opName, "Bad file name or number: " & path
-        End If
-        ' Control chars aren't expressible in a Like pattern - check them separately.
-        Dim i As Long
-        For i = 1 To Len(leaf)
-            If AscW(Mid$(leaf, i, 1)) < 32 Then
-                Err.Raise 52, opName, "Bad file name or number: " & path
-            End If
-        Next
-    End Sub
-    
 End Class

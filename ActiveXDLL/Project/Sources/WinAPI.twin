@@ -55,6 +55,65 @@ Private Module WinAPI
     
     Public Declare PtrSafe Function WNetGetConnectionW Lib "mpr.dll" (ByVal lpLocalName As LongPtr, ByVal lpRemoteName As LongPtr, lpnLength As Long) As Long
     
+    Public DeclareWide PtrSafe Function LCMapStringEx Lib "kernel32" (ByVal lpLocaleName As String, [TypeHint(LCMAP_FLAGS, COMPARE_FLAGS)] ByVal dwMapFlags As Long, ByVal lpSrcStr As String, ByVal cchSrc As Long, ByVal lpDestStr As LongPtr, ByVal cchDest As Long, lpVersionInformation As NLSVERSIONINFO, Optional ByVal lpReserved As LongPtr, Optional ByVal sortHandle As LongPtr) As Long
+    Public Declare PtrSafe Function GetThreadLocale Lib "kernel32" () As Long
+    Public Declare PtrSafe Function SetThreadLocale Lib "kernel32" (ByVal Locale As DefaultLocales) As BOOL
+    
+    Public Const LOCALE_NAME_INVARIANT As String = ""
+    
+    Public Enum DefaultLocales
+        LOCALE_CUSTOM_DEFAULT = &H0c00
+        LOCALE_CUSTOM_UI_DEFAULT = &H1400
+        LOCALE_CUSTOM_UNSPECIFIED = &H1000
+        LOCALE_INVARIANT = &H007f
+        LOCALE_USER_DEFAULT = &H0400
+        LOCALE_SYSTEM_DEFAULT = &H0800
+    End Enum
+    
+    [Description("For Windows 8 and newer. Windows 7 and below: Use NLSVERSIONINFO_WIN7")]
+    Public Type NLSVERSIONINFO
+        dwNLSVersionInfoSize As Long
+        dwNLSVersion As Long
+        dwDefinedVersion As Long
+        dwEffectiveId As Long
+        guidCustomVersion As UUID
+    End Type
+    
+    Public Enum LCMAP_FLAGS
+        LCMAP_LOWERCASE = &H00000100  ' lower case letters
+        LCMAP_UPPERCASE = &H00000200  ' UPPER CASE LETTERS
+        LCMAP_TITLECASE = &H00000300  ' Title Case Letters
+        LCMAP_SORTKEY = &H00000400  ' WC sort key (normalize)
+        LCMAP_BYTEREV = &H00000800  ' byte reversal
+        LCMAP_HIRAGANA = &H00100000  ' map katakana to hiragana
+        LCMAP_KATAKANA = &H00200000  ' map hiragana to katakana
+        LCMAP_HALFWIDTH = &H00400000  ' map double byte to single byte
+        LCMAP_FULLWIDTH = &H00800000  ' map single byte to double byte
+        LCMAP_LINGUISTIC_CASING = &H01000000  ' use linguistic rules for casing
+        LCMAP_SIMPLIFIED_CHINESE = &H02000000  ' map traditional chinese to simplified chinese
+        LCMAP_TRADITIONAL_CHINESE = &H04000000  ' map simplified chinese to traditional chinese
+        LCMAP_SORTHANDLE = &H20000000
+        LCMAP_HASH = &H00040000
+        LCMAP_IGNOREDBCS = &H80000000  ' don't casemap DBCS characters
+    End Enum
+    
+    Public Enum COMPARE_FLAGS
+        SORT_STRINGSORT = &H1000&
+        SORT_DIGITSASNUMBERS = &H8          'Sort 1 2 10 instead of 1 10 2
+        LINGUISTIC_IGNORECASE = &H10&
+        LINGUISTIC_IGNOREDIACRITIC = &H20&
+        NORM_IGNORECASE = &H1&
+        NORM_IGNORENONSPACE = &H2&
+        NORM_IGNORESYMBOLS = &H4&
+        NORM_IGNOREKANATYPE = &H10000
+        NORM_IGNOREKANATYPE_ALT = &H40
+        NORM_IGNOREWIDTH = &H20000
+        NORM_IGNOREWIDTH_ALT = &H08
+        NORM_IGNOREKASHIDA = &H00040000
+        NORM_LINGUISTIC_CASING = &H8000000
+        NORM_STOP_ON_NULL = &H10000000 'undocumented
+    End Enum
+    
     Public Enum CreateFileDisposition
         CREATE_NEW = 1
         CREATE_ALWAYS = 2

@@ -1,0 +1,155 @@
+Module GitHubTests
+
+    Public Sub SimpleTest()
+        Dim ok As Boolean:  ok = True
+        Dim pass As Boolean
+        Dim root As String, p As String, a As String, b As String, c As String
+        Dim payload As String, back As String, detected As String
+
+        Debug.Print String$(60, "=")
+        Debug.Print "  tbFileSysTools simple test"
+        Debug.Print String$(60, "=")
+
+        On Error GoTo Fatal
+        
+        Dim fso As New tbFileSysTools.FileSystemObject
+        root = fso.BuildPath( _
+                   fso.GetSpecialFolder(TemporaryFolder), _
+                   "tbfst_smoketest")
+
+        ' Clean slate.
+        If fso.FolderExists(root) Then _
+            fso.DeleteFolder root, True, True
+        fso.CreateFolder root, True
+
+        '--- 1. Text round trip: write a string, read it straight back ---------
+        p = fso.BuildPath(root, "hello.txt")
+        payload = "Hello, tbFileSysTools!"
+        fso.StringToTextFile payload, p
+        back = fso.TextFileToString(p)
+        pass = (back = payload)
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & "Text round trip"
+        ok = ok And pass
+
+        '--- 2. Encodings: same non-ASCII text in three encodings -------------
+        ' café + two CJK characters, so single-byte encodings cannot fake success.
+        payload = "cafe" & ChrW$(&HE9) & " " & ChrW$(&H4E2D) & ChrW$(&H6587)
+
+        p = fso.BuildPath(root, "utf8.txt")
+        fso.StringToTextFile payload, p, encUtf8
+        back = fso.TextFileToString(p, encUtf8)
+        pass = (back = payload)
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & "Encoding: UTF-8"
+        ok = ok And pass
+
+        p = fso.BuildPath(root, "utf16.txt")
+        fso.StringToTextFile payload, p, encUtf16Bom
+        back = fso.TextFileToString(p, encUtf16Bom)
+        pass = (back = payload)
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & "Encoding: UTF-16"
+        ok = ok And pass
+
+        '--- 3. Auto-detect: write UTF-16, read back WITHOUT saying so ---------
+        p = fso.BuildPath(root, "detect.txt")
+        fso.StringToTextFile payload, p, encUtf16Bom
+        detected = fso.TextFileToString(p)   ' no encoding arg
+        pass = (detected = payload)
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & _
+                    "Encoding auto-detect (wrote UTF-16, read back blind)"
+        ok = ok And pass
+
+        '--- 4. Line endings: write LF, detect it -----------------------------
+        Dim lines(0 To 2) As String
+        lines(0) = "one": lines(1) = "two": lines(2) = "three"
+        p = fso.BuildPath(root, "endings.txt")
+        fso.ArrayToTextFile lines, p, encUtf8, nlUnix
+        pass = (fso.GetFileLineEnding(p) = nlUnix)
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & "Line-ending detection (wrote LF)"
+        ok = ok And pass
+
+        '--- 5. File object: name and size, live from disk --------------------
+        ' Fully qualified on purpose - see the header note about namespace collisions.
+        p = fso.BuildPath(root, "sized.txt")
+        fso.StringToTextFile "1234567890", p, encUtf8   ' 10 bytes
+        Dim f As tbFileSysTools.File
+        Set f = fso.GetFile(p)
+        pass = (f.Name = "sized.txt") And (f.Size = 10)
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & _
+                    "File object  (Name=" & f.Name & " Size=" & f.Size & ")"
+        ok = ok And pass
+
+        '--- 6. Folder object + For-Each 
+        Dim fdr As tbFileSysTools.Folder
+        Set fdr = fso.GetFolder(root)
+        Dim count As Long: count = 0
+        Dim ff As tbFileSysTools.File
+        For Each ff In fdr.Files
+            count = count + 1
+        Next ff
+        pass = (LCase$(fdr.Path) = LCase$(root)) And (count > 0)
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & _
+                    "Folder object + For-Each  (enumerated " & count & " file(s))"
+        ok = ok And pass
+
+        '--- 7. Copy / Move / Delete ------------------------------------------
+        a = fso.BuildPath(root, "orig.txt")
+        b = fso.BuildPath(root, "copy.txt")
+        c = fso.BuildPath(root, "moved.txt")
+        fso.StringToTextFile "data", a, encUtf8
+
+        fso.CopyFile a, b
+        pass = fso.FileExists(b)
+
+        fso.MoveFile b, c
+        pass = pass And fso.FileExists(c) _
+                    And Not fso.FileExists(b)
+
+        fso.DeleteFile c, True
+        pass = pass And Not fso.FileExists(c)
+
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & "Copy / Move / Delete"
+        ok = ok And pass
+
+        '--- 8. Drive object: the drive %TEMP% lives on -----------------------
+        Dim letter As String
+        letter = fso.GetDriveName(root)
+        Dim d As tbFileSysTools.Drive
+        Set d = fso.GetDrive(letter)
+        pass = d.IsReady
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & _
+                    "Drive object  (drive " & letter & " ready=" & d.IsReady & ")"
+        ok = ok And pass
+
+        '--- clean up and report ----------------------------------------------
+        On Error Resume Next
+        fso.DeleteFolder root, True, True
+        On Error GoTo 0
+
+        Debug.Print String$(60, "-")
+        If ok Then
+            Debug.Print "  RESULT: PASSED - the library is installed and working."
+        Else
+            Debug.Print "  RESULT: FAILED - copy this output into a GitHub issue."
+        End If
+        Debug.Print String$(60, "=")
+        Exit Sub
+
+    Fatal:
+        Debug.Print "  *** UNEXPECTED ERROR " & Err.Number & ": " & Err.Description
+        Debug.Print "  RESULT: FAILED - copy this output into a GitHub issue."
+        On Error Resume Next
+        fso.DeleteFolder root, True, True
+        On Error GoTo 0
+        Debug.Print String$(60, "=")
+    End Sub
+
+End Module

@@ -406,4 +406,95 @@ Private Module FSTShared
         End Select
     End Function
     
+    ' In Shared.twin - the single source of truth for leaf-name validation.
+    ' allowColon distinguishes the two write paths: a colon in a leaf is a valid
+    ' alternate-data-stream write (CreateTextFile), but the temp-swap path builds
+    ' "<name>.~XXXX.tmp" where a colon would break the swap, so it forbids one.
+    Public Sub GuardLeafName(ByVal path As String, ByVal opName As String, ByVal allowColon As Boolean)
+        Dim leaf As String: leaf = GetFileName(path)
+
+        ' Reserved characters (colon conditionally - it's a valid ADS separator on the
+        ' direct-write path, but not on the temp-swap path).
+        Dim bad As Boolean
+        If allowColon Then
+            bad = leaf Like "*[<>""|?*]*"
+        Else
+            bad = leaf Like "*[<>:""|?*]*"
+        End If
+        If bad Then Err.Raise 52, opName, "Bad file name or number: " & path
+
+        ' Reserved DEVICE names (CON, PRN, NUL, COM1..9, LPT1..9) - rejected regardless
+        ' of extension. Uses 52 (bad name), consistent with the character checks above.
+        If IsReservedDeviceName(leaf) Then
+            Err.Raise 52, opName, "Reserved device name not permitted: " & path
+        End If
+
+        ' Control chars aren't expressible in a Like pattern - check separately.
+        ' c >= 0 excludes high code points (AscW is SIGNED, so >= U+8000 goes negative).
+        Dim i As Long
+        For i = 1 To Len(leaf)
+            Dim c As Long: c = AscW(Mid$(leaf, i, 1))
+            If c >= 0 And c < 32 Then Err.Raise 52, opName, "Bad file name or number: " & path
+        Next i
+    End Sub
+    
+    ' True for CON/PRN/AUX/NUL/COM0-9/LPT0-9, with or without an extension.
+    ' Windows resolves these as devices no matter what folder they sit in, so a
+    ' file with such a name can never be created.
+    Public Function IsReservedDeviceName(ByVal name As String) As Boolean
+        Dim stem As String
+        Dim dotPos As Long
+
+        ' The device-name check applies to the portion before the first dot
+        dotPos = InStr(name, ".")
+        If dotPos = 0 Then stem = name Else stem = Left$(name, dotPos - 1)
+
+        ' RTrim: "CON " is still CON to Win32 (trailing spaces are dropped).
+        stem = UCase$(RTrim$(stem))
+
+        Select Case True
+            Case stem = "CON", stem = "PRN", stem = "AUX", stem = "NUL"
+                IsReservedDeviceName = True
+            Case stem Like "COM#", stem Like "LPT#"   ' # matches a single 0-9 digit
+                IsReservedDeviceName = True
+        End Select
+    End Function
+    
+    '======================================================================
+    ' Invariant (locale-independent) path case-folding
+    '
+    ' Windows filesystems fold case with an INVARIANT table, not the user's locale.
+    ' VB's UCase$/LCase$ and StrComp(vbTextCompare) use the THREAD locale, which
+    ' diverges on Turkish/Azeri ("i"/"I" fold to dotted/dotless forms). There, two
+    ' paths NTFS treats as identical can compare as different - breaking MergeFiles'
+    ' alias guard (silent data loss) and CopyFolder's dest-inside-source guard
+    ' (runaway recursion). InvariantUpper folds via LCMapStringEx with the invariant
+    ' locale, matching the filesystem. Use PathEquals for every path EQUALITY test;
+    ' never vbTextCompare/LCase$ on a whole path.
+    '======================================================================
+
+    Public Function InvariantUpper(ByVal s As String) As String
+        If Len(s) = 0 Then Exit Function
+        Dim n As Long
+        n = LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE, s, Len(s), 0, 0, ByVal vbNullPtr)
+        If n <= 0 Then InvariantUpper = s: Exit Function
+        Dim buf As String: buf = Space$(n)
+        LCMapStringEx LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE, s, Len(s), StrPtr(buf), n, ByVal vbNullPtr
+        InvariantUpper = buf
+    End Function
+
+    ' True if two paths are equal under invariant (filesystem) case-folding.
+    Public Function PathEquals(ByVal a As String, ByVal b As String) As Boolean
+        PathEquals = (StrComp(InvariantUpper(a), InvariantUpper(b), vbBinaryCompare) = 0)
+    End Function
+
+    ' True if childPath is inside parentPath, or equal to it, under invariant folding.
+    ' Pass parentPath WITHOUT a trailing "\"; this appends one for the prefix test.
+    Public Function PathIsUnderOrEqual(ByVal childPath As String, ByVal parentPath As String) As Boolean
+        If PathEquals(childPath, parentPath) Then PathIsUnderOrEqual = True: Exit Function
+        Dim pfx As String: pfx = parentPath & "\"
+        PathIsUnderOrEqual = (Len(childPath) >= Len(pfx)) AndAlso _
+                             PathEquals(Left$(childPath, Len(pfx)), pfx)
+    End Function
+    
 End Module

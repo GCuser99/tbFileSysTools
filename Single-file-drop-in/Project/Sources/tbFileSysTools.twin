@@ -831,15 +831,25 @@ Public Module FileSystemTools
         parent = Left$(source, InStrRev(source, "\"))
         Dim destination As String
         destination = GetAbsolutePathName(newName, parent)
+        
+        ' Reject reserved characters, control chars, and reserved DEVICE names in the
+        ' destination leaf (con, prn, nul, com1..9, lpt1..9). allowColon:=False - a
+        ' rename target goes through the same filesystem rules as a fresh create, and
+        ' this path does not use the ADS-colon convention. Raises 52, matching the
+        ' other name-validation paths. (Without this, "con" as a rename target slips
+        ' through to MoveFileExW and either succeeds oddly or fails with a raw Win32
+        ' error - see BadNameDestOracle.)
+        FSTShared.GuardLeafName destination, "Rename", False
+        
         ' In-place only: the destination must live in the same folder as the source
         Dim destParent As String
         destParent = Left$(destination, InStrRev(destination, "\"))
-        If StrComp(parent, destParent, vbTextCompare) <> 0 Then
+        
+        If Not FSTShared.PathEquals(parent, destParent) Then
             Err.Raise 5, "Rename", "Rename cannot move items between folders: " & source & " -> " & destination
         End If
-        ' A case-only rename "collides" only with the source itself (case-insensitive
-        ' match) — allow it. Any other existing item at the destination is a real conflict.
-        If StrComp(source, destination, vbTextCompare) <> 0 Then
+        ' A case-only rename "collides" only with the source itself - allow it.
+        If Not FSTShared.PathEquals(source, destination) Then
             If FileExists(destination) Or FolderExists(destination) Then
                 Err.Raise 58, "Rename", "Destination already exists: " & destination
             End If
@@ -857,10 +867,20 @@ Public Module FileSystemTools
     [Description("Creates a folder and returns the new Folder. Errors if it already exists. By default only the leaf is created; pass createIntermediates:=True to also create any missing intermediate folders.")]
     Public Function CreateFolder(ByVal folderPath As String, Optional ByVal createIntermediates As Boolean = False) As Folder
         folderPath = GetAbsolutePathName(VBA.Replace$(folderPath, "/", "\"))
-        ' No wildcard guard: in a create/name context FSO treats '*' and '?' as
-        ' illegal filename chars -> 52 (via CreateDirectoryW), NOT as 5. Letting
-        ' them fall through to the API produces the FSO-matching 52.
+        ' Reject reserved DEVICE names (con, prn, nul, com1..9, lpt1..9) up front, as
+        ' bad names -> 52. This MUST precede the FolderExists check below: a device
+        ' name reports as "existing" in every directory (FolderExists("...\con") is
+        ' True), so without this guard "con" would wrongly raise 58 (already exists)
+        ' instead of 52 (bad name). See BadNameDestOracle.
+        '
+        ' Also catches reserved characters '< > " | ? *' and control chars, all -> 52.
+        ' ('*'/'?' are in GuardLeafName's set, so they raise 52 here rather than falling
+        ' through to CreateDirectoryW - same number FSO gives, produced earlier.)
+        FSTShared.GuardLeafName folderPath, "CreateFolder", False
         If FolderExists(folderPath) Then Err.Raise 58, "CreateFolder", "Folder already exists: " & folderPath
+        ' Leaf-only guard: an intermediate segment that is a device name (e.g.
+        ' "a\con\b" with createIntermediates) is not caught here. Matches FSO; a
+        ' deeply-nested device name is pathological enough to leave documented.
         If createIntermediates Then EnsureParentExists folderPath
         CreateDir folderPath, "CreateFolder"
         Set CreateFolder = GetFolder(folderPath)
@@ -983,7 +1003,7 @@ Public Module FileSystemTools
         ' --- Disambiguate reserved device names (CON, NUL, COM1, ...) ---
         ' A device name is still a device even with an extension ("NUL.txt"), so the
         ' disambiguator goes on the STEM, before the first dot.
-        If IsReservedDeviceName(result) Then
+        If FSTShared.IsReservedDeviceName(result) Then
             Dim disambig As String
             If Len(replaceChar) > 0 Then disambig = replaceChar Else disambig = "_"
 
@@ -1296,8 +1316,11 @@ Public Module FileSystemTools
         Optional ByVal outLineEnding As NewlineType = nlNoChange)
 
         filePath = VBA.Replace$(filePath, "/", "\")
-        GuardWriteName filePath, "StringToTextFile"       ' WriteStream uses a temp-swap: see GuardWriteName
-
+        ' allowColon:=False: unlike CreateTextFile (which writes the target directly
+        ' and permits a colon as an ADS separator), this path writes through
+        ' WriteStream's atomic temp-swap - it builds "<name>.~tmp", which a stream
+        ' name can't survive. So a colon is rejected here -> 52.
+        FSTShared.GuardLeafName filePath, "StringToTextFile", allowColon:=False
         If encoding = encAutoDetect Then encoding = encUtf8    ' auto has no meaning on write
         Dim s As String
         s = text
@@ -1316,8 +1339,10 @@ Public Module FileSystemTools
         Optional ByVal lineEnding As NewlineType = nlWindows)
 
         filePath = VBA.Replace$(filePath, "/", "\")
-        GuardWriteName filePath, "ArrayToTextFile"
-
+        ' allowColon:=False - same temp-swap path as StringToTextFile (WriteStream
+        ' builds "<name>.~tmp", which a stream name can't survive), so a colon is
+        ' rejected here -> 52. Contrast CreateTextFile, which allows it (ADS write).
+        FSTShared.GuardLeafName filePath, "ArrayToTextFile", allowColon:=False
         If encoding = encAutoDetect Then encoding = encUtf8
         If lineEnding <= 0 Then lineEnding = nlWindows      ' a separator is mandatory here
         ' Join only puts separators BETWEEN elements, so no trailing newline is
@@ -1389,8 +1414,12 @@ Public Module FileSystemTools
         ' Consequences of the temp-swap that callers must know about:
         '   * the target's file attributes are RESET (the temp file becomes the
         '     target) - NormalizeTextFile restores them afterwards;
-        '   * the leaf name must survive being decorated with ".~XXXX.tmp", which
-        '     is why write entry points call GuardWriteName first (no ADS colons);
+        '   * the leaf name must survive being decorated with ".~XXXX.tmp", so a
+        '     colon (ADS separator) would break the temp-swap. WriteStream does NOT
+        '     guard the name itself - every caller that reaches it (StringToTextFile,
+        '     ArrayToTextFile, NormalizeTextFile's rewrite) must have already called
+        '     FSTShared.GuardLeafName with allowColon:=False. A NEW caller needs the
+        '     same guard, or a colon name will fail obscurely at the temp Open.
         '   * the temp lives in the same folder deliberately - a %TEMP% temp could
         '     land on another volume and turn the rename into a non-atomic copy.
         Dim fn As Long
@@ -1449,8 +1478,11 @@ Public Module FileSystemTools
         Optional ByVal overwrite As Boolean = True, _
         Optional ByVal encoding As TextEncoding = encUtf8, _
         Optional ByVal lineEnding As NewlineType = nlWindows) As TextStream
-        ' No GuardWriteName here: TextStream writes the target directly (no temp
-        ' swap), so a ':' leaf is legal and addresses an alternate data stream.
+        ' The name IS validated, but downstream in TextStream.Init with
+        ' allowColon:=True - because CreateTextFile writes the target DIRECTLY (no
+        ' temp-swap), so a ':' leaf is legal and addresses an alternate data stream.
+        ' Reserved chars, control chars, and device names are still rejected there;
+        ' only the colon is permitted, unlike the temp-swap writers.
         filePath = VBA.Replace$(filePath, "/", "\")
         If Not overwrite And FileExists(filePath) Then Err.Raise 58, "CreateTextFile", "File already exists: " & filePath
         Set CreateTextFile = OpenTextFile(filePath, ForWriting, True, encoding, lineEnding)
@@ -1673,8 +1705,9 @@ Public Module FileSystemTools
         Dim outPath As String, inPlace As Boolean
         outPath = outputFilePath
         If Len(outPath) = 0 Then outPath = firstFilePath
-        inPlace = (StrComp(outPath, firstFilePath, vbTextCompare) = 0) Or _
-                  (StrComp(outPath, secondFilePath, vbTextCompare) = 0)
+
+        inPlace = FSTShared.PathEquals(outPath, firstFilePath) Or _
+        FSTShared.PathEquals(outPath, secondFilePath)
 
         Dim writePath As String
         If inPlace Then writePath = outPath & "." & GetTempName("~merge", ".tmp") Else writePath = outPath
@@ -1739,32 +1772,6 @@ Public Module FileSystemTools
     '-------------------------------------------------------------------------------------------------
     '--------------------------------------- Private Members -----------------------------------------
     '-------------------------------------------------------------------------------------------------
-        
-    '=================================================================================================
-    ' Name validation helpers
-    '=================================================================================================
-
-    ' True for CON/PRN/AUX/NUL/COM0-9/LPT0-9, with or without an extension.
-    ' Windows resolves these as devices no matter what folder they sit in, so a
-    ' file with such a name can never be created.
-    Private Function IsReservedDeviceName(ByVal name As String) As Boolean
-        Dim stem As String
-        Dim dotPos As Long
-
-        ' The device-name check applies to the portion before the first dot
-        dotPos = InStr(name, ".")
-        If dotPos = 0 Then stem = name Else stem = Left$(name, dotPos - 1)
-
-        ' RTrim: "CON " is still CON to Win32 (trailing spaces are dropped).
-        stem = UCase$(RTrim$(stem))
-
-        Select Case True
-            Case stem = "CON", stem = "PRN", stem = "AUX", stem = "NUL"
-                IsReservedDeviceName = True
-            Case stem Like "COM#", stem Like "LPT#"   ' # matches a single 0-9 digit
-                IsReservedDeviceName = True
-        End Select
-    End Function
         
     '=================================================================================================
     ' Directory enumeration
@@ -2194,6 +2201,8 @@ Public Module FileSystemTools
         If IsFolderPathOrExistingFolder(destination) Then
             destination = FSTShared.EnsureTrailingBackslash(destination) & GetFileName(source)
         End If
+        
+        FSTShared.GuardLeafName destination, "CopyFile", False
 
         Dim flags As Long
         If Not overwriteFiles Then flags = COPY_FILE_FAIL_IF_EXISTS   ' -> 80 -> error 58
@@ -2298,6 +2307,12 @@ Public Module FileSystemTools
             destination = BuildPath(destination, GetFileName(source))
         End If
         destination = GetAbsolutePathName(destination)
+        
+        ' Guard the final destination leaf (reserved chars, control chars, device
+        ' names -> 52). After resolution, so a move INTO a folder inherits the source's
+        ' already-legal leaf and only a genuinely new destination name is validated.
+        ' allowColon:=False - MoveFile has no ADS-write path.
+        FSTShared.GuardLeafName destination, "MoveFile", False
 
         ' FSO does NOT allow overwrite (checked against the resolved target)
         If FileExists(destination) Then
@@ -2399,10 +2414,9 @@ Public Module FileSystemTools
         Dim absSrc As String, absDst As String
         absSrc = GetAbsolutePathName(source)
         absDst = GetAbsolutePathName(destination)
-        If StrComp(absDst, absSrc, vbTextCompare) = 0 _
-        OrElse StrComp(Left$(absDst, Len(absSrc) + 1), absSrc & "\", vbTextCompare) = 0 Then
-            Err.Raise 5, "CopyFolder", _
-                "Destination is inside the source folder: " & absSrc & " -> " & absDst
+
+        If FSTShared.PathIsUnderOrEqual(absDst, absSrc) Then
+            Err.Raise 5, "CopyFolder", "Destination is inside the source: " & absSrc & " -> " & absDst
         End If
 
         ' Create destination folder if needed (single level - parents must exist)
@@ -2599,35 +2613,6 @@ Public Module FileSystemTools
         Dim v As Variant
         For Each v In names
             CopyOneFile BuildPath(baseFolder, CStr(v)), destContainer, overwriteFiles
-        Next
-    End Sub
-    
-    '=================================================================================================
-    ' Write-path guard
-    '=================================================================================================
-
-    ' Raises 52 if the LEAF of a create path contains characters that cannot go
-    ' through the atomic temp-file swap (WriteStream). The swap builds a temp name
-    ' "<path>.~XXXX.tmp", so ANY reserved char in the leaf — INCLUDING ':' — poisons
-    ' the temp name and fails at VB Open with a useless E_FAIL. We reject up front
-    ' with 52 (Bad file name or number). Colon is INCLUDED here (unlike the direct-
-    ' write CreateTextFile path) because the temp-swap cannot honor an ADS write.
-    ' Leaf-only: '\' and the drive ':' in the path portion are legal.
-    '
-    ' Called by StringToTextFile and ArrayToTextFile - i.e. every public entry that
-    ' reaches WriteStream. If a new WriteStream caller is added, it needs this too.
-    Private Sub GuardWriteName(ByVal path As String, ByVal opName As String)
-        Dim leaf As String
-        leaf = GetFileName(path)
-        If leaf Like "*[<>:""|?*]*" Then          ' colon INCLUDED for the temp-swap path
-            Err.Raise 52, opName, "Bad file name or number: " & path
-        End If
-        ' Control chars are not expressible in a Like pattern - check them separately.
-        Dim i As Long
-        For i = 1 To Len(leaf)
-            If AscW(Mid$(leaf, i, 1)) < 32 Then
-                Err.Raise 52, opName, "Bad file name or number: " & path
-            End If
         Next
     End Sub
     
@@ -4209,7 +4194,15 @@ Public Class TextStream
         mPath = FileSystemTools.GetAbsolutePathName(filePath)
         ' Bad-name guard: only creation can hit an illegal name. Validating up front
         ' keeps the error identical (FSO's 52) regardless of which open path is taken.
-        If create Then GuardCreateName filePath, "CreateTextFile"
+        '
+        ' allowColon:=True is deliberate and specific to this path: CreateTextFile
+        ' writes the target DIRECTLY, so a colon in the leaf is a valid alternate-
+        ' data-stream write ("notes.txt:meta"). The whole-file writers
+        ' (StringToTextFile/ArrayToTextFile) call GuardLeafName with allowColon:=False,
+        ' because their atomic temp-swap builds "<name>.~tmp", which a stream name
+        ' can't survive. Same guard, one parameter, opposite answer - by design.
+        If create Then FSTShared.GuardLeafName filePath, "CreateTextFile", allowColon:=True
+
         mMode = ioMode
         mPos = 1
         mLine = 1
@@ -4217,7 +4210,6 @@ Public Class TextStream
         mClosed = False
         mDirty = False
         ReDim mLeadRanges(0 To 11)          ' CPINFO.LeadByte is 12 bytes: 6 lo/hi pairs
-
         ' nlNoChange/nlUnknown/nlMixed (all 0) land in Else -> CRLF. A stream always
         ' needs a concrete newline to emit, so there is no "leave it alone" option.
         Select Case lineEnding
@@ -4225,7 +4217,6 @@ Public Class TextStream
             Case nlMacintosh: mLineEnding = vbCr
             Case Else:        mLineEnding = vbCrLf
         End Select
-
         Select Case ioMode
             Case ForReading:   InitReading format
             Case ForWriting:   InitWriting format, create
@@ -5395,31 +5386,6 @@ Public Class TextStream
         Loop
         Gb18030PrefixLen = total
     End Function
-    
-    ' Raises 52 if the LEAF of a create path has illegal filename chars. Used only
-    ' for CREATE (an existing file can't have an illegal name). Validating up front
-    ' keeps the error identical (FSO's 52) regardless of which open path is taken.
-    ' Colon is EXCLUDED: a direct write to "<file>:<stream>" is a valid ADS write
-    ' that FSO (and we) succeed on (oracle: bad:colon -> 0). Leaf-only.
-    '
-    ' Contrast FileSystemTools.GuardWriteName, which DOES reject the colon: that path
-    ' goes through WriteStream's temp-file swap, which cannot express an ADS write.
-    ' The two guards differ by exactly that one character, on purpose.
-    Private Sub GuardCreateName(ByVal path As String, ByVal opName As String)
-        Dim leaf As String
-        leaf = FileSystemTools.GetFileName(path)
-        If leaf Like "*[<>""|?*]*" Then           ' NO colon: ':' in a leaf is a valid ADS write
-            Err.Raise 52, opName, "Bad file name or number: " & path
-        End If
-        ' Control chars aren't expressible in a Like pattern - check them separately.
-        Dim i As Long
-        For i = 1 To Len(leaf)
-            If AscW(Mid$(leaf, i, 1)) < 32 Then
-                Err.Raise 52, opName, "Bad file name or number: " & path
-            End If
-        Next
-    End Sub
-    
 End Class
 
 ' ==========================================================================
@@ -6822,6 +6788,97 @@ Private Module FSTShared
         End Select
     End Function
     
+    ' In Shared.twin - the single source of truth for leaf-name validation.
+    ' allowColon distinguishes the two write paths: a colon in a leaf is a valid
+    ' alternate-data-stream write (CreateTextFile), but the temp-swap path builds
+    ' "<name>.~XXXX.tmp" where a colon would break the swap, so it forbids one.
+    Public Sub GuardLeafName(ByVal path As String, ByVal opName As String, ByVal allowColon As Boolean)
+        Dim leaf As String: leaf = GetFileName(path)
+
+        ' Reserved characters (colon conditionally - it's a valid ADS separator on the
+        ' direct-write path, but not on the temp-swap path).
+        Dim bad As Boolean
+        If allowColon Then
+            bad = leaf Like "*[<>""|?*]*"
+        Else
+            bad = leaf Like "*[<>:""|?*]*"
+        End If
+        If bad Then Err.Raise 52, opName, "Bad file name or number: " & path
+
+        ' Reserved DEVICE names (CON, PRN, NUL, COM1..9, LPT1..9) - rejected regardless
+        ' of extension. Uses 52 (bad name), consistent with the character checks above.
+        If IsReservedDeviceName(leaf) Then
+            Err.Raise 52, opName, "Reserved device name not permitted: " & path
+        End If
+
+        ' Control chars aren't expressible in a Like pattern - check separately.
+        ' c >= 0 excludes high code points (AscW is SIGNED, so >= U+8000 goes negative).
+        Dim i As Long
+        For i = 1 To Len(leaf)
+            Dim c As Long: c = AscW(Mid$(leaf, i, 1))
+            If c >= 0 And c < 32 Then Err.Raise 52, opName, "Bad file name or number: " & path
+        Next i
+    End Sub
+    
+    ' True for CON/PRN/AUX/NUL/COM0-9/LPT0-9, with or without an extension.
+    ' Windows resolves these as devices no matter what folder they sit in, so a
+    ' file with such a name can never be created.
+    Public Function IsReservedDeviceName(ByVal name As String) As Boolean
+        Dim stem As String
+        Dim dotPos As Long
+
+        ' The device-name check applies to the portion before the first dot
+        dotPos = InStr(name, ".")
+        If dotPos = 0 Then stem = name Else stem = Left$(name, dotPos - 1)
+
+        ' RTrim: "CON " is still CON to Win32 (trailing spaces are dropped).
+        stem = UCase$(RTrim$(stem))
+
+        Select Case True
+            Case stem = "CON", stem = "PRN", stem = "AUX", stem = "NUL"
+                IsReservedDeviceName = True
+            Case stem Like "COM#", stem Like "LPT#"   ' # matches a single 0-9 digit
+                IsReservedDeviceName = True
+        End Select
+    End Function
+    
+    '======================================================================
+    ' Invariant (locale-independent) path case-folding
+    '
+    ' Windows filesystems fold case with an INVARIANT table, not the user's locale.
+    ' VB's UCase$/LCase$ and StrComp(vbTextCompare) use the THREAD locale, which
+    ' diverges on Turkish/Azeri ("i"/"I" fold to dotted/dotless forms). There, two
+    ' paths NTFS treats as identical can compare as different - breaking MergeFiles'
+    ' alias guard (silent data loss) and CopyFolder's dest-inside-source guard
+    ' (runaway recursion). InvariantUpper folds via LCMapStringEx with the invariant
+    ' locale, matching the filesystem. Use PathEquals for every path EQUALITY test;
+    ' never vbTextCompare/LCase$ on a whole path.
+    '======================================================================
+
+    Public Function InvariantUpper(ByVal s As String) As String
+        If Len(s) = 0 Then Exit Function
+        Dim n As Long
+        n = LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE, s, Len(s), 0, 0, ByVal vbNullPtr)
+        If n <= 0 Then InvariantUpper = s: Exit Function
+        Dim buf As String: buf = Space$(n)
+        LCMapStringEx LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE, s, Len(s), StrPtr(buf), n, ByVal vbNullPtr
+        InvariantUpper = buf
+    End Function
+
+    ' True if two paths are equal under invariant (filesystem) case-folding.
+    Public Function PathEquals(ByVal a As String, ByVal b As String) As Boolean
+        PathEquals = (StrComp(InvariantUpper(a), InvariantUpper(b), vbBinaryCompare) = 0)
+    End Function
+
+    ' True if childPath is inside parentPath, or equal to it, under invariant folding.
+    ' Pass parentPath WITHOUT a trailing "\"; this appends one for the prefix test.
+    Public Function PathIsUnderOrEqual(ByVal childPath As String, ByVal parentPath As String) As Boolean
+        If PathEquals(childPath, parentPath) Then PathIsUnderOrEqual = True: Exit Function
+        Dim pfx As String: pfx = parentPath & "\"
+        PathIsUnderOrEqual = (Len(childPath) >= Len(pfx)) AndAlso _
+                             PathEquals(Left$(childPath, Len(pfx)), pfx)
+    End Function
+    
 End Module
 
 Private Module WinAPI
@@ -6880,6 +6937,65 @@ Private Module WinAPI
     Public Declare PtrSafe Function CloseHandle Lib "kernel32" (ByVal hObject As LongPtr) As BOOL
     
     Public Declare PtrSafe Function WNetGetConnectionW Lib "mpr.dll" (ByVal lpLocalName As LongPtr, ByVal lpRemoteName As LongPtr, lpnLength As Long) As Long
+    
+    Public DeclareWide PtrSafe Function LCMapStringEx Lib "kernel32" (ByVal lpLocaleName As String, [TypeHint(LCMAP_FLAGS, COMPARE_FLAGS)] ByVal dwMapFlags As Long, ByVal lpSrcStr As String, ByVal cchSrc As Long, ByVal lpDestStr As LongPtr, ByVal cchDest As Long, lpVersionInformation As NLSVERSIONINFO, Optional ByVal lpReserved As LongPtr, Optional ByVal sortHandle As LongPtr) As Long
+    Public Declare PtrSafe Function GetThreadLocale Lib "kernel32" () As Long
+    Public Declare PtrSafe Function SetThreadLocale Lib "kernel32" (ByVal Locale As DefaultLocales) As BOOL
+    
+    Public Const LOCALE_NAME_INVARIANT As String = ""
+    
+    Public Enum DefaultLocales
+        LOCALE_CUSTOM_DEFAULT = &H0c00
+        LOCALE_CUSTOM_UI_DEFAULT = &H1400
+        LOCALE_CUSTOM_UNSPECIFIED = &H1000
+        LOCALE_INVARIANT = &H007f
+        LOCALE_USER_DEFAULT = &H0400
+        LOCALE_SYSTEM_DEFAULT = &H0800
+    End Enum
+    
+    [Description("For Windows 8 and newer. Windows 7 and below: Use NLSVERSIONINFO_WIN7")]
+    Public Type NLSVERSIONINFO
+        dwNLSVersionInfoSize As Long
+        dwNLSVersion As Long
+        dwDefinedVersion As Long
+        dwEffectiveId As Long
+        guidCustomVersion As UUID
+    End Type
+    
+    Public Enum LCMAP_FLAGS
+        LCMAP_LOWERCASE = &H00000100  ' lower case letters
+        LCMAP_UPPERCASE = &H00000200  ' UPPER CASE LETTERS
+        LCMAP_TITLECASE = &H00000300  ' Title Case Letters
+        LCMAP_SORTKEY = &H00000400  ' WC sort key (normalize)
+        LCMAP_BYTEREV = &H00000800  ' byte reversal
+        LCMAP_HIRAGANA = &H00100000  ' map katakana to hiragana
+        LCMAP_KATAKANA = &H00200000  ' map hiragana to katakana
+        LCMAP_HALFWIDTH = &H00400000  ' map double byte to single byte
+        LCMAP_FULLWIDTH = &H00800000  ' map single byte to double byte
+        LCMAP_LINGUISTIC_CASING = &H01000000  ' use linguistic rules for casing
+        LCMAP_SIMPLIFIED_CHINESE = &H02000000  ' map traditional chinese to simplified chinese
+        LCMAP_TRADITIONAL_CHINESE = &H04000000  ' map simplified chinese to traditional chinese
+        LCMAP_SORTHANDLE = &H20000000
+        LCMAP_HASH = &H00040000
+        LCMAP_IGNOREDBCS = &H80000000  ' don't casemap DBCS characters
+    End Enum
+    
+    Public Enum COMPARE_FLAGS
+        SORT_STRINGSORT = &H1000&
+        SORT_DIGITSASNUMBERS = &H8          'Sort 1 2 10 instead of 1 10 2
+        LINGUISTIC_IGNORECASE = &H10&
+        LINGUISTIC_IGNOREDIACRITIC = &H20&
+        NORM_IGNORECASE = &H1&
+        NORM_IGNORENONSPACE = &H2&
+        NORM_IGNORESYMBOLS = &H4&
+        NORM_IGNOREKANATYPE = &H10000
+        NORM_IGNOREKANATYPE_ALT = &H40
+        NORM_IGNOREWIDTH = &H20000
+        NORM_IGNOREWIDTH_ALT = &H08
+        NORM_IGNOREKASHIDA = &H00040000
+        NORM_LINGUISTIC_CASING = &H8000000
+        NORM_STOP_ON_NULL = &H10000000 'undocumented
+    End Enum
     
     Public Enum CreateFileDisposition
         CREATE_NEW = 1
