@@ -128,6 +128,54 @@ Module GitHubTests
         Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & _
                     "Drive object  (drive " & letter & " ready=" & d.IsReady & ")"
         ok = ok And pass
+        
+    '--- 9. TextStream: streaming read/write, line by line -----------------
+        p = fso.BuildPath(root, "stream.txt")
+        Dim ts As tbFileSysTools.TextStream
+        Set ts = fso.CreateTextFile(p, True, encUtf8, nlUnix)
+        ts.WriteLine "line one"
+        ts.WriteLine "line two"
+        ts.WriteLine "line three"
+        ts.Close
+
+        Dim n As Long: n = 0
+        Dim lastLine As String
+        Set ts = fso.OpenTextFile(p, ForReading)
+        Do Until ts.AtEndOfStream
+            lastLine = ts.ReadLine()
+            n = n + 1
+        Loop
+        ts.Close
+        pass = (n = 3) And (lastLine = "line three")
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & _
+                    "TextStream  (wrote 3 lines, read back " & n & ")"
+        ok = ok And pass
+
+        '--- 10. Non-ASCII file path: a folder and file named in three scripts -
+        ' Exercises the wide-API path end to end; a byte-narrowing bug shows here.
+        Dim uniName As String
+        uniName = "caf" & ChrW$(&HE9) & "_" & ChrW$(&H65E5) & ChrW$(&H672C) & _
+                "_" & ChrW$(&H41C)                 ' café_日本_М
+        Dim uniDir As String, uniFile As String
+        uniDir = fso.BuildPath(root, uniName)
+        uniFile = fso.BuildPath(uniDir, uniName & ".txt")
+        fso.CreateFolder uniDir
+        fso.StringToTextFile "unicode path ok", uniFile, encUtf8
+
+        ' Capture the on-disk name BEFORE anything deletes it (File is live).
+        Dim uf As tbFileSysTools.File
+        Set uf = fso.GetFile(uniFile)
+        Dim diskLeaf As String: diskLeaf = uf.Name
+        Set uf = Nothing
+
+        pass = fso.FileExists(uniFile) _
+            And (diskLeaf = uniName & ".txt") _
+            And (fso.TextFileToString(uniFile) = "unicode path ok")
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & _
+                    "Non-ASCII path  (" & uniName & ")"
+        ok = ok And pass
 
         '--- clean up and report ----------------------------------------------
         On Error Resume Next
