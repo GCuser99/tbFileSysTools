@@ -1214,13 +1214,22 @@ Public Module FileSystemTools
         If Left$(drivePath, 2) = "\\" Then
             root = GetDriveName(drivePath)                        ' UNC: \\server\share
         ElseIf Len(drivePath) >= 2 And Mid$(drivePath, 2, 1) = ":" Then
-            root = UCase$(Left$(drivePath, 1)) & ":"
+            ' Accept ONLY a bare drive spec: "C:", "C:\", or "C:/". Reject a full
+            ' path like "C:\Windows" - FSO raises 5 there, requiring the caller to
+            ' GetDriveName first. Matching that strictness (rather than leniently
+            ' extracting the drive) keeps a ported caller's error surfacing as it did.
+            Dim tail As String: tail = Mid$(drivePath, 3)
+            If Len(tail) = 0 Or tail = "\" Then
+                root = UCase$(Left$(drivePath, 1)) & ":"
+            End If
+            ' else: leave root empty -> raises 5 below (see the raise, and note it's
+            ' currently 68 - FSO uses 5 for this; see below)
         ElseIf Len(drivePath) = 1 And UCase$(drivePath) >= "A" And UCase$(drivePath) <= "Z" Then
             root = UCase$(drivePath) & ":"
         End If
 
         ' Only the SHAPE is validated here - Drive.Init decides whether it is ready.
-        If Len(root) = 0 Then Err.Raise 68, "GetDrive", "Invalid drive specification: " & drivePath
+        If Len(root) = 0 Then Err.Raise 5, "GetDrive", "Invalid drive specification: " & drivePath
 
         Dim dr As Drive
         Set dr = New Drive
@@ -1274,8 +1283,7 @@ Public Module FileSystemTools
         Optional ByVal toEncoding As TextEncoding = encUtf8, _
         Optional ByVal toNewLine As NewlineType = nlWindows, _
         Optional ByVal fromEncoding As TextEncoding = encAutoDetect, _
-        Optional ByVal toAttributes As FileAttribute = faNoChange, _
-        Optional ByVal skipIfUnchanged As Boolean = True) As Boolean
+        Optional ByVal toAttributes As FileAttribute = faNoChange) As Boolean
 
         ' Flow: read raw -> refuse binary -> decode -> convert newlines -> re-encode
         ' -> byte-compare -> write only if different -> fix up attributes.
@@ -1323,7 +1331,7 @@ Public Module FileSystemTools
 
         ' Idempotency: byte-exact compare, rewrite only if different
         Dim changed As Boolean
-        If (Not skipIfUnchanged) OrElse (Not TextCodec.BytesEqual(raw, outBytes)) Then
+        If Not TextCodec.BytesEqual(raw, outBytes) Then
             WriteStream outBytes, filePath           ' atomic replace (resets attributes)
             changed = True
         End If
@@ -1477,7 +1485,14 @@ Public Module FileSystemTools
 
         Dim f As Variant
         For Each f In subFolders
-            CollectFiles CStr(f), pattern, includeHidden, includeSystem, True, result
+            ' Do NOT recurse THROUGH a reparse point (junction/symlink). Its own
+            ' entries were already listed by EnumerateLevel above; descending would
+            ' risk a cycle (a junction pointing at an ancestor loops forever -> hard
+            ' freeze). The junction is still listed by Folder.SubFolders; we simply
+            ' don't walk into it. Matches Folder.Size, which also skips reparse points.
+            If Not FSTShared.IsReparsePoint(CStr(f)) Then
+                CollectFiles CStr(f), pattern, includeHidden, includeSystem, True, result
+            End If
         Next
     End Sub
 
@@ -1742,11 +1757,19 @@ Public Module FileSystemTools
                 fullPath = FSTShared.EnsureTrailingBackslash(folder) & name
 
                 If (ffd.dwFileAttributes And FILE_ATTRIBUTE_DIRECTORY) <> 0 Then
-                    ' Recurses into reparse points/junctions as if they were real
-                    ' folders - deletes the TARGET's contents, not just the link.
-                    DeleteFolderRecursive fullPath, force                ' bare - see above
-                    If force Then SetFileAttributesW StrPtr(FSTShared.ApiPath(fullPath)), FILE_ATTRIBUTE_NORMAL
-                    RemoveDirectoryW StrPtr(FSTShared.ApiPath(fullPath))
+                    If (ffd.dwFileAttributes And FILE_ATTRIBUTE_REPARSE_POINT) <> 0 Then
+                        ' A junction/symlink: remove the LINK, never recurse into it.
+                        ' Recursing would delete the TARGET's contents - files outside
+                        ' the tree we were asked to delete (data loss), and loops if the
+                        ' link is cyclic. RemoveDirectoryW on a junction removes just the
+                        ' link. (force clears any attribute blocking the removal.)
+                        If force Then SetFileAttributesW StrPtr(FSTShared.ApiPath(fullPath)), FILE_ATTRIBUTE_NORMAL
+                        RemoveDirectoryW StrPtr(FSTShared.ApiPath(fullPath))
+                    Else
+                        DeleteFolderRecursive fullPath, force                ' bare - see above
+                        If force Then SetFileAttributesW StrPtr(FSTShared.ApiPath(fullPath)), FILE_ATTRIBUTE_NORMAL
+                        RemoveDirectoryW StrPtr(FSTShared.ApiPath(fullPath))
+                    End If
                 Else
                     If force Then SetFileAttributesW StrPtr(FSTShared.ApiPath(fullPath)), FILE_ATTRIBUTE_NORMAL
                     DeleteFileW StrPtr(FSTShared.ApiPath(fullPath))
@@ -1840,13 +1863,18 @@ Public Module FileSystemTools
                 dstItem = FSTShared.EnsureTrailingBackslash(destination) & name
 
                 If (ffd.dwFileAttributes And FILE_ATTRIBUTE_DIRECTORY) <> 0 Then
-                    ' Subfolder
-                    If Not FolderExists(dstItem) Then
-                        CreateDir dstItem, "CopyFolder"
+                    ' Skip reparse points: recursing would copy the LINK TARGET's
+                    ' contents into the destination (data that lives outside the source
+                    ' tree), and loop forever on a cyclic junction. FSO's CopyFolder
+                    ' also does not follow junctions. (A future option could recreate
+                    ' the link itself; for now we skip, matching Folder.Size.)
+                    If (ffd.dwFileAttributes And FILE_ATTRIBUTE_REPARSE_POINT) = 0 Then
+                        If Not FolderExists(dstItem) Then
+                            CreateDir dstItem, "CopyFolder"
+                        End If
+                        CopyFolderRecursive srcItem, dstItem, overwriteFiles
                     End If
-                    CopyFolderRecursive srcItem, dstItem, overwriteFiles
                 Else
-                    ' File
                     CopyOneFile srcItem, dstItem, overwriteFiles
                 End If
             End If
@@ -1881,6 +1909,16 @@ Public Module FileSystemTools
         End If
         
         FSTShared.GuardLeafName destination, "CopyFile", False
+
+        ' Copying a file onto itself is a no-op success, matching FSO - which returns
+        ' 0 here regardless of overwrite flag OR lock state (CopyFileExW treats a
+        ' copy-to-self as a successful no-op; unlike MoveFile, no exclusive access is
+        ' needed, so no lock check). Without this, CopyFileExW raises 70 (sharing
+        ' violation) where FSO succeeds. PathEquals (invariant fold) catches case-only
+        ' and locale variants too.
+        If overwriteFiles And FSTShared.PathEquals(source, destination) Then
+            Exit Sub                                  ' no-op, matches FSO
+        End If
 
         Dim flags As Long
         If Not overwriteFiles Then flags = COPY_FILE_FAIL_IF_EXISTS   ' -> 80 -> error 58
@@ -1985,12 +2023,22 @@ Public Module FileSystemTools
             destination = BuildPath(destination, GetFileName(source))
         End If
         destination = GetAbsolutePathName(destination)
-        
-        ' Guard the final destination leaf (reserved chars, control chars, device
-        ' names -> 52). After resolution, so a move INTO a folder inherits the source's
-        ' already-legal leaf and only a genuinely new destination name is validated.
-        ' allowColon:=False - MoveFile has no ADS-write path.
+
+        ' Bad-name guard (already here)
         FSTShared.GuardLeafName destination, "MoveFile", False
+
+        ' Same-path move: FSO treats "move a file onto itself" as a no-op SUCCESS on
+        ' an unlocked file, and raises on a locked one. We reproduce that observable
+        ' behavior because the classic Unicode-safe VBx lock-check idiom depends on it:
+        '     On Error Resume Next: fso.MoveFile p, p: locked = (Err <> 0)
+        ' PathEquals (invariant fold) so a case-only / locale variant is also same-path.
+        If FSTShared.PathEquals(source, destination) Then
+            If IsFileLocked(source) Then
+                Err.Raise 70, "MoveFile", "Permission denied (file is in use): " & source
+            End If
+            MoveOneFile = source        ' no-op; return the (unchanged) resolved path
+            Exit Function
+        End If
 
         ' FSO does NOT allow overwrite (checked against the resolved target)
         If FileExists(destination) Then

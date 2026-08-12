@@ -176,6 +176,29 @@ Module GitHubTests
         Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & _
                     "Non-ASCII path  (" & uniName & ")"
         ok = ok And pass
+        
+        '--- 11. NormalizeTextFile: convert encoding + line-ending, then idempotent -
+        ' Write UTF-8 with CRLF, normalize to UTF-16/LF (must report changed=True),
+        ' then normalize again to the same target (must report changed=False - the
+        ' file is already in target form, so nothing is rewritten).
+        p = fso.BuildPath(root, "normalize.txt")
+        fso.StringToTextFile "alpha" & vbCrLf & "beta" & vbCrLf & "gamma", p, encUtf8
+
+        Dim changed1 As Boolean, changed2 As Boolean
+        changed1 = fso.NormalizeTextFile(p, encUtf16Bom, nlUnix)   ' UTF-8/CRLF -> UTF-16/LF
+        changed2 = fso.NormalizeTextFile(p, encUtf16Bom, nlUnix)   ' already in target form
+
+        ' Verify the conversion actually took: encoding auto-detects as UTF-16, the
+        ' line ending is now LF, and the text round-trips unchanged.
+        Dim normText As String: normText = fso.TextFileToString(p)   ' blind read
+        pass = (changed1 = True) _
+               And (changed2 = False) _
+               And (fso.GetFileLineEnding(p) = nlUnix) _
+               And (normText = "alpha" & vbLf & "beta" & vbLf & "gamma")
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & _
+                    "NormalizeTextFile  (changed=" & changed1 & ", 2nd call changed=" & changed2 & ")"
+        ok = ok And pass
 
         '--- clean up and report ----------------------------------------------
         On Error Resume Next

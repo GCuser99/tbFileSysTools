@@ -497,4 +497,17 @@ Private Module FSTShared
                              PathEquals(Left$(childPath, Len(pfx)), pfx)
     End Function
     
+    ' True if the path is a reparse point (junction or symlink). Used by the
+    ' recursive walkers to avoid following links: a junction pointing at an ancestor
+    ' forms a cycle that loops a naive walk until the process dies (a hard freeze,
+    ' no error). Returns False if the path can't be queried - a walker should skip
+    ' a folder it can't classify rather than risk the loop. GetFileAttributesW is
+    ' long-path safe via ApiPath.
+    Public Function IsReparsePoint(ByVal path As String) As Boolean
+        Dim a As Long
+        a = GetFileAttributesW(StrPtr(ApiPath(path)))
+        If a = INVALID_FILE_ATTRIBUTES Then Exit Function      ' can't tell -> treat as not-a-link
+        IsReparsePoint = ((a And FILE_ATTRIBUTE_REPARSE_POINT) <> 0)
+    End Function
+    
 End Module

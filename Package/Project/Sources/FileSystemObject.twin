@@ -299,9 +299,8 @@ Public Class FileSystemObject
         Optional ByVal toEncoding As TextEncoding = encUtf8, _
         Optional ByVal toNewLine As NewlineType = nlWindows, _
         Optional ByVal fromEncoding As TextEncoding = encAutoDetect, _
-        Optional ByVal toAttributes As FileAttribute = faNoChange, _
-        Optional ByVal skipIfUnchanged As Boolean = True) As Boolean
-        Return FileSystemTools.NormalizeTextFile(filePath, toEncoding, toNewLine, fromEncoding, toAttributes, skipIfUnchanged)
+        Optional ByVal toAttributes As FileAttribute = faNoChange) As Boolean
+        Return FileSystemTools.NormalizeTextFile(filePath, toEncoding, toNewLine, fromEncoding, toAttributes)
     End Function
     
     [Description("Reads a text file and reports its line-ending style: nlWindows / nlUnix / nlMacintosh for a consistent file, nlMixed if it contains more than one, or nlUnknown if it has none. Reads the whole file, so the result (including mixed) is exact.")]

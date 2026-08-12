@@ -319,10 +319,9 @@ Public Class File
     Public Function Normalize(Optional ByVal toEncoding As TextEncoding = encUtf8, _
         Optional ByVal toLineEnding As NewlineType = nlWindows, _
         Optional ByVal fromEncoding As TextEncoding = encAutoDetect, _
-        Optional ByVal toAttributes As FileAttribute = faNoChange, _
-        Optional ByVal skipIfUnchanged As Boolean = True) As Boolean
+        Optional ByVal toAttributes As FileAttribute = faNoChange) As Boolean
         EnsureCurrent
-        Normalize = FileSystemTools.NormalizeTextFile(mPath, toEncoding, toLineEnding, fromEncoding, toAttributes, skipIfUnchanged)
+        Normalize = FileSystemTools.NormalizeTextFile(mPath, toEncoding, toLineEnding, fromEncoding, toAttributes)
         Refresh
     End Function
 

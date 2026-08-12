@@ -1,5 +1,13 @@
 # Change Log
 
+[v1.4.0.0, 12 Aug 2026]
+
+ - Recursive folder operations no longer follow reparse points (junctions/symlinks): fixes a hard freeze when a tree contains a cyclic junction
+ - GetDrive now rejects a full path (e.g. "C:\Windows") with error 5, matching FSO - it accepts only a bare drive spec ("C", "C:", "C:\")
+ - MoveFile/CopyFile of a file onto itself now matches FSO (no-op on an unlocked file)
+ - Removed NormalizeTextFile's skipIfUnchanged argument
+ - Added more tests to the GitHub repo Tests suite
+
 [v1.3.0.0, 11 Aug 2026]
 
  - Fixed CJK/Japanese/Korean/emoji filenames being wrongly rejected as invalid (signed AscW comparison)
