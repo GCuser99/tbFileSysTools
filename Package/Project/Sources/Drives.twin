@@ -44,9 +44,18 @@ Public Class Drives
     [DefaultMember]
     [Description("Returns a specific Drive object by name or index.")]
     Public Property Get Item(ByVal letterOrIndex As Variant) As [Drive]
-        Set Item = mItems(letterOrIndex)
+        ' Normalize a drive-string key to the bare UPPER letter the collection is
+        ' keyed by, so "T", "t", "T:", "t:", and "T:\" all resolve - matching FSO,
+        ' which accepts any of these. A numeric index passes through untouched.
+        If VarType(letterOrIndex) = vbString Then
+            Dim k As String: k = letterOrIndex
+            If Len(k) >= 1 Then k = UCase$(Left$(k, 1))   ' first char, upper
+            Set Item = mItems(k)
+        Else
+            Set Item = mItems(letterOrIndex)              ' numeric index
+        End If
     End Property
-
+    
     [Enumerator]
     [Hidden(True)]
     Public Function NewEnum() As IUnknown

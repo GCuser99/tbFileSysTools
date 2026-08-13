@@ -1,5 +1,9 @@
 # Change Log
 
+[v1.5.0.0, 12 Aug 2026]
+
+ - Fixed Drives("C:")/Drives("C:\") throwing error; Thanks to @birnaofthenorth!
+
 [v1.4.0.0, 12 Aug 2026]
 
  - Recursive folder operations no longer follow reparse points (junctions/symlinks): fixes a hard freeze when a tree contains a cyclic junction

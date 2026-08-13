@@ -1,92 +1,226 @@
 Module MyModule
 
-    Sub test_fso()
-        Dim fso As New FileSystemObject
-        Dim p As String
-        p = fso.BuildPath(fso.GetSpecialFolder(sfTemporaryFolder), fso.GetTempName())
-        fso.StringToTextFile "hello from tB", p
-        Debug.Assert fso.FileExists(p)
-        Debug.Assert fso.TextFileToString(p) = "hello from tB"
-        ' clean up
-        fso.DeleteFile p
-        Debug.Assert Not FileExists(p)
-    End Sub
-    
-    Sub test_fst()
-        Dim p As String
-        p = BuildPath(GetSpecialFolder(sfTemporaryFolder), GetTempName())
-        StringToTextFile "hello from tB", p
-        Debug.Assert FileExists(p)
-        Debug.Assert TextFileToString(p) = "hello from tB"
-        ' clean up
-        DeleteFile p
-        Debug.Assert Not FileExists(p)
-    End Sub
-    
-    Sub test_fst_qualified()
-        Dim p As String
-        p = FileSystemTools.BuildPath(FileSystemTools.GetSpecialFolder(sfTemporaryFolder), FileSystemTools.GetTempName())
-        FileSystemTools.StringToTextFile "hello from tB", p
-        Debug.Assert FileSystemTools.FileExists(p)
-        Debug.Assert FileSystemTools.TextFileToString(p) = "hello from tB"
-        ' clean up
-        FileSystemTools.DeleteFile p
-        Debug.Assert Not FileSystemTools.FileExists(p)
-    End Sub
-    /*
-    Sub test_com_qualified()
-        Dim ts As Scripting.TextStream
-        Dim fso As Scripting.FileSystemObject
-        Set ts = fso.CreateTextFile(FileName:="path")
-        Set ts = fso.OpenTextFile()
-        Dim fso2 As FileSystemObject, ts2 As TextStream
-        Set ts2 = fso2.CreateTextFile()
-    End Sub
-    */
-    
-    Public Sub test()
-        Dim tmp As String
-        tmp = FileSystemTools.GetSpecialFolder(TemporaryFolder)
+    Public Sub SimpleTest()
+        Dim ok As Boolean:  ok = True
+        Dim pass As Boolean
+        Dim root As String, p As String, a As String, b As String, c As String
+        Dim payload As String, back As String, detected As String
 
-        ' two source files to move/copy (MoveFile consumes its source, so use two)
-        Dim src As String, src2 As String
-        src = FileSystemTools.BuildPath(tmp, "cmsrc1.txt")
-        src2 = FileSystemTools.BuildPath(tmp, "cmsrc2.txt")
-        FileSystemTools.StringToTextFile "x", src, encUtf8
-        FileSystemTools.StringToTextFile "x", src2, encUtf8
+        Debug.Print String$(60, "=")
+        Debug.Print "  tbFileSysTools simple test"
+        Debug.Print String$(60, "=")
 
+        On Error GoTo Fatal
+        
+        Dim fso As New tbFileSysTools.FileSystemObject
+        root = fso.BuildPath( _
+                   fso.GetSpecialFolder(TemporaryFolder), _
+                   "tbfst_smoketest")
+
+        ' Clean slate.
+        If fso.FolderExists(root) Then _
+            fso.DeleteFolder root, True, True
+        fso.CreateFolder root, True
+
+        '--- 1. Text round trip: write a string, read it straight back ---------
+        p = fso.BuildPath(root, "hello.txt")
+        payload = "Hello, tbFileSysTools!"
+        fso.StringToTextFile payload, p
+        back = fso.TextFileToString(p)
+        pass = (back = payload)
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & "Text round trip"
+        ok = ok And pass
+
+        '--- 2. Encodings: same non-ASCII text in three encodings -------------
+        ' café + two CJK characters, so single-byte encodings cannot fake success.
+        payload = "cafe" & ChrW$(&HE9) & " " & ChrW$(&H4E2D) & ChrW$(&H6587)
+
+        p = fso.BuildPath(root, "utf8.txt")
+        fso.StringToTextFile payload, p, encUtf8
+        back = fso.TextFileToString(p, encUtf8)
+        pass = (back = payload)
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & "Encoding: UTF-8"
+        ok = ok And pass
+
+        p = fso.BuildPath(root, "utf16.txt")
+        fso.StringToTextFile payload, p, encUtf16Bom
+        back = fso.TextFileToString(p, encUtf16Bom)
+        pass = (back = payload)
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & "Encoding: UTF-16"
+        ok = ok And pass
+
+        '--- 3. Auto-detect: write UTF-16, read back WITHOUT saying so ---------
+        p = fso.BuildPath(root, "detect.txt")
+        fso.StringToTextFile payload, p, encUtf16Bom
+        detected = fso.TextFileToString(p)   ' no encoding arg
+        pass = (detected = payload)
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & _
+                    "Encoding auto-detect (wrote UTF-16, read back blind)"
+        ok = ok And pass
+
+        '--- 4. Line endings: write LF, detect it -----------------------------
+        Dim lines(0 To 2) As String
+        lines(0) = "one": lines(1) = "two": lines(2) = "three"
+        p = fso.BuildPath(root, "endings.txt")
+        fso.ArrayToTextFile lines, p, encUtf8, nlUnix
+        pass = (fso.GetFileLineEnding(p) = nlUnix)
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & "Line-ending detection (wrote LF)"
+        ok = ok And pass
+
+        '--- 5. File object: name and size, live from disk --------------------
+        ' Fully qualified on purpose - see the header note about namespace collisions.
+        p = fso.BuildPath(root, "sized.txt")
+        fso.StringToTextFile "1234567890", p, encUtf8   ' 10 bytes
+        Dim f As tbFileSysTools.File
+        Set f = fso.GetFile(p)
+        pass = (f.Name = "sized.txt") And (f.Size = 10)
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & _
+                    "File object  (Name=" & f.Name & " Size=" & f.Size & ")"
+        ok = ok And pass
+
+        '--- 6. Folder object + For-Each 
+        Dim fdr As tbFileSysTools.Folder
+        Set fdr = fso.GetFolder(root)
+        Dim count As Long: count = 0
+        Dim ff As tbFileSysTools.File
+        For Each ff In fdr.Files
+            count = count + 1
+        Next ff
+        pass = (LCase$(fdr.Path) = LCase$(root)) And (count > 0)
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & _
+                    "Folder object + For-Each  (enumerated " & count & " file(s))"
+        ok = ok And pass
+
+        '--- 7. Copy / Move / Delete ------------------------------------------
+        a = fso.BuildPath(root, "orig.txt")
+        b = fso.BuildPath(root, "copy.txt")
+        c = fso.BuildPath(root, "moved.txt")
+        fso.StringToTextFile "data", a, encUtf8
+
+        fso.CopyFile a, b
+        pass = fso.FileExists(b)
+
+        fso.MoveFile b, c
+        pass = pass And fso.FileExists(c) _
+                    And Not fso.FileExists(b)
+
+        fso.DeleteFile c, True
+        pass = pass And Not fso.FileExists(c)
+
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & "Copy / Move / Delete"
+        ok = ok And pass
+
+        '--- 8. Drive object: the drive %TEMP% lives on -----------------------
+        Dim letter As String
+        letter = fso.GetDriveName(root)
+        Dim d As tbFileSysTools.Drive
+        Set d = fso.GetDrive(letter)
+        pass = d.IsReady
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & _
+                    "Drive object  (drive " & letter & " ready=" & d.IsReady & ")"
+        ok = ok And pass
+        
+    '--- 9. TextStream: streaming read/write, line by line -----------------
+        p = fso.BuildPath(root, "stream.txt")
+        Dim ts As tbFileSysTools.TextStream
+        Set ts = fso.CreateTextFile(p, True, encUtf8, nlUnix)
+        ts.WriteLine "line one"
+        ts.WriteLine "line two"
+        ts.WriteLine "line three"
+        ts.Close
+
+        Dim n As Long: n = 0
+        Dim lastLine As String
+        Set ts = fso.OpenTextFile(p, ForReading)
+        Do Until ts.AtEndOfStream
+            lastLine = ts.ReadLine()
+            n = n + 1
+        Loop
+        ts.Close
+        pass = (n = 3) And (lastLine = "line three")
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & _
+                    "TextStream  (wrote 3 lines, read back " & n & ")"
+        ok = ok And pass
+
+        '--- 10. Non-ASCII file path: a folder and file named in three scripts -
+        ' Exercises the wide-API path end to end; a byte-narrowing bug shows here.
+        Dim uniName As String
+        uniName = "caf" & ChrW$(&HE9) & "_" & ChrW$(&H65E5) & ChrW$(&H672C) & _
+                "_" & ChrW$(&H41C)                 ' café_日本_М
+        Dim uniDir As String, uniFile As String
+        uniDir = fso.BuildPath(root, uniName)
+        uniFile = fso.BuildPath(uniDir, uniName & ".txt")
+        fso.CreateFolder uniDir
+        fso.StringToTextFile "unicode path ok", uniFile, encUtf8
+
+        ' Capture the on-disk name BEFORE anything deletes it (File is live).
+        Dim uf As tbFileSysTools.File
+        Set uf = fso.GetFile(uniFile)
+        Dim diskLeaf As String: diskLeaf = uf.Name
+        Set uf = Nothing
+
+        pass = fso.FileExists(uniFile) _
+            And (diskLeaf = uniName & ".txt") _
+            And (fso.TextFileToString(uniFile) = "unicode path ok")
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & _
+                    "Non-ASCII path  (" & uniName & ")"
+        ok = ok And pass
+        
+        '--- 11. NormalizeTextFile: convert encoding + line-ending, then idempotent -
+        ' Write UTF-8 with CRLF, normalize to UTF-16/LF (must report changed=True),
+        ' then normalize again to the same target (must report changed=False - the
+        ' file is already in target form, so nothing is rewritten).
+        p = fso.BuildPath(root, "normalize.txt")
+        fso.StringToTextFile "alpha" & vbCrLf & "beta" & vbCrLf & "gamma", p, encUtf8
+
+        Dim changed1 As Boolean, changed2 As Boolean
+        changed1 = fso.NormalizeTextFile(p, encUtf16Bom, nlUnix)   ' UTF-8/CRLF -> UTF-16/LF
+        changed2 = fso.NormalizeTextFile(p, encUtf16Bom, nlUnix)   ' already in target form
+
+        ' Verify the conversion actually took: encoding auto-detects as UTF-16, the
+        ' line ending is now LF, and the text round-trips unchanged.
+        Dim normText As String: normText = fso.TextFileToString(p)   ' blind read
+        pass = (changed1 = True) _
+               And (changed2 = False) _
+               And (fso.GetFileLineEnding(p) = nlUnix) _
+               And (normText = "alpha" & vbLf & "beta" & vbLf & "gamma")
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & _
+                    "NormalizeTextFile  (changed=" & changed1 & ", 2nd call changed=" & changed2 & ")"
+        ok = ok And pass
+
+        '--- clean up and report ----------------------------------------------
         On Error Resume Next
-        FileSystemTools.CopyFile src, FileSystemTools.BuildPath(tmp, "con")
-        Debug.Print "CopyFile con -> " & Err.Number: Err.Clear
-        FileSystemTools.MoveFile src2, FileSystemTools.BuildPath(tmp, "con")
-        Debug.Print "MoveFile con -> " & Err.Number: Err.Clear
+        fso.DeleteFolder root, True, True
         On Error GoTo 0
 
-        ' cleanup
-        On Error Resume Next
-        FileSystemTools.DeleteFile src, True, True
-        FileSystemTools.DeleteFile src2, True, True
-        FileSystemTools.DeleteFile FileSystemTools.BuildPath(tmp, "con"), True, True   ' in case one succeeded
-        On Error GoTo 0
-    End Sub
-    
-    Sub sanity()
-        Debug.Print FSTShared.InvariantUpper("café.txt")            ' -> CAFÉ.TXT
-        Debug.Print FSTShared.PathEquals("C:\A\b.txt", "c:\a\B.TXT") ' -> True
-        Debug.Print FSTShared.PathEquals("C:\proj", "C:\proj2")      ' -> False
-        Debug.Print FSTShared.PathIsUnderOrEqual("C:\a\b\c", "C:\a") ' -> True
-        Debug.Print FSTShared.PathIsUnderOrEqual("C:\ab", "C:\a")    ' -> False (the trailing-\ guard)
-    End Sub
-    
-    Public Sub diag()
-        Dim s As String: s = "café.txt"
-        Dim n As Long
-        n = LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE, s, Len(s), 0, 0, ByVal vbNullPtr)
-        Debug.Print "size n = " & n & "   err = " & Err.LastDllError
+        Debug.Print String$(60, "-")
+        If ok Then
+            Debug.Print "  RESULT: PASSED - the library is installed and working."
+        Else
+            Debug.Print "  RESULT: FAILED - copy this output into a GitHub issue."
+        End If
+        Debug.Print String$(60, "=")
+        Exit Sub
 
-        Dim buf As String: buf = Space$(n)
-        LCMapStringEx LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE, s, Len(s), StrPtr(buf), n, ByVal vbNullPtr
-        Debug.Print "folded = [" & buf & "]   err = " & Err.LastDllError
+    Fatal:
+        Debug.Print "  *** UNEXPECTED ERROR " & Err.Number & ": " & Err.Description
+        Debug.Print "  RESULT: FAILED - copy this output into a GitHub issue."
+        On Error Resume Next
+        fso.DeleteFolder root, True, True
+        On Error GoTo 0
+        Debug.Print String$(60, "=")
     End Sub
 
 End Module
