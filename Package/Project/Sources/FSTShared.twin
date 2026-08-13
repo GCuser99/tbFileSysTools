@@ -344,10 +344,10 @@ Private Module FSTShared
     ' Misc
     '======================================================================
 
-    ' Add an object under its name; on a duplicate/invalid key, add unkeyed so a
-    ' pathological case-only name clash never aborts the enumeration.
-    ' The item is still IN the collection either way - only lookup-by-name is lost
-    ' for the loser of the clash. Used by GetDrives (keyed by drive letter).
+    ' Add an object under its key; if the keyed add fails for any reason (duplicate
+    ' key, etc.), fall back to an unkeyed add so one bad entry never aborts the whole
+    ' enumeration. The item is still IN the collection either way - only lookup-by-name
+    ' is lost for a failed key. Used by the Files/SubFolders enumeration and GetDrives.
     Public Sub AddKeyed(ByRef c As Collection, ByVal item As Variant, ByVal key As String)
         On Error Resume Next
         c.Add item, key

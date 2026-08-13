@@ -42,13 +42,19 @@ Public Class Files
     Public Property Get Count() As Long
         Count = mItems.Count
     End Property
-
+    
     [DefaultMember]
     [Description("Returns a specific File object by name or index.")]
     Public Property Get Item(ByVal nameOrIndex As Variant) As File
-        Set Item = mItems(nameOrIndex)
+        Dim f As File
+        On Error Resume Next
+        Set f = mItems(nameOrIndex)
+        Dim e As Long: e = Err.Number
+        On Error GoTo 0
+        If e <> 0 Then Err.Raise 5, "Files", "No item '" & nameOrIndex & "' in the collection"
+        Set Item = f
     End Property
-
+    
     [Enumerator]
     [Hidden(True)]
     Public Function NewEnum() As IUnknown

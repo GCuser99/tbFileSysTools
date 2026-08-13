@@ -3101,13 +3101,19 @@ Public Class Files
     Public Property Get Count() As Long
         Count = mItems.Count
     End Property
-
+    
     [DefaultMember]
     [Description("Returns a specific File object by name or index.")]
     Public Property Get Item(ByVal nameOrIndex As Variant) As File
-        Set Item = mItems(nameOrIndex)
+        Dim f As File
+        On Error Resume Next
+        Set f = mItems(nameOrIndex)
+        Dim e As Long: e = Err.Number
+        On Error GoTo 0
+        If e <> 0 Then Err.Raise 5, "Files", "No item '" & nameOrIndex & "' in the collection"
+        Set Item = f
     End Property
-
+    
     [Enumerator]
     [Hidden(True)]
     Public Function NewEnum() As IUnknown
@@ -3631,9 +3637,15 @@ Public Class Folders
     [DefaultMember]
     [Description("Returns a specific Folder object by name or index.")]
     Public Property Get Item(ByVal nameOrIndex As Variant) As Folder
-        Set Item = mItems(nameOrIndex)
+        Dim f As Folder
+        On Error Resume Next
+        Set f = mItems(nameOrIndex)
+        Dim e As Long: e = Err.Number
+        On Error GoTo 0
+        If e <> 0 Then Err.Raise 5, "Folders", "No item '" & nameOrIndex & "' in the collection"
+        Set Item = f
     End Property
-
+    
     [Enumerator]
     [Hidden(True)]
     Public Function NewEnum() As IUnknown
@@ -4049,19 +4061,35 @@ Public Class Drives
 
     [DefaultMember]
     [Description("Returns a specific Drive object by name or index.")]
+    [DefaultMember]
+    [Description("Returns a specific Drive object by name or index.")]
     Public Property Get Item(ByVal letterOrIndex As Variant) As [Drive]
         ' Normalize a drive-string key to the bare UPPER letter the collection is
         ' keyed by, so "T", "t", "T:", "t:", and "T:\" all resolve - matching FSO,
         ' which accepts any of these. A numeric index passes through untouched.
+        Dim key As Variant
         If VarType(letterOrIndex) = vbString Then
             Dim k As String: k = letterOrIndex
-            If Len(k) >= 1 Then k = UCase$(Left$(k, 1))   ' first char, upper
-            Set Item = mItems(k)
+            If Len(k) >= 1 Then k = UCase$(Left$(k, 1))       ' first char, upper
+            key = k
         Else
-            Set Item = mItems(letterOrIndex)              ' numeric index
+            key = letterOrIndex                                ' numeric index
         End If
+
+        ' Capture into a typed local BEFORE the return assignment. Collapsing this to
+        ' "Set Item = mItems(nameOrIndex)" triggers a tB default-member coercion on the
+        ' Folder return type (issue #2373) - the two-statement form avoids it, and the
+        ' scoped error check turns a genuine miss into 5 (matching FSO).
+        Dim d As [Drive]
+        On Error Resume Next
+        Set d = mItems(key)
+        Dim e As Long: e = Err.Number
+        On Error GoTo 0
+        If e <> 0 Then Err.Raise 5, "Drives", "No drive '" & letterOrIndex & "' in the collection"
+        Set Item = d
     End Property
     
+
     [Enumerator]
     [Hidden(True)]
     Public Function NewEnum() As IUnknown
@@ -6781,10 +6809,10 @@ Private Module FSTShared
     ' Misc
     '======================================================================
 
-    ' Add an object under its name; on a duplicate/invalid key, add unkeyed so a
-    ' pathological case-only name clash never aborts the enumeration.
-    ' The item is still IN the collection either way - only lookup-by-name is lost
-    ' for the loser of the clash. Used by GetDrives (keyed by drive letter).
+    ' Add an object under its key; if the keyed add fails for any reason (duplicate
+    ' key, etc.), fall back to an unkeyed add so one bad entry never aborts the whole
+    ' enumeration. The item is still IN the collection either way - only lookup-by-name
+    ' is lost for a failed key. Used by the Files/SubFolders enumeration and GetDrives.
     Public Sub AddKeyed(ByRef c As Collection, ByVal item As Variant, ByVal key As String)
         On Error Resume Next
         c.Add item, key

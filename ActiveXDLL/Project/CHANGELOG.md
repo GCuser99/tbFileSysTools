@@ -1,5 +1,10 @@
 # Change Log
 
+[v1.5.1.0, 12 Aug 2026]
+
+ - Fixed Files/Folders/Drives collection lookup by name or index that could raise an error instead of returning the item
+ - A not-found collection lookup now raises error 5, matching FSO
+
 [v1.5.0.0, 12 Aug 2026]
 
  - Fixed Drives("C:")/Drives("C:\") throwing error; Thanks to @birnaofthenorth!
