@@ -209,6 +209,7 @@ The following members are either added, or their function significantly improved
 |`CreateFolder`|Optionally create path intermediates|
 |`CreateTextFile`|Create any format - not just ANSI/UTF-16|
 |`DeleteFile` / `DeleteFolder`|Optional `ignoreMissing` argument|
+|`FindInTextFiles`|Returns paths of text files that contain the given text|
 |`GetAbsolutePathName`|Optional baseDirectory argument|
 |`GetCurrentDir` / `SetCurrentDir`|Gets/Sets the current directory or folder|
 |`GetFileEncoding`|Detect a file's encoding|
