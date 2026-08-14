@@ -1499,36 +1499,30 @@ OpenFailed:
         IsFileLocked = (e <> 0)
     End Function
     
-    [Description("Returns the paths of text files under a folder whose decoded contents contain the given text. Encoding is auto-detected per file; binary or unknown-encoding files are skipped.")]
+    [Description("Returns the paths of text files under a folder whose decoded contents contain the given text. Wildcard charcters in 'containsText' interpreted literally. Encoding is auto-detected per file; binary or unknown-encoding files are skipped.")]
     Public Function FindInTextFiles( _
         ByVal folderPath As String, _
-        ByVal containsText As String, _
+        ByVal searchText As String, _
         Optional ByVal filePattern As String = "*", _
         Optional ByVal recursive As Boolean = False, _
         Optional ByVal ignoreCase As Boolean = True, _
         Optional ByVal fileSizeCapInMb As Long = -1) As Collection
-
         ' An empty needle would match every file (InStr("",...) = 1), which is never a
         ' meaningful search - treat it as a caller error.
-        If Len(containsText) = 0 Then _
-            Err.Raise 5, "FindInTextFiles", "containsText must not be empty"
-
+        If Len(searchText) = 0 Then Err.Raise 5, "FindInTextFiles", "searchText must not be empty"
         Dim results As Collection: Set results = New Collection
-        Dim compareMode As VbCompareMethod
-        compareMode = IIf(ignoreCase, vbTextCompare, vbBinaryCompare)
-
         ' The technical ceiling: a whole-file read into a Byte()/String can't exceed
         ' ~2GB (ReadStream raises 7 past this). Files above it are SKIPPED here rather
         ' than erroring the whole search. This is also the seam where a future
         ' chunked-with-overlap reader would go, to search >2GB text files without
         ' loading them whole - see the "TOO BIG" branch below.
         Const MAX_WHOLE_READ As LongLong = 2147483647^
-
         ' Optional user cap (in MB) for testing/policy; -1 = no user cap (only the
         ' technical limit applies). Convert to bytes once.
+        ' CLngLng widens BEFORE the * 1048576 so the byte math is 64-bit - without it,
+        ' a Long*Long multiply overflows for caps over ~2047 MB. Do not simplify.
         Dim userCap As LongLong
         If fileSizeCapInMb >= 0 Then userCap = CLngLng(fileSizeCapInMb) * 1048576 Else userCap = -1
-
         ' Enumerate candidate files. GetFilePaths already:
         '   * filters by filePattern (so non-matching extensions are never opened),
         '   * recurses safely past reparse points / junction cycles (the freeze fix),
@@ -1537,13 +1531,27 @@ OpenFailed:
         ' roll a walker here, or the junction-loop safety would have to be re-solved.
         Dim paths As Collection
         Set paths = GetFilePaths(folderPath, filePattern, recursive:=recursive)
-
         Dim p As Variant
         For Each p In paths
-            SearchOneFile CStr(p), containsText, compareMode, MAX_WHOLE_READ, userCap, results
+            SearchOneFile CStr(p), searchText, ignoreCase, MAX_WHOLE_READ, userCap, results
         Next
-
         Set FindInTextFiles = results
+    End Function
+    
+    [Description("Returns True if the given text is found in the file's decoded contents. Encoding is auto-detected; returns False for a binary or unknown-encoding file. Raises 5 on an empty search string.")]
+    Public Function FileContainsText(ByVal filePath As String, ByVal searchText As String, Optional ByVal ignoreCase As Boolean = True) As Boolean
+        ' An empty needle matches everything (InStr("",...) = 1) - never meaningful.
+        If Len(searchText) = 0 Then Err.Raise 5, "FileContainsText", "searchText must not be empty"
+
+        ' Binary / unknown-encoding files have no searchable text.
+        Dim enc As TextEncoding
+        enc = GetFileEncoding(filePath)
+        If enc = encUnknown Then Exit Function          ' False
+
+        Dim text As String
+        text = TextFileToString(filePath, enc)
+        FileContainsText = (InStr(1, text, searchText, _
+            IIf(ignoreCase, vbTextCompare, vbBinaryCompare)) > 0)
     End Function
 
     '-------------------------------------------------------------------------------------------------
@@ -2471,40 +2479,29 @@ OpenFailed:
     Private Sub SearchOneFile( _
         ByVal path As String, _
         ByVal containsText As String, _
-        ByVal compareMode As VbCompareMethod, _
+        ByVal ignoreCase As Boolean, _
         ByVal maxWholeRead As LongLong, _
         ByVal userCap As LongLong, _
         ByRef results As Collection)
 
         On Error GoTo SkipFile
 
-        ' Size gate (cheap - from the directory entry / a stat, no read yet).
+        ' Size gate (cheap - from the directory entry / a stat, no content read yet).
         Dim sz As LongLong: sz = GetFile(path).Size
         If sz > maxWholeRead Then GoTo SkipFile                 ' TOO BIG: future chunked reader goes here
         If userCap >= 0 And sz > userCap Then GoTo SkipFile     ' deliberate user/test cap
 
-        ' Cheap reject: detect encoding (reads only a small head sample internally).
-        ' Binary or unknown-encoding files are not text - skip without a full read.
-        Dim enc As TextEncoding
-        enc = GetFileEncoding(path)
-        If enc = encUnknown Then GoTo SkipFile
-        ' (GetFileEncoding returns encUnknown for binary via the NUL sniff, so a
-        '  separate LooksLikeBinary check is not needed here.)
-
-        ' Full read + decode to text, then a single InStr. Whole-file is correct and
-        ' simple; because we search the DECODED string, a UTF-8 and a UTF-16 file are
-        ' both matched against the same needle (the encoding-aware advantage over a
-        ' raw byte grep). If chunked reading is added later for >2GB files, the match
-        ' must carry a Len(containsText)-1 overlap between chunks or a boundary-
-        ' straddling hit would be missed.
-        Dim text As String
-        text = TextFileToString(path, enc)
-
-        If InStr(1, text, containsText, compareMode) > 0 Then results.Add path
-        Exit Sub
+        ' The actual content test - encoding detection, binary skip, decode, and the
+        ' substring match all live in FileContainsText, shared with File.ContainsText
+        ' so the search semantics are identical everywhere. (A future chunked reader
+        ' for >2GB text files would replace the whole-file read INSIDE FileContainsText,
+        ' carrying a Len(containsText)-1 overlap between chunks so a boundary-straddling
+        ' match isn't missed.)
+        If FileContainsText(path, containsText, ignoreCase) Then results.Add path
+    Exit Sub
 
 SkipFile:
-        ' Unreadable/oversized/binary/unknown - not a match, just move on.
+        ' Unreadable / oversized / binary / unknown - not a match, just move on.
     End Sub
     
 End Module

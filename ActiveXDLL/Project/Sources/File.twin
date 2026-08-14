@@ -349,6 +349,11 @@ Public Class File
         IsLocked = FileSystemTools.IsFileLocked(mPath)
     End Function
     
+    [Description("Returns True if the given text is found in this text file. Encoding is auto-detected; returns False for a binary or unknown-encoding file.")]
+    Public Function ContainsText(ByVal searchText As String, Optional ByVal ignoreCase As Boolean = True) As Boolean
+        ContainsText = FileSystemTools.FileContainsText(mPath, searchText, ignoreCase)
+    End Function
+    
     ' Re-stat, refresh cached fields, adopt true on-disk leaf casing; raise 53 if gone.
     ' Every public read routes through here so a deleted file fails uniformly and
     ' the reported name always matches the disk (matching live FSO on both axes).

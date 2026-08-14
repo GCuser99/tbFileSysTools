@@ -1,5 +1,9 @@
 # Change Log
 
+[v1.7.0.0, 14 Aug 2026]
+
+ - Added FileContainsText and File.ContainsText: returns True if the given searchText is found in the file's decoded contents (encoding auto-detected; binary/unknown files return False)
+
 [v1.6.0.0, 14 Aug 2026]
 
  - Removed/replace some unneeded debugging scafolding
