@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 740" width="640" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4a5568"/>
+    </marker>
+  </defs>
+
+  <style>
+    .lbl   { font-size: 13px; fill: #1a202c; }
+    .edge  { font-size: 11px; fill: #4a5568; }
+    .box   { fill: #edf2f7; stroke: #4a5568; stroke-width: 1.5; }
+    .dia   { fill: #ebf8ff; stroke: #3182ce; stroke-width: 1.5; }
+    .green { fill: #c6f6d5; stroke: #38a169; stroke-width: 1.5; }
+    .amber { fill: #fefcbf; stroke: #d69e2e; stroke-width: 1.5; }
+    .red   { fill: #fed7d7; stroke: #e53e3e; stroke-width: 1.5; }
+    .flow  { stroke: #4a5568; stroke-width: 1.5; fill: none; }
+  </style>
+
+  <!-- ============================================================
+       Geometry:
+         central column x = 250 ; all diamonds 120 wide x 80 tall
+         result column   x = 490 (left edge), pushed well clear
+       ============================================================ -->
+
+  <!-- ============ NODES ============ -->
+
+  <!-- Start -->
+  <rect class="box" x="150" y="20" width="200" height="40" rx="20"/>
+  <text class="lbl" x="250" y="45" text-anchor="middle">Auto-detect file encoding</text>
+
+  <!-- BOM?  (diamond centre 250,120 ; 120x80) -->
+  <polygon class="dia" points="250,80 310,120 250,160 190,120"/>
+  <text class="lbl" x="250" y="124" text-anchor="middle">BOM present?</text>
+
+  <!-- BOM result (green) -->
+  <rect class="green" x="490" y="98" width="140" height="44" rx="8"/>
+  <text class="lbl" x="560" y="116" text-anchor="middle">Use that encoding</text>
+  <text class="edge" x="560" y="132" text-anchor="middle">UTF-8 / UTF-16 / UTF-32</text>
+
+  <!-- Even length?  (centre 250,240) -->
+  <polygon class="dia" points="250,200 310,240 250,280 190,240"/>
+  <text class="lbl" x="250" y="237" text-anchor="middle">Buffer length</text>
+  <text class="lbl" x="250" y="252" text-anchor="middle">even?</text>
+
+  <!-- Test UTF-16/32 -->
+  <rect class="box" x="60" y="320" width="150" height="48" rx="8"/>
+  <text class="lbl" x="135" y="340" text-anchor="middle">Test UTF-16 / 32</text>
+  <text class="edge" x="135" y="356" text-anchor="middle">by null-byte pattern</text>
+
+  <!-- Detected?  (centre 135,430) -->
+  <polygon class="dia" points="135,390 195,430 135,470 75,430"/>
+  <text class="lbl" x="135" y="434" text-anchor="middle">Detected?</text>
+
+  <!-- Wide result (green) -->
+  <rect class="green" x="60" y="510" width="150" height="40" rx="8"/>
+  <text class="lbl" x="135" y="535" text-anchor="middle">Use UTF-16 / 32</text>
+
+  <!-- Valid UTF-8?  (centre 360,430) -->
+  <polygon class="dia" points="360,390 420,430 360,470 300,430"/>
+  <text class="lbl" x="360" y="428" text-anchor="middle">Valid UTF-8?</text>
+  <text class="edge" x="360" y="444" text-anchor="middle">ASCII counts</text>
+
+  <!-- UTF-8 result (green) -->
+  <rect class="green" x="490" y="410" width="120" height="40" rx="8"/>
+  <text class="lbl" x="550" y="435" text-anchor="middle">Use UTF-8</text>
+
+  <!-- Looks binary?  (centre 360,550) -->
+  <polygon class="dia" points="360,510 420,550 360,590 300,550"/>
+  <text class="lbl" x="360" y="548" text-anchor="middle">Looks binary?</text>
+  <text class="edge" x="360" y="564" text-anchor="middle">NUL / control</text>
+
+  <!-- encUnknown (red) -->
+  <rect class="red" x="490" y="528" width="120" height="44" rx="8"/>
+  <text class="lbl" x="550" y="546" text-anchor="middle">encUnknown</text>
+  <text class="edge" x="550" y="562" text-anchor="middle">not text</text>
+
+  <!-- ANSI (amber) -->
+  <rect class="amber" x="300" y="650" width="120" height="44" rx="8"/>
+  <text class="lbl" x="360" y="668" text-anchor="middle">System ANSI</text>
+  <text class="edge" x="360" y="684" text-anchor="middle">last resort</text>
+
+  <!-- ============ EDGES ============ -->
+
+  <!-- Start -> BOM -->
+  <path class="flow" d="M250,60 L250,78" marker-end="url(#arrow)"/>
+
+  <!-- BOM -yes-> result -->
+  <path class="flow" d="M310,120 L488,120" marker-end="url(#arrow)"/>
+  <text class="edge" x="400" y="112" text-anchor="middle">yes</text>
+
+  <!-- BOM -no-> Even -->
+  <path class="flow" d="M250,160 L250,198" marker-end="url(#arrow)"/>
+  <text class="edge" x="262" y="182" text-anchor="start">no BOM</text>
+
+  <!-- Even -yes-> Test1632 -->
+  <path class="flow" d="M210,260 C155,285 140,300 135,318" marker-end="url(#arrow)"/>
+  <text class="edge" x="185" y="300" text-anchor="middle">yes (even)</text>
+
+  <!-- Even -no-> Valid UTF-8 (odd can't be wide) -->
+  <path class="flow" d="M300,255 C400,300 380,350 360,388" marker-end="url(#arrow)"/>
+  <text class="edge" x="320" y="300" text-anchor="middle">no (odd)</text>
+
+  <!-- Test1632 -> Detected? -->
+  <path class="flow" d="M135,368 L135,388" marker-end="url(#arrow)"/>
+
+  <!-- Detected? -yes-> wide result -->
+  <path class="flow" d="M135,470 L135,508" marker-end="url(#arrow)"/>
+  <text class="edge" x="122" y="492" text-anchor="end">yes</text>
+
+  <!-- Detected? -no-> Valid UTF-8 -->
+  <path class="flow" d="M195,430 L298,430" marker-end="url(#arrow)"/>
+  <text class="edge" x="246" y="422" text-anchor="middle">no</text>
+
+  <!-- Valid UTF-8 -yes-> UTF-8 result -->
+  <path class="flow" d="M420,430 L488,430" marker-end="url(#arrow)"/>
+  <text class="edge" x="454" y="422" text-anchor="middle">yes</text>
+
+  <!-- Valid UTF-8 -no-> Looks binary -->
+  <path class="flow" d="M360,470 L360,508" marker-end="url(#arrow)"/>
+  <text class="edge" x="372" y="492" text-anchor="start">no</text>
+
+  <!-- Looks binary -yes-> encUnknown -->
+  <path class="flow" d="M420,550 L488,550" marker-end="url(#arrow)"/>
+  <text class="edge" x="454" y="542" text-anchor="middle">yes</text>
+
+  <!-- Looks binary -no-> ANSI -->
+  <path class="flow" d="M360,590 L360,648" marker-end="url(#arrow)"/>
+  <text class="edge" x="372" y="622" text-anchor="start">no</text>
+
+</svg>
