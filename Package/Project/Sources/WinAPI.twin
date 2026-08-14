@@ -63,6 +63,8 @@ Private Module WinAPI
     Public Declare PtrSafe Function GetThreadLocale Lib "kernel32" () As Long
     Public Declare PtrSafe Function SetThreadLocale Lib "kernel32" (ByVal Locale As DefaultLocales) As BOOL
     
+    Public Declare PtrSafe Function PathMatchSpecW Lib "shlwapi" (ByVal pszFile As LongPtr, ByVal pszSpec As LongPtr) As BOOL
+    
     Public Const LOCALE_NAME_INVARIANT As String = ""
     
     Public Enum DefaultLocales

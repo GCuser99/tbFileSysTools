@@ -41,8 +41,6 @@ Public Class Drives
 
     [DefaultMember]
     [Description("Returns a specific Drive object by name or index.")]
-    [DefaultMember]
-    [Description("Returns a specific Drive object by name or index.")]
     Public Property Get Item(ByVal letterOrIndex As Variant) As [Drive]
         ' Normalize a drive-string key to the bare UPPER letter the collection is
         ' keyed by, so "T", "t", "T:", "t:", and "T:\" all resolve - matching FSO,
@@ -56,20 +54,13 @@ Public Class Drives
             key = letterOrIndex                                ' numeric index
         End If
 
-        ' Capture into a typed local BEFORE the return assignment. Collapsing this to
-        ' "Set Item = mItems(nameOrIndex)" triggers a tB default-member coercion on the
-        ' Folder return type (issue #2373) - the two-statement form avoids it, and the
-        ' scoped error check turns a genuine miss into 5 (matching FSO).
-        Dim d As [Drive]
         On Error Resume Next
-        Set d = mItems(key)
+        Set Item = mItems(key)
         Dim e As Long: e = Err.Number
         On Error GoTo 0
         If e <> 0 Then Err.Raise 5, "Drives", "No drive '" & letterOrIndex & "' in the collection"
-        Set Item = d
     End Property
     
-
     [Enumerator]
     [Hidden(True)]
     Public Function NewEnum() As IUnknown

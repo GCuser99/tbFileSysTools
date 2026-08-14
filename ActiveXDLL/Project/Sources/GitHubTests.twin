@@ -1,4 +1,4 @@
-Module MyModule
+Module GitHubTests
 
     Public Sub SimpleTest()
         Dim ok As Boolean:  ok = True
@@ -73,7 +73,6 @@ Module MyModule
         ok = ok And pass
 
         '--- 5. File object: name and size, live from disk --------------------
-        ' Fully qualified on purpose - see the header note about namespace collisions.
         p = fso.BuildPath(root, "sized.txt")
         fso.StringToTextFile "1234567890", p, encUtf8   ' 10 bytes
         Dim f As tbFileSysTools.File
@@ -152,8 +151,7 @@ Module MyModule
                     "TextStream  (wrote 3 lines, read back " & n & ")"
         ok = ok And pass
 
-        '--- 10. Non-ASCII file path: a folder and file named in three scripts -
-        ' Exercises the wide-API path end to end; a byte-narrowing bug shows here.
+        '--- 10. Non-ASCII file path: a folder and file named in three scripts
         Dim uniName As String
         uniName = "caf" & ChrW$(&HE9) & "_" & ChrW$(&H65E5) & ChrW$(&H672C) & _
                 "_" & ChrW$(&H41C)                 ' café_日本_М
@@ -198,6 +196,35 @@ Module MyModule
         Debug.Assert pass
         Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & _
                     "NormalizeTextFile  (changed=" & changed1 & ", 2nd call changed=" & changed2 & ")"
+        ok = ok And pass
+        
+        '--- 12. FindInTextFiles: content search across a small tree -----------
+        ' Seeds three files (two matching, one not) plus a nested match, then
+        ' searches recursively for a needle. Exercises encoding-aware content
+        ' search + recursion in one step - a byte-grep couldn't do the UTF-16 hit.
+        Dim searchDir As String
+        searchDir = fso.BuildPath(root, "search")
+        fso.CreateFolder searchDir, True
+        Dim nestedDir As String
+        nestedDir = fso.BuildPath(searchDir, "sub")
+        fso.CreateFolder nestedDir, True
+
+        fso.StringToTextFile "the quick brown fox", _
+            fso.BuildPath(searchDir, "a.txt"), encUtf8            ' no match
+        fso.StringToTextFile "find the SENTINEL here", _
+            fso.BuildPath(searchDir, "b.txt"), encUtf8            ' match (UTF-8)
+        fso.StringToTextFile "sentinel in utf-16", _
+            fso.BuildPath(searchDir, "c.txt"), encUtf16Bom        ' match (UTF-16)
+        fso.StringToTextFile "a deep sentinel", _
+            fso.BuildPath(nestedDir, "d.txt"), encUtf8            ' match (nested)
+
+        Dim hits As Collection
+        Set hits = fso.FindInTextFiles(searchDir, "sentinel", "*.txt", True, True)  ' recursive, ignoreCase
+        ' Expect 3: b.txt (UTF-8), c.txt (UTF-16, case-insensitive), d.txt (nested).
+        pass = (hits.Count = 3)
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & _
+                    "FindInTextFiles  (found " & hits.Count & " of 3 across encodings + subfolder)"
         ok = ok And pass
 
         '--- clean up and report ----------------------------------------------

@@ -44,15 +44,13 @@ Public Class Folders
     [DefaultMember]
     [Description("Returns a specific Folder object by name or index.")]
     Public Property Get Item(ByVal nameOrIndex As Variant) As Folder
-        Dim f As Folder
         On Error Resume Next
-        Set f = mItems(nameOrIndex)
+        Set Item = mItems(nameOrIndex)
         Dim e As Long: e = Err.Number
         On Error GoTo 0
         If e <> 0 Then Err.Raise 5, "Folders", "No item '" & nameOrIndex & "' in the collection"
-        Set Item = f
     End Property
-    
+
     [Enumerator]
     [Hidden(True)]
     Public Function NewEnum() As IUnknown

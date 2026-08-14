@@ -1059,7 +1059,7 @@ Public Module FileSystemTools
         Dim size As LongLong
         Dim n As Long
         filePath = VBA.Replace$(filePath, "/", "\")
-        If Not FileExists(filePath) Then Err.Raise 5, , "file not found!"
+        If Not FileExists(filePath) Then Err.Raise 53, "ReadStream", "File not found: " & filePath
 
         ' LOF() is Long and WRAPS past 2GB (verified: 2.4GB reports as -1894907904),
         ' which silently yielded an unallocated array - i.e. a huge file read as empty.
@@ -1072,15 +1072,31 @@ Public Module FileSystemTools
         ' A head-sample read (maxBytesToRead >= 0) is always fine, however big the file.
         ' Only a whole-file read is capped, and by the Byte() limit, not by us.
         If maxBytesToRead < 0 And size > 2147483647^ Then
-            Err.Raise 7, "ReadStream", _
-                "File exceeds the maximum byte-array size (" & size & " bytes): " & filePath
+            Err.Raise 7, "ReadStream", "File exceeds the maximum byte-array size (" & size & " bytes): " & filePath
         End If
 
+        ' Open/read via the tB runtime. The file existed and statted a moment ago, but
+        ' the open/read can still fail - access denied (70), a sharing/lock violation,
+        ' or the file vanishing between the stat above and here (TOCTOU). Map any such
+        ' failure to tB's own error number against the path, rather than leaking an
+        ' opaque runtime error.
         fn = FreeFile()
+        On Error GoTo ReadFailed
         Open filePath For Binary Access Read As #fn   ' bare path: tB's Open is long-path capable; do NOT add \\?\ (it rejects it)
         If maxBytesToRead >= 0 Then n = CLng(Min(size, CLngLng(maxBytesToRead))) Else n = CLng(size)
         If n > 0 Then ReDim stream(0 To n - 1): Get fn,, stream
         Close #fn
+        On Error GoTo 0
+        Exit Sub
+
+ReadFailed:
+        Dim vberr As Long, vbdesc As String
+        vberr = Err.Number
+        vbdesc = Err.Description
+        On Error Resume Next
+        Close #fn                              ' release the handle if it opened
+        On Error GoTo 0
+        Err.Raise vberr, "ReadStream", vbdesc & " (reading " & filePath & ")"
     End Sub
         
     [Description("Writes a byte array to the file specified.")]
@@ -1103,8 +1119,18 @@ Public Module FileSystemTools
         Dim fn As Long
         Dim tempPath As String
         Dim hasBytes As Boolean
-        
+
         filePath = VBA.Replace$(filePath, "/", "\")
+
+        ' The parent folder must exist. The tB 'Open' below writes the temp file
+        ' there; a missing parent would otherwise fail with an opaque runtime error
+        ' about a ".~XXXX.tmp" path the caller never named. Check first and raise the
+        ' FSO path-not-found error (76) against the REAL target, not the temp.
+        Dim parentPath As String
+        parentPath = GetParentFolderName(filePath)
+        If Len(parentPath) > 0 Then
+            If Not FolderExists(parentPath) Then Err.Raise 76, "WriteStream", "Path not found: " & filePath
+        End If
 
         ' Decide whether there is anything to write. This safely covers BOTH an
         ' unallocated array and an allocated zero-length one (e.g. from writing
@@ -1115,10 +1141,16 @@ Public Module FileSystemTools
 
         tempPath = filePath & "." & GetTempName("~", ".tmp")
 
+        ' Open/write the temp via the tB runtime (Unicode-safe here). Map any failure
+        ' to an FSO-style error instead of leaking tB's raw runtime error: the parent
+        ' is already known to exist, so this is typically disk full (61), access
+        ' denied (70), or a path/file access problem (75).
         fn = FreeFile()
+        On Error GoTo OpenFailed
         Open tempPath For Binary Access Write As #fn
         If hasBytes Then Put #fn,, stream
         Close #fn
+        On Error GoTo 0
 
         ' Clear any read-only attribute on an existing target so it can be replaced
         If FileExists(filePath) Then
@@ -1133,6 +1165,22 @@ Public Module FileSystemTools
             DeleteFileW StrPtr(tempPath)                  ' don't leave the temp behind
             RaiseFromLastError e, "WriteStream", filePath
         End If
+        Exit Sub
+
+OpenFailed:
+        ' The temp Open/Put/Close failed. Close the handle if it opened, remove any
+        ' partial temp, and re-raise tB's own error number (61 disk full, 70 access
+        ' denied, 75 path/file access, etc.) against the real target path. tB's Open
+        ' errors already align with the FSO numbers, so pass Err.Number through rather
+        ' than flattening everything to one code.
+        Dim vberr As Long, vbdesc As String
+        vberr = Err.Number
+        vbdesc = Err.Description
+        On Error Resume Next
+        Close #fn
+        DeleteFileW StrPtr(tempPath)
+        On Error GoTo 0
+        Err.Raise vberr, "WriteStream", vbdesc & " (writing " & filePath & ")"
     End Sub
         
     [Description("Opens a text file and returns a streaming TextStream. For reading, omit encoding (encAutoDetect) to detect it from a head sample. For writing/appending, encoding selects the output encoding (default UTF-8, no BOM). Encodings whose chunk boundaries cannot be managed (UTF-7, unclassifiable code pages) transparently fall back to a buffered path.")]
@@ -1455,6 +1503,53 @@ Public Module FileSystemTools
         IsFileLocked = (e <> 0)
     End Function
     
+    [Description("Returns the paths of text files under a folder whose decoded contents contain the given text. Encoding is auto-detected per file; binary or unknown-encoding files are skipped.")]
+    Public Function FindInTextFiles( _
+        ByVal folderPath As String, _
+        ByVal containsText As String, _
+        Optional ByVal filePattern As String = "*", _
+        Optional ByVal recursive As Boolean = False, _
+        Optional ByVal ignoreCase As Boolean = True, _
+        Optional ByVal fileSizeCapInMb As Long = -1) As Collection
+
+        ' An empty needle would match every file (InStr("",...) = 1), which is never a
+        ' meaningful search - treat it as a caller error.
+        If Len(containsText) = 0 Then _
+            Err.Raise 5, "FindInTextFiles", "containsText must not be empty"
+
+        Dim results As Collection: Set results = New Collection
+        Dim compareMode As VbCompareMethod
+        compareMode = IIf(ignoreCase, vbTextCompare, vbBinaryCompare)
+
+        ' The technical ceiling: a whole-file read into a Byte()/String can't exceed
+        ' ~2GB (ReadStream raises 7 past this). Files above it are SKIPPED here rather
+        ' than erroring the whole search. This is also the seam where a future
+        ' chunked-with-overlap reader would go, to search >2GB text files without
+        ' loading them whole - see the "TOO BIG" branch below.
+        Const MAX_WHOLE_READ As LongLong = 2147483647^
+
+        ' Optional user cap (in MB) for testing/policy; -1 = no user cap (only the
+        ' technical limit applies). Convert to bytes once.
+        Dim userCap As LongLong
+        If fileSizeCapInMb >= 0 Then userCap = CLngLng(fileSizeCapInMb) * 1048576 Else userCap = -1
+
+        ' Enumerate candidate files. GetFilePaths already:
+        '   * filters by filePattern (so non-matching extensions are never opened),
+        '   * recurses safely past reparse points / junction cycles (the freeze fix),
+        '   * returns full path strings.
+        ' Reusing it means this function inherits all of that for free - do NOT hand-
+        ' roll a walker here, or the junction-loop safety would have to be re-solved.
+        Dim paths As Collection
+        Set paths = GetFilePaths(folderPath, filePattern, recursive:=recursive)
+
+        Dim p As Variant
+        For Each p In paths
+            SearchOneFile CStr(p), containsText, compareMode, MAX_WHOLE_READ, userCap, results
+        Next
+
+        Set FindInTextFiles = results
+    End Function
+
     '-------------------------------------------------------------------------------------------------
     '--------------------------------------- Private Members -----------------------------------------
     '-------------------------------------------------------------------------------------------------
@@ -1519,8 +1614,15 @@ Public Module FileSystemTools
             If (ffd.dwFileAttributes And FILE_ATTRIBUTE_DIRECTORY) = 0 Then
                 name = FSTShared.FindDataFileName(ffd)         ' NUL-terminated fixed buffer -> String
                 If name <> "." And name <> ".." Then
-                    If FSTShared.IncludeByAttr(ffd.dwFileAttributes, includeHidden, includeSystem) Then
-                        result.Add FSTShared.EnsureTrailingBackslash(folder) & name
+                    ' FindFirstFileW matches the pattern against the 8.3 SHORT name too,
+                    ' so e.g. "*sand*" matches "ems and cris.jpg" via its short name
+                    ' "EMSAND~1.JPG". Re-test the pattern against the LONG name only, so
+                    ' matches reflect the name the user actually sees. PathMatchSpecW uses
+                    ' the same wildcard semantics as the enumeration, applied to one string.
+                    If FSTShared.MatchesLongName(name, pattern) Then
+                        If FSTShared.IncludeByAttr(ffd.dwFileAttributes, includeHidden, includeSystem) Then
+                            result.Add FSTShared.EnsureTrailingBackslash(folder) & name
+                        End If
                     End If
                 End If
             End If
@@ -2365,5 +2467,48 @@ Public Module FileSystemTools
 
         CombineLexical = BuildPath(baseDir, relPath)
     End Function
+    
+    ' Search a single file; add its path to results if it contains the text. Any
+    ' failure on one file (locked, access denied, decode error) is swallowed so a
+    ' single bad file never aborts a large search - same "one bad entry must not
+    ' abort the enumeration" principle as AddKeyed.
+    Private Sub SearchOneFile( _
+        ByVal path As String, _
+        ByVal containsText As String, _
+        ByVal compareMode As VbCompareMethod, _
+        ByVal maxWholeRead As LongLong, _
+        ByVal userCap As LongLong, _
+        ByRef results As Collection)
+
+        On Error GoTo SkipFile
+
+        ' Size gate (cheap - from the directory entry / a stat, no read yet).
+        Dim sz As LongLong: sz = GetFile(path).Size
+        If sz > maxWholeRead Then GoTo SkipFile                 ' TOO BIG: future chunked reader goes here
+        If userCap >= 0 And sz > userCap Then GoTo SkipFile     ' deliberate user/test cap
+
+        ' Cheap reject: detect encoding (reads only a small head sample internally).
+        ' Binary or unknown-encoding files are not text - skip without a full read.
+        Dim enc As TextEncoding
+        enc = GetFileEncoding(path)
+        If enc = encUnknown Then GoTo SkipFile
+        ' (GetFileEncoding returns encUnknown for binary via the NUL sniff, so a
+        '  separate LooksLikeBinary check is not needed here.)
+
+        ' Full read + decode to text, then a single InStr. Whole-file is correct and
+        ' simple; because we search the DECODED string, a UTF-8 and a UTF-16 file are
+        ' both matched against the same needle (the encoding-aware advantage over a
+        ' raw byte grep). If chunked reading is added later for >2GB files, the match
+        ' must carry a Len(containsText)-1 overlap between chunks or a boundary-
+        ' straddling hit would be missed.
+        Dim text As String
+        text = TextFileToString(path, enc)
+
+        If InStr(1, text, containsText, compareMode) > 0 Then results.Add path
+        Exit Sub
+
+SkipFile:
+        ' Unreadable/oversized/binary/unknown - not a match, just move on.
+    End Sub
     
 End Module

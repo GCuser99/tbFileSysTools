@@ -464,7 +464,7 @@ Private Module FSTShared
     ' Invariant (locale-independent) path case-folding
     '
     ' Windows filesystems fold case with an INVARIANT table, not the user's locale.
-    ' VB's UCase$/LCase$ and StrComp(vbTextCompare) use the THREAD locale, which
+    ' tB's UCase$/LCase$ and StrComp(vbTextCompare) use the THREAD locale, which
     ' diverges on Turkish/Azeri ("i"/"I" fold to dotted/dotless forms). There, two
     ' paths NTFS treats as identical can compare as different - breaking MergeFiles'
     ' alias guard (silent data loss) and CopyFolder's dest-inside-source guard
@@ -508,6 +508,20 @@ Private Module FSTShared
         a = GetFileAttributesW(StrPtr(ApiPath(path)))
         If a = INVALID_FILE_ATTRIBUTES Then Exit Function      ' can't tell -> treat as not-a-link
         IsReparsePoint = ((a And FILE_ATTRIBUTE_REPARSE_POINT) <> 0)
+    End Function
+    
+    ' FindFirstFileW matches the wildcard against BOTH the long name and the legacy
+    ' 8.3 short name, so a pattern can match a file whose visible (long) name does not
+    ' contain the term - only its generated short name does (e.g. "*sand*" hits
+    ' "ems and cris.jpg" via short name "EMSAND~1.JPG"). Re-test the LONG name so
+    ' results match what the user sees. Uses PathMatchSpecW for identical wildcard
+    ' semantics to the enumeration. A "*" pattern always matches - skip the call.
+    Public Function MatchesLongName(ByVal longName As String, ByVal pattern As String) As Boolean
+        If pattern = "*" Or pattern = "*.*" Then       ' the "everything" patterns - no filtering
+            MatchesLongName = True
+            Exit Function
+        End If
+        MatchesLongName = (PathMatchSpecW(StrPtr(longName), StrPtr(pattern)) <> 0)
     End Function
     
 End Module

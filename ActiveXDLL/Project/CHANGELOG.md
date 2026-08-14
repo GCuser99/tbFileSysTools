@@ -1,5 +1,12 @@
 # Change Log
 
+[v1.6.0.0, 14 Aug 2026]
+
+ - Removed/replace some unneeded debugging scafolding
+ - ReadStream/WriteStream now raise FSO error numbers (was unpecified error)
+ - Added FindInTextFiles: searches text file contents for a string, with per-file encoding auto-detection, optional recursion, wildcard file filtering, and case-insensitive matching
+ - File pattern matching (GetFilePaths, FindInTextFiles) now matches only the visible long filename; previously a pattern could unexpectedly match a file via its hidden 8.3 short name
+ 
 [v1.5.1.0, 12 Aug 2026]
 
  - Fixed Files/Folders/Drives collection lookup by name or index that could raise an error instead of returning the item

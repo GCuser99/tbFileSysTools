@@ -321,4 +321,15 @@ Public Class FileSystemObject
         IsFileLocked = FileSystemTools.IsFileLocked(filePath)
     End Function
     
+    [Description("Returns the paths of text files under a folder whose decoded contents contain the given text. Encoding is auto-detected per file; binary or unknown-encoding files are skipped.")]
+    Public Function FindInTextFiles( _
+        ByVal folderPath As String, _
+        ByVal containsText As String, _
+        Optional ByVal filePattern As String = "*", _
+        Optional ByVal recursive As Boolean = False, _
+        Optional ByVal ignoreCase As Boolean = True, _
+        Optional ByVal fileSizeCapInMb As Long = -1) As Collection
+        Set FindInTextFiles = FileSystemTools.FindInTextFiles(folderPath, containsText, filePattern, recursive, ignoreCase, fileSizeCapInMb)
+    End Function
+    
 End Class

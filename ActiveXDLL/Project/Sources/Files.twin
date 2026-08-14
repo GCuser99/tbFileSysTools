@@ -44,13 +44,11 @@ Public Class Files
     [DefaultMember]
     [Description("Returns a specific File object by name or index.")]
     Public Property Get Item(ByVal nameOrIndex As Variant) As File
-        Dim f As File
         On Error Resume Next
-        Set f = mItems(nameOrIndex)
+        Set Item = mItems(nameOrIndex)          ' direct - does File need the intermediate?
         Dim e As Long: e = Err.Number
         On Error GoTo 0
         If e <> 0 Then Err.Raise 5, "Files", "No item '" & nameOrIndex & "' in the collection"
-        Set Item = f
     End Property
     
     [Enumerator]
