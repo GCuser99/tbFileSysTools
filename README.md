@@ -243,6 +243,35 @@ The following members are either added, or their function significantly improved
 
 ---
 
+## How Does Encoding Auto-Detect Work?
+
+Below is a flow diagram illustrating how encoding autodetection works:
+
+```mermaid
+flowchart TD
+    Start([Auto-detect file encoding]) --> BOM{BOM present?}
+    BOM -->|"UTF-8 / UTF-16 LE·BE / UTF-32"| BOMResult([Use that encoding<br/>BOM is definitive])
+    BOM -->|no BOM| Even{Buffer length even?}
+    Even -->|yes| UTF1632[Test UTF-16 / UTF-32<br/>by null-byte pattern]
+    Even -->|"no — can't be UTF-16/32"| UTF8Test
+    UTF1632 --> Found1632{Detected?}
+    Found1632 -->|yes| WideResult([Use UTF-16 / UTF-32])
+    Found1632 -->|no| UTF8Test{Valid UTF-8?}
+    UTF8Test -->|"yes (pure ASCII counts)"| UTF8Result([Use UTF-8])
+    UTF8Test -->|no| Binary{Looks binary?<br/>NUL / control sniff}
+    Binary -->|yes| Unknown([encUnknown<br/>not treated as text])
+    Binary -->|"no — plausibly text"| Ansi([System ANSI<br/>last resort])
+    style BOMResult fill:#d4edda,stroke:#28a745
+    style WideResult fill:#d4edda,stroke:#28a745
+    style UTF8Result fill:#d4edda,stroke:#28a745
+    style Ansi fill:#fff3cd,stroke:#ffc107
+    style Unknown fill:#f8d7da,stroke:#dc3545
+```
+
+Encoding detection precedence: BOM → caller seed → heuristics (UTF-16/32 → UTF-8 → ANSI), with binary content returning encUnknown rather than being misread as text.
+
+---
+
 ## Project Structure
 
 | File | Description |
