@@ -210,6 +210,7 @@ The following members are either added, or their function significantly improved
 |`CreateTextFile`|Create any format - not just ANSI/UTF-16|
 |`DeleteFile` / `DeleteFolder`|Optional `ignoreMissing` argument|
 |`FindInTextFiles`|Returns paths of text files that contain the given text|
+|`FileContainsText`|Determines if file contains the given text|
 |`GetAbsolutePathName`|Optional baseDirectory argument|
 |`GetCurrentDir` / `SetCurrentDir`|Gets/Sets the current directory or folder|
 |`GetFileEncoding`|Detect a file's encoding|
@@ -226,6 +227,7 @@ The following members are either added, or their function significantly improved
 |`Rename`|In-place rename|
 |`TextFileToArray` / `ArrayToTextFile`|Whole-file line I/O|
 |`TextFileToString` / `StringToTextFile`|Whole-file text I/O|
+|`File.ContainsText`|Determines if file contains the given text|
 |`File.Encoding`|Detect a file's encoding|
 |`File.HasAttribute`|Determines if an attribute is set|
 |`File.IsLocked`|Determines if locked by another process|
