@@ -251,7 +251,7 @@ Below is a flow diagram illustrating how encoding autodetection works:
 
 <img src="Images/encoding-detection.svg" width="480" alt="Encoding detection flow">
 
-Encoding detection precedence: BOM → heuristics (UTF-16/32 → UTF-8 → ANSI), with binary content returning `encUnknown` rather than being misread as text. For performance, detection runs on a sufficiently large head sample.
+Encoding detection precedence: BOM → heuristics (UTF-16/32 → UTF-8 → ANSI), with binary content returning `encUnknown` rather than being misread as text. For performance, UTF-16/32/8 detection runs on sufficiently large head samples.
 
 ---
 
