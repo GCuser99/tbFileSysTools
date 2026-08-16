@@ -1,5 +1,11 @@
 # Change Log
 
+[v1.7.2.0, 16 Aug 2026]
+
+ - Encoding auto-detection now short-circuits on known binary file signatures. Reduces rare text file false-positives and speeds up scanning folders with many binary files.
+ - GetFileEncoding now reads only the bytes its detectors actually use, reducing I/O per file when scanning large folder trees (performance only).
+ - Fixed encoding auto-detection incorrectly judging UTF-16/32 eligibility from the sample length rather than the true file length (performance only).
+
 [v1.7.1.0, 15 Aug 2026]
 
  - Encoding auto-detection would sometimes misclassify binary files (JPEG, MOV, PDF, Office documents) as UTF-16/UTF-32; detection now requires both a dominant NUL pattern and plausible text content in the sampled bytes

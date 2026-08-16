@@ -954,16 +954,34 @@ Public Module FileSystemTools
     '=================================================================================================
 
     [Description("Detects a file's text encoding from a head sample (default 64 KB): BOM sniff first, then UTF-16/32 and UTF-8 heuristics, else system ANSI. Returns a signed TextEncoding (negative = BOM present), or encUnknown if the file is empty or looks binary. Raises if the file cannot be read.")]
-    Public Function GetFileEncoding(ByVal filePath As String, Optional ByVal sampleBytes As Long = 65536) As TextEncoding
+    Public Function GetFileEncoding(ByVal filePath As String) As TextEncoding
+        ' Reads a fixed 8192-byte head sample - the deepest any detector on this path
+        ' scans (IsValidUTF8 / LooksLikeBinary cap there; the others use far less).
+        Const SAMPLE_BYTES As Long = 8192
         Dim stream() As Byte
-        ReadStream filePath, stream, sampleBytes
+        ReadStream filePath, stream, SAMPLE_BYTES
+    
         If Not IsArrayInitialized(stream) Then
             GetFileEncoding = encUnknown        ' empty file: nothing to detect
             Exit Function
         End If
-        ' Sampling caveat: a multi-byte sequence straddling the sample boundary can
-        ' skew the UTF-8 heuristic. Raise sampleBytes if a file misdetects.
-        GetFileEncoding = TextCodec.Detect(stream)    ' concrete encoding, or encUnknown for binary
+
+        ' Pass the TRUE file length so Detect's UTF-16/32 parity gates test the file's
+        ' byte count, not the (possibly truncated) sample's. Only the low bits matter
+        ' (the gates do Mod 2 / Mod 4), so reduce mod 4 in 64-bit first - this preserves
+        ' exactly the parity the gates need, avoids any >2GB Long overflow, and passes a
+        ' tiny 0..3 value. When the file is <= sampleBytes the sample IS the whole file
+        ' and this still yields its true parity.
+        Dim size As LongLong
+        Dim attrs As Long, cr As Date, mo As Date, ac As Date, leaf As String
+        If FSTShared.StatPath(filePath, attrs, size, cr, mo, ac, leaf) Then
+            GetFileEncoding = TextCodec.Detect(stream, trueLength:=CLng(size Mod 4))
+        Else
+            ' Stat failed (rare - the ReadStream above succeeded moments ago). Fall back
+            ' to the sample's own length; parity is then only right for files that fit
+            ' the sample, which is the safe-default behavior anyway.
+            GetFileEncoding = TextCodec.Detect(stream)
+        End If
     End Function
         
     [Description("Reads an entire text file to a string. With encAutoDetect (default) the encoding is detected, and a binary file raises; with an explicit encoding that encoding is used as-is (a byte-order mark still overrides it). A leading BOM is stripped. An empty file returns an empty string. Optionally normalizes line endings.")]

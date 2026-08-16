@@ -210,8 +210,8 @@ Public Class FileSystemObject
     End Function
 
     [Description("Detects a file's text encoding from a head sample (default 64 KB): BOM sniff first, then UTF-16/32 and UTF-8 heuristics, else system ANSI. Returns a signed TextEncoding (negative = BOM present), or encUnknown if the file is empty or looks binary. Raises if the file cannot be read.")]
-    Public Function GetFileEncoding(ByVal filePath As String, Optional ByVal sampleBytes As Long = 65536) As TextEncoding
-        Return FileSystemTools.GetFileEncoding(filePath, sampleBytes)
+    Public Function GetFileEncoding(ByVal filePath As String) As TextEncoding
+        Return FileSystemTools.GetFileEncoding(filePath)
     End Function
     
     [Description("Reads an entire text file to a string. With encAutoDetect (default) the encoding is detected, and a binary file raises; with an explicit encoding that encoding is used as-is (a byte-order mark still overrides it). A leading BOM is stripped. An empty file returns an empty string. Optionally normalizes line endings.")]
@@ -333,8 +333,8 @@ Public Class FileSystemObject
     End Function
     
     [Description("Returns True if the given text is found in the file's decoded contents. Encoding is auto-detected; returns False for a binary or unknown-encoding file. Raises 5 on an empty search string.")]
-    Public Function FileContainsText(ByVal filePath As String, ByVal txt As String, Optional ByVal ignoreCase As Boolean = True) As Boolean
-        FileContainsText = FileSystemTools.FileContainsText(filePath, txt, ignoreCase)
+    Public Function FileContainsText(ByVal filePath As String, ByVal searchText As String, Optional ByVal ignoreCase As Boolean = True) As Boolean
+        FileContainsText = FileSystemTools.FileContainsText(filePath, searchText, ignoreCase)
     End Function
     
     

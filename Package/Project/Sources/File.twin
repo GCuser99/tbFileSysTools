@@ -179,9 +179,9 @@ Public Class File
     ' negative result means the file carries a BOM. Raise sampleBytes if a file with
     ' a long ASCII preamble misdetects.
     [Description("Detects a file's text encoding from a head sample: BOM sniff, then UTF-16/32 and UTF-8 heuristics. Returns a signed TextEncoding (negative = BOM present); encUnknown for an empty/unreadable file.")]
-    Public Property Get Encoding(Optional ByVal sampleBytes As Long = 65536&) As TextEncoding
+    Public Property Get Encoding() As TextEncoding
         EnsureCurrent
-        Encoding = FileSystemTools.GetFileEncoding(mPath, sampleBytes)
+        Encoding = FileSystemTools.GetFileEncoding(mPath)
     End Property
 
     [Description("Returns the shell's type description for a file or folder (e.g. ""Text Document"", ""Application"", ""File Folder""), the same string Explorer and Scripting.FileSystemObject's File.Type show. Falls back to ""<EXT> File"" or ""File"" when the shell is unavailable, and for paths longer than 260 characters, which the shell APIs do not support.")]

@@ -211,8 +211,8 @@ Public Class FileSystemObject
     End Function
 
     [Description("Detects a file's text encoding from a head sample (default 64 KB): BOM sniff first, then UTF-16/32 and UTF-8 heuristics, else system ANSI. Returns a signed TextEncoding (negative = BOM present), or encUnknown if the file is empty or looks binary. Raises if the file cannot be read.")]
-    Public Function GetFileEncoding(ByVal filePath As String, Optional ByVal sampleBytes As Long = 65536) As TextEncoding
-        Return FileSystemTools.GetFileEncoding(filePath, sampleBytes)
+    Public Function GetFileEncoding(ByVal filePath As String) As TextEncoding
+        Return FileSystemTools.GetFileEncoding(filePath)
     End Function
     
     [Description("Reads an entire text file to a string. With encAutoDetect (default) the encoding is detected, and a binary file raises; with an explicit encoding that encoding is used as-is (a byte-order mark still overrides it). A leading BOM is stripped. An empty file returns an empty string. Optionally normalizes line endings.")]
@@ -334,8 +334,8 @@ Public Class FileSystemObject
     End Function
     
     [Description("Returns True if the given text is found in the file's decoded contents. Encoding is auto-detected; returns False for a binary or unknown-encoding file. Raises 5 on an empty search string.")]
-    Public Function FileContainsText(ByVal filePath As String, ByVal txt As String, Optional ByVal ignoreCase As Boolean = True) As Boolean
-        FileContainsText = FileSystemTools.FileContainsText(filePath, txt, ignoreCase)
+    Public Function FileContainsText(ByVal filePath As String, ByVal searchText As String, Optional ByVal ignoreCase As Boolean = True) As Boolean
+        FileContainsText = FileSystemTools.FileContainsText(filePath, searchText, ignoreCase)
     End Function
     
     
@@ -1292,16 +1292,34 @@ Public Module FileSystemTools
     '=================================================================================================
 
     [Description("Detects a file's text encoding from a head sample (default 64 KB): BOM sniff first, then UTF-16/32 and UTF-8 heuristics, else system ANSI. Returns a signed TextEncoding (negative = BOM present), or encUnknown if the file is empty or looks binary. Raises if the file cannot be read.")]
-    Public Function GetFileEncoding(ByVal filePath As String, Optional ByVal sampleBytes As Long = 65536) As TextEncoding
+    Public Function GetFileEncoding(ByVal filePath As String) As TextEncoding
+        ' Reads a fixed 8192-byte head sample - the deepest any detector on this path
+        ' scans (IsValidUTF8 / LooksLikeBinary cap there; the others use far less).
+        Const SAMPLE_BYTES As Long = 8192
         Dim stream() As Byte
-        ReadStream filePath, stream, sampleBytes
+        ReadStream filePath, stream, SAMPLE_BYTES
+    
         If Not IsArrayInitialized(stream) Then
             GetFileEncoding = encUnknown        ' empty file: nothing to detect
             Exit Function
         End If
-        ' Sampling caveat: a multi-byte sequence straddling the sample boundary can
-        ' skew the UTF-8 heuristic. Raise sampleBytes if a file misdetects.
-        GetFileEncoding = TextCodec.Detect(stream)    ' concrete encoding, or encUnknown for binary
+
+        ' Pass the TRUE file length so Detect's UTF-16/32 parity gates test the file's
+        ' byte count, not the (possibly truncated) sample's. Only the low bits matter
+        ' (the gates do Mod 2 / Mod 4), so reduce mod 4 in 64-bit first - this preserves
+        ' exactly the parity the gates need, avoids any >2GB Long overflow, and passes a
+        ' tiny 0..3 value. When the file is <= sampleBytes the sample IS the whole file
+        ' and this still yields its true parity.
+        Dim size As LongLong
+        Dim attrs As Long, cr As Date, mo As Date, ac As Date, leaf As String
+        If FSTShared.StatPath(filePath, attrs, size, cr, mo, ac, leaf) Then
+            GetFileEncoding = TextCodec.Detect(stream, trueLength:=CLng(size Mod 4))
+        Else
+            ' Stat failed (rare - the ReadStream above succeeded moments ago). Fall back
+            ' to the sample's own length; parity is then only right for files that fit
+            ' the sample, which is the safe-default behavior anyway.
+            GetFileEncoding = TextCodec.Detect(stream)
+        End If
     End Function
         
     [Description("Reads an entire text file to a string. With encAutoDetect (default) the encoding is detected, and a binary file raises; with an explicit encoding that encoding is used as-is (a byte-order mark still overrides it). A leading BOM is stripped. An empty file returns an empty string. Optionally normalizes line endings.")]
@@ -3025,9 +3043,9 @@ Public Class File
     ' negative result means the file carries a BOM. Raise sampleBytes if a file with
     ' a long ASCII preamble misdetects.
     [Description("Detects a file's text encoding from a head sample: BOM sniff, then UTF-16/32 and UTF-8 heuristics. Returns a signed TextEncoding (negative = BOM present); encUnknown for an empty/unreadable file.")]
-    Public Property Get Encoding(Optional ByVal sampleBytes As Long = 65536&) As TextEncoding
+    Public Property Get Encoding() As TextEncoding
         EnsureCurrent
-        Encoding = FileSystemTools.GetFileEncoding(mPath, sampleBytes)
+        Encoding = FileSystemTools.GetFileEncoding(mPath)
     End Property
 
     [Description("Returns the shell's type description for a file or folder (e.g. ""Text Document"", ""Application"", ""File Folder""), the same string Explorer and Scripting.FileSystemObject's File.Type show. Falls back to ""<EXT> File"" or ""File"" when the shell is unavailable, and for paths longer than 260 characters, which the shell APIs do not support.")]
@@ -5707,14 +5725,47 @@ Private Module TextCodec
     '======================================================================
     ' Detection - returns a single signed TextEncoding (BOM folded into sign)
     '======================================================================
-    ' Detects the encoding of a byte sample. A real BOM wins if found; otherwise a concrete seed (if given) wins over the heuristics; otherwise UTF-16/32 and UTF-8 heuristics run, falling back to system ANSI.
+    ' Detects the encoding of a byte sample. A real BOM wins if found; otherwise a
+    ' concrete seed (if given) wins; otherwise a known binary-format signature forces
+    ' encUnknown; otherwise the UTF-16/32 and UTF-8 heuristics run, falling back to
+    ' system ANSI.
     '
     ' Precedence is deliberate and load-bearing:
-    '   BOM > caller seed > heuristics > ANSI
-    ' encUnknown can ONLY come back from the auto-detect path (step 3, binary
-    ' content). With a seed, step 2 always returns something concrete - which is
-    ' why the callers' binary guards have to re-scan explicitly on the seeded path.
-    Public Function Detect(ByRef stream() As Byte, Optional ByVal seed As TextEncoding = encAutoDetect) As TextEncoding
+    '   BOM > caller seed > binary signature > heuristics > ANSI
+    ' encUnknown can come back from the signature step (a recognized binary container)
+    ' or the auto-detect heuristics (binary content). With a seed, step 2 always
+    ' returns something concrete - which is why the callers' binary guards have to
+    ' re-scan explicitly on the seeded path.
+    '
+    ' The signature step (3.0) catches structured containers - OLE compound documents
+    ' (.doc/.xls/.ppt/.msi), SQLite, ZIP-based formats, PDF, common image/video/archive
+    ' types - by their magic-number header. These EMBED genuine wide text (stream names,
+    ' GUIDs, table names), so a content heuristic could legitimately see "UTF-16/32" inside
+    ' them and can't cleanly reject them; identifying the container settles it. It's a
+    ' best-effort accelerator, not a correctness dependency: anything it misses still
+    ' faces the heuristics + LooksLikeBinary. It's also a performance win when scanning
+    ' folders full of binary files.
+    '
+    ' trueLength: the ACTUAL file length, when 'stream' is a TRUNCATED head sample
+    ' (as from GetFileEncoding reading only sampleBytes of a large file). The UTF-16/32
+    ' parity gates test whether the file's byte count is even / a multiple of 4 - a
+    ' real UTF-16 file can't be odd-length, a real UTF-32 file must be mult-of-4. That
+    ' invariant is about the FILE, not the sample: a large odd-length file sampled at
+    ' 8KB would otherwise be judged by the (even) sample length and pass the gate
+    ' spuriously. Pass the real length so the parity gate means what it claims. Default
+    ' -1 means 'stream' IS the whole buffer, so its own length is authoritative (all
+    ' callers that pass a complete buffer can omit this).
+    Public Function Detect(ByRef stream() As Byte, Optional ByVal seed As TextEncoding = encAutoDetect, _
+                           Optional ByVal trueLength As Long = -1) As TextEncoding
+        
+        ' Within that sample, each detector scans as much as its job needs:
+        '   UTF-8 validity / binary sniff - the full sample (evidence can appear anywhere)
+        '   NUL-pattern wide-text scan     - a smaller window; wide text is NUL-DENSE, so its
+        '                                    pattern shows in the first ~2000 bytes and the
+        '                                    maxNullsToFind early-out usually stops sooner.
+        Const DETECT_SAMPLE As Long = 8192
+        Const NUL_SCAN_WINDOW As Long = 2000
+        
         ' 1) BOM sniff overrides everything
         Dim bomEnc As TextEncoding
         bomEnc = SniffBom(stream)
@@ -5722,7 +5773,7 @@ Private Module TextCodec
             Detect = bomEnc
             Exit Function
         End If
-
+        
         ' 2) a concrete caller seed wins; but with no BOM found in file, then honor its code
         ' page without the BOM flag (a BOM-bearing seed degrades to no-BOM here)
         ' - i.e. passing encUtf8Bom for a file that has no BOM yields encUtf8, so the
@@ -5731,18 +5782,34 @@ Private Module TextCodec
             Detect = CodePageOf(seed)
             Exit Function
         End If
-
-        ' 3) heuristics: UTF-16/32 by null pattern, then UTF-8 validity, else ANSI
+        
+        ' 3) Known binary-format signatures short-circuit to encUnknown BEFORE the
+        ' heuristics. Structured containers (OLE Compound - .msi/.doc/.xls/.ppt) embed
+        ' genuine UTF-16 text (stream names, GUIDs), so a content heuristic legitimately
+        ' sees "wide text" inside them and can't cleanly reject them. A signature match
+        ' settles it by container identity, not by NUL patterns.
+        ' The list was selected based on low mis-classification risk. This also represents
+        ' a shortcutting performance win.
+        If SniffBinarySignature(stream) Then
+            Detect = encUnknown
+            Exit Function
+        End If
+        
+        ' 4) heuristics: UTF-16/32 by null pattern, then UTF-8 validity, else ANSI
         Dim enc As TextEncoding
         enc = encUnknown
-        ' Odd-length buffers can't be UTF-16/32, so skip straight to the 8-bit tests.
-        If ((UBound(stream) + 1) Mod 2) = 0 Then enc = DetectUTF1632(stream)
+        ' Parity gate uses the TRUE file length (not the sample length) so a truncated
+        ' sample of a large odd-length file isn't judged even just because the sample is.
+        Dim fileLen As Long
+        If trueLength >= 0 Then fileLen = trueLength Else fileLen = UBound(stream) + 1
+        ' Odd-length files can't be UTF-16/32, so skip straight to the 8-bit tests.
+        If (fileLen Mod 2) = 0 Then enc = DetectUTF1632(stream, NUL_SCAN_WINDOW, trueLength:=trueLength)
         If enc = encUnknown Then
             ' Order matters: pure ASCII is valid UTF-8, so UTF-8 is tested first and
             ' ANSI is only the last resort for byte soup that is still plausibly text.
-            If IsValidUTF8(stream) Then
+            If IsValidUTF8(stream, DETECT_SAMPLE) Then
                 enc = encUtf8
-            ElseIf LooksLikeBinary(stream) Then
+            ElseIf LooksLikeBinary(stream, DETECT_SAMPLE) Then
                 enc = encUnknown          ' binary: don't pass it off as ANSI; let the caller decide
             Else
                 enc = encSystemAnsi
@@ -6292,7 +6359,7 @@ Private Module TextCodec
     ' practice - real CJK wide files almost always carry a BOM (SniffBom handles those
     ' before this runs). BOM-less CJK wide text returns encUnknown; add a BOM or pass
     ' an explicit encoding for such files.
-    Private Function DetectUTF1632(stream() As Byte, Optional ByVal maxBytesToScan As Long = 2000, Optional ByVal maxNullsToFind As Long = 100) As TextEncoding
+    Private Function DetectUTF1632(stream() As Byte, Optional ByVal maxBytesToScan As Long = 2000, Optional ByVal maxNullsToFind As Long = 100, Optional ByVal trueLength As Long = -1) As TextEncoding
         Const MIN_NULL_DENSITY As Double = 0.005   ' 0.5%
         Const UTF32_DOMINANCE_RATIO As Long = 2
         Const UTF32_SCAN_LIMIT As Long = 256
@@ -6320,6 +6387,14 @@ Private Module TextCodec
         Dim text16le As Long, text16be As Long          ' printable non-NUL bytes among UTF-16 matches
         Dim text32le As Long, text32be As Long          ' printable non-NUL bytes among UTF-32 matches
         Dim examinedBytes As Long
+
+        ' The UTF-32 parity gate below tests whether the FILE length is a multiple of 4.
+        ' That is a fact about the file, not the sample: a large file sampled at 64KB
+        ' would be judged by the (mult-of-4) sample length and pass spuriously. Use the
+        ' true file length when the caller supplied it (truncated sample); otherwise the
+        ' buffer IS the whole file, so its own length is authoritative.
+        Dim fileLen As Long
+        If trueLength >= 0 Then fileLen = trueLength Else fileLen = UBound(stream) + 1
 
         ' --- Edge case: exactly 2 bytes ---
         ' Too short for the 4-byte block loop below, but a single NUL still tells us
@@ -6442,13 +6517,15 @@ Private Module TextCodec
         End If
 
         ' --- Determine UTF‑32 winner ---
-        ' Only considered when the buffer length is a multiple of 4 - it cannot be
-        ' UTF-32 otherwise.
+        ' Only considered when the FILE length is a multiple of 4 - it cannot be UTF-32
+        ' otherwise. Uses the true file length (fileLen), not the sample length, so a
+        ' truncated sample of a large file isn't judged mult-of-4 just because the
+        ' sample happens to be.
         Dim utf32Winner As TextEncoding
         Dim utf32Score As Long
         Dim utf32Text As Long
 
-        If (UBound(stream) + 1) Mod 4 = 0 Then
+        If (fileLen Mod 4) = 0 Then
             If nulls32le > nulls32be Then
                 utf32Winner = encUtf32
                 utf32Score = nulls32le
@@ -6716,6 +6793,83 @@ Private Module TextCodec
 
         '--- Binary if >2% control bytes
         LooksLikeBinary = (ctrl * 100 > cap * 2)
+    End Function
+    
+    ' Known binary-format signatures ("magic numbers"). Returns True when the head
+    ' bytes match a well-known non-text container. This is a CONTENT check (the file's
+    ' own bytes), NOT an extension check - it can't be fooled by a rename, and it
+    ' catches the case the NUL heuristics structurally cannot: OLE Compound Binary
+    ' files (.msi/.doc/.xls/.ppt) and other containers that legitimately EMBED wide
+    ' text (stream names, GUIDs), which makes them look like UTF-16/32 to a content
+    ' heuristic. Matching here short-circuits detection to encUnknown before the
+    ' heuristics run.
+    '
+    ' This is a POSITIVE list of common formats, not exhaustive - a binary format not
+    ' listed still falls through to the heuristics + LooksLikeBinary, which handle the
+    ' long tail. The list is the high-value, stable, well-documented signatures.
+    Private Function SniffBinarySignature(ByRef stream() As Byte) As Boolean
+        ' Need enough bytes for the longest signature below (SQLite's is 16).
+        If UBound(stream) + 1 < 16 Then Exit Function          ' too short -> let heuristics decide
+
+        Dim sig As String
+        sig = BytesToHexString(MidB(stream, 1, 16))            ' first 16 bytes as hex
+
+        Select Case True
+            ' OLE2 / Compound Binary - .msi .doc .xls .ppt .msg (embedded UTF-16
+            ' stream names fooled the UTF-32 gate; the case that motivated this).
+            Case sig Like "D0CF11E0A1B11AE1*"
+                SniffBinarySignature = True
+            ' SQLite database - "SQLite format 3\0". Full of embedded UTF-8/UTF-16
+            ' table/column names and string values plus NUL padding, so it fools the
+            ' wide-text heuristics the same way an OLE compound file does.
+            Case sig Like "53514C69746520666F726D6174203300*"
+                SniffBinarySignature = True
+            ' ZIP local header - .zip and ZIP-based formats: .xlsx .docx .pptx .odt
+            ' .jar .apk .epub. (PK\x03\x04, plus empty/spanned variants.)
+            Case sig Like "504B0304*", sig Like "504B0506*", sig Like "504B0708*"
+                SniffBinarySignature = True
+            ' PDF - "%PDF"
+            Case sig Like "25504446*"
+                SniffBinarySignature = True
+            ' JPEG / JFIF / EXIF - FF D8 FF
+            Case sig Like "FFD8FF*"
+                SniffBinarySignature = True
+            ' PNG
+            Case sig Like "89504E470D0A1A0A*"
+                SniffBinarySignature = True
+            ' GIF - "GIF87a" / "GIF89a"
+            Case sig Like "474946383761*", sig Like "474946383961*"
+                SniffBinarySignature = True
+            ' TIFF - "II*\0" (little-endian) / "MM\0*" (big-endian). Common in photo
+            ' and scan workflows; embeds tag tables and can carry text metadata.
+            Case sig Like "49492A00*", sig Like "4D4D002A*"
+                SniffBinarySignature = True
+            ' BMP - "BM" (42 4D) then a reserved field at bytes 6-9 that a real BMP
+            ' sets to zero. "424D" alone is a weak 2-byte PRINTABLE signature that a
+            ' text file starting with the letters "BM" would match; requiring the
+            ' reserved 00 00 00 00 at offset 6 (hex chars 13-20 in the 16-byte sample)
+            ' rejects that false positive while still matching every real BMP.
+            Case sig Like "424D*" And Mid$(sig, 13, 8) = "00000000"
+                SniffBinarySignature = True
+            ' ISO Base Media (MP4 / MOV / M4A / HEIC) - bytes 5..8 are "ftyp".
+            Case Mid$(sig, 9, 8) = "66747970"
+                SniffBinarySignature = True
+            ' RIFF containers - AVI / WAV / WEBP ("RIFF")
+            Case sig Like "52494646*"
+                SniffBinarySignature = True
+            ' GZIP
+            Case sig Like "1F8B*"
+                SniffBinarySignature = True
+            ' 7-Zip
+            Case sig Like "377ABCAF271C*"
+                SniffBinarySignature = True
+            ' RAR ("Rar!")
+            Case sig Like "526172211A07*"
+                SniffBinarySignature = True
+            ' ELF executables
+            Case sig Like "7F454C46*"
+                SniffBinarySignature = True
+        End Select
     End Function
 
 End Module
