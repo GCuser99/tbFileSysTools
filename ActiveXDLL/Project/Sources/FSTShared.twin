@@ -476,6 +476,9 @@ Private Module FSTShared
         If n <= 0 Then InvariantUpper = s: Exit Function
         Dim buf As String: buf = Space$(n)
         LCMapStringEx LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE, s, Len(s), StrPtr(buf), n, ByVal vbNullPtr
+        ' No terminator to strip: passing an explicit source length (Len(s), not -1)
+        ' makes LCMapStringEx write exactly n mapped chars into the exact-sized buffer -
+        ' no NUL appended (verified: "café"->"CAFÉ" len 4).
         InvariantUpper = buf
     End Function
 

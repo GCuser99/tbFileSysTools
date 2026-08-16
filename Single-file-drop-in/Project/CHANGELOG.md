@@ -1,5 +1,9 @@
 # Change Log
 
+[v1.7.1.0, 15 Aug 2026]
+
+ - Encoding auto-detection would sometimes misclassify binary files (JPEG, MOV, PDF, Office documents) as UTF-16/UTF-32; detection now requires both a dominant NUL pattern and plausible text content in the sampled bytes
+
 [v1.7.0.0, 14 Aug 2026]
 
  - Added FileContainsText and File.ContainsText: returns True if the given searchText is found in the file's decoded contents (encoding auto-detected; binary/unknown files return False)

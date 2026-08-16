@@ -640,21 +640,55 @@ Private Module TextCodec
     ' nearly always one whose distinguishing evidence lies past the window.
     '======================================================================
 
-    ' UTF-16/32 detection by NUL-padding pattern: Latin-ish text in a wide encoding
-    ' produces a strong, positionally regular run of zero bytes. Returns encUnknown
-    ' when the evidence is too thin - which is the signal for Detect() to fall
-    ' through to the 8-bit tests.
+    ' UTF-16/32 detection by NUL-padding pattern: Latin-range text in a wide encoding
+    ' produces a strong, positionally regular run of zero bytes (e.g. "A" in UTF-16LE
+    ' is 41 00). Returns encUnknown when the evidence is too thin or too binary-like -
+    ' the signal for Detect() to fall through to the 8-bit tests.
     '
-    ' Three thresholds guard against false positives:
+    ' A NUL-pattern winner is NOT trusted on count alone - binary files (JPEG, MOV,
+    ' PDF, Office docs) are full of NULs that coincidentally mimic the wide-text shape.
+    ' A candidate must clear FOUR guards, applied to both UTF-16 and UTF-32:
     '   MIN_NULL_DENSITY      - too few NULs overall => not wide text at all
-    '   UTF32_SCAN_LIMIT      - UTF-32's 00 00 pairs are only counted in the early
-    '                           window (they are far rarer and cheap to confirm)
+    '   dominance gate        - the winning parity must match in a strong fraction of
+    '                           the units/blocks examined, not just beat the other side
+    '                           (MIN_UTF16_DOMINANCE / MIN_UTF32_DOMINANCE)
+    '   text-plausibility     - the non-NUL "character" bytes must actually be printable
+    '                           text (MIN_TEXT_FRACTION); a binary file matches the NUL
+    '                           SHAPE but its non-NUL bytes are garbage. This is the
+    '                           check NUL-counting alone cannot make.
     '   UTF32_DOMINANCE_RATIO - UTF-32LE text ALSO looks like UTF-16LE with lots of
-    '                           NULs, so UTF-32 only wins if it wins decisively
+    '                           NULs, so UTF-32 only wins over UTF-16 if it wins decisively
+    ' UTF32_SCAN_LIMIT bounds the UTF-32 counting to an early window (its 00 00 pairs
+    ' are rarer and cheap to confirm); the UTF-32 dominance denominator is scoped to
+    ' that window so a long genuine UTF-32 file isn't unfairly deflated.
+    '
+    ' KNOWN LIMITATION - BOM-less CJK / non-Latin-1 wide text:
+    ' Detection relies on the zero-byte padding Latin-range characters produce.
+    ' CJK and most non-Latin scripts have BOTH bytes non-zero in UTF-16 (U+65E5 ->
+    ' E5 65, no NUL), so predominantly-CJK text carries almost no padding and fails
+    ' the dominance gate, returning encUnknown. This is STRUCTURAL, not tunable: CJK
+    ' wide text and binary both have low NUL density, so loosening the gate to admit
+    ' CJK would re-admit the binary files the gate exists to reject. Rarely bites in
+    ' practice - real CJK wide files almost always carry a BOM (SniffBom handles those
+    ' before this runs). BOM-less CJK wide text returns encUnknown; add a BOM or pass
+    ' an explicit encoding for such files.
     Private Function DetectUTF1632(stream() As Byte, Optional ByVal maxBytesToScan As Long = 2000, Optional ByVal maxNullsToFind As Long = 100) As TextEncoding
         Const MIN_NULL_DENSITY As Double = 0.005   ' 0.5%
         Const UTF32_DOMINANCE_RATIO As Long = 2
         Const UTF32_SCAN_LIMIT As Long = 256
+        ' Binary files (ZIP-based docs, PDF, JPEG, MOV) are full of NULs that can
+        ' coincidentally match a wide-text NUL SHAPE. Two defenses, applied to BOTH
+        ' UTF-16 and UTF-32:
+        '   1. dominance - the winning parity must match in a strong fraction of the
+        '      units/blocks examined (a coincidental margin isn't enough);
+        '   2. text-plausibility - the non-NUL "character" bytes must actually be
+        '      printable text. Real wide text is ~all printable; a binary file that
+        '      matches the NUL shape has garbage non-NUL bytes. This is the check that
+        '      NUL-counting alone cannot make (it caught JPEGs on the UTF-32 path and
+        '      MOV headers on the UTF-16 path).
+        Const MIN_UTF16_DOMINANCE As Double = 0.4
+        Const MIN_UTF32_DOMINANCE As Double = 0.4
+        Const MIN_TEXT_FRACTION As Double = 0.75
 
         Dim windowEnd As Long
         Dim utf32WindowEnd As Long
@@ -663,6 +697,8 @@ Private Module TextCodec
 
         Dim nulls16le As Long, nulls16be As Long
         Dim nulls32le As Long, nulls32be As Long
+        Dim text16le As Long, text16be As Long          ' printable non-NUL bytes among UTF-16 matches
+        Dim text32le As Long, text32be As Long          ' printable non-NUL bytes among UTF-32 matches
         Dim examinedBytes As Long
 
         ' --- Edge case: exactly 2 bytes ---
@@ -694,28 +730,37 @@ Private Module TextCodec
             ' UTF‑32 detection (only early window).
             ' A block that scores as UTF-32 skips the UTF-16 test - counting it as
             ' both would inflate the UTF-16 score and defeat the dominance ratio.
+            ' Tally whether the single non-NUL byte is printable (BE: b4; LE: b1).
             If i <= utf32WindowEnd Then
                 If (b1 = 0 And b2 = 0) And (b3 <> 0 Or b4 <> 0) Then
                     nulls32be = nulls32be + 1
+                    If IsTextByte(b4) Then text32be = text32be + 1
                     GoTo NextBlock
                 ElseIf (b3 = 0 And b4 = 0) And (b1 <> 0 Or b2 <> 0) Then
                     nulls32le = nulls32le + 1
+                    If IsTextByte(b1) Then text32le = text32le + 1
                     GoTo NextBlock
                 End If
             End If
 
             ' UTF‑16 detection: two independent 2-byte units per block.
-            ' A NUL in the HIGH byte means big-endian; in the LOW byte, little-endian.
+            ' A NUL in the HIGH byte means big-endian (text byte is the LOW byte);
+            ' a NUL in the LOW byte means little-endian (text byte is the HIGH byte).
+            ' Tally whether that non-NUL text byte is printable, for the gate below.
             If b1 = 0 And b2 <> 0 Then
                 nulls16be = nulls16be + 1
+                If IsTextByte(b2) Then text16be = text16be + 1
             ElseIf b2 = 0 And b1 <> 0 Then
                 nulls16le = nulls16le + 1
+                If IsTextByte(b1) Then text16le = text16le + 1
             End If
 
             If b3 = 0 And b4 <> 0 Then
                 nulls16be = nulls16be + 1
+                If IsTextByte(b4) Then text16be = text16be + 1
             ElseIf b4 = 0 And b3 <> 0 Then
                 nulls16le = nulls16le + 1
+                If IsTextByte(b3) Then text16le = text16le + 1
             End If
 
     NextBlock:
@@ -741,13 +786,39 @@ Private Module TextCodec
         ' A tie leaves utf16Winner/utf16Score at 0 - deliberately no winner.
         Dim utf16Winner As TextEncoding
         Dim utf16Score As Long
+        Dim utf16Text As Long          ' printable count for the winning parity
 
         If nulls16le > nulls16be Then
             utf16Winner = encUtf16
             utf16Score = nulls16le
+            utf16Text = text16le
         ElseIf nulls16be > nulls16le Then
             utf16Winner = encUtf16Be
             utf16Score = nulls16be
+            utf16Text = text16be
+        End If
+
+        ' --- UTF-16 dominance gate ---
+        ' The winning parity must be NUL in a strong fraction of the 2-byte units
+        ' examined. Real wide text approaches ~1.0; binary NUL-noise sits far below.
+        Dim unitsExamined As Long
+        unitsExamined = examinedBytes \ 2
+        If utf16Score > 0 And unitsExamined > 0 Then
+            If utf16Score / unitsExamined < MIN_UTF16_DOMINANCE Then
+                utf16Winner = encUnknown
+                utf16Score = 0
+            End If
+        End If
+
+        ' --- UTF-16 text-plausibility gate ---
+        ' A MOV/binary header can match the NUL shape in many units (e.g. 541 LE units)
+        ' while the non-NUL bytes are garbage, not characters. Require the winner's
+        ' text bytes to be printable in a strong majority, or it's binary.
+        If utf16Score > 0 Then
+            If utf16Text / utf16Score < MIN_TEXT_FRACTION Then
+                utf16Winner = encUnknown
+                utf16Score = 0
+            End If
         End If
 
         ' --- Determine UTF‑32 winner ---
@@ -755,14 +826,39 @@ Private Module TextCodec
         ' UTF-32 otherwise.
         Dim utf32Winner As TextEncoding
         Dim utf32Score As Long
+        Dim utf32Text As Long
 
         If (UBound(stream) + 1) Mod 4 = 0 Then
             If nulls32le > nulls32be Then
                 utf32Winner = encUtf32
                 utf32Score = nulls32le
+                utf32Text = text32le
             ElseIf nulls32be > nulls32le Then
                 utf32Winner = encUtf32Be
                 utf32Score = nulls32be
+                utf32Text = text32be
+            End If
+        End If
+
+        ' --- UTF-32 dominance gate ---
+        ' Denominator scoped to the UTF-32 scan window (not the whole examined range),
+        ' or a long genuine UTF-32 file would be unfairly deflated.
+        Dim utf32BlocksExamined As Long
+        utf32BlocksExamined = Min(examinedBytes, UTF32_SCAN_LIMIT) \ 4
+        If utf32Score > 0 And utf32BlocksExamined > 0 Then
+            If utf32Score / utf32BlocksExamined < MIN_UTF32_DOMINANCE Then
+                utf32Winner = encUnknown
+                utf32Score = 0
+            End If
+        End If
+
+        ' --- UTF-32 text-plausibility gate ---
+        ' Same as UTF-16: match the NUL shape is not enough, the non-NUL bytes must be
+        ' printable text. This is what caught the JPEGs.
+        If utf32Score > 0 Then
+            If utf32Text / utf32Score < MIN_TEXT_FRACTION Then
+                utf32Winner = encUnknown
+                utf32Score = 0
             End If
         End If
 
@@ -774,6 +870,13 @@ Private Module TextCodec
         Else
             DetectUTF1632 = encUnknown
         End If
+    End Function
+
+    ' A plausible text byte: tab / LF / CR, or printable ASCII. Used by the
+    ' text-plausibility gates to tell real wide text (printable chars) from a binary
+    ' file that merely matches the NUL pattern (garbage non-NUL bytes).
+    Private Function IsTextByte(ByVal b As Byte) As Boolean
+        IsTextByte = (b = 9 Or b = 10 Or b = 13 Or (b >= 32 And b <= 126))
     End Function
     
     ' Is the head of this buffer valid UTF-8? Delegates the real work to
