@@ -95,7 +95,7 @@ Debug.Print GetFileEncoding("mystery.txt")   ' e.g. encUtf16Bom
 
 Supported: UTF-8, UTF-16 LE/BE, UTF-32 LE/BE, UTF-7, GB2312, GB18030, Big5, Latin-1, Latin-9, US-ASCII, system ANSI — each with and without a BOM (if applicable) — plus any other code page installed on the machine.
 
-**Auto-detection on Read.** Defaults to auto-detect using a reliable heuristical algorithm but user can specify a code-page if known.
+**Auto-detection on Read.** Defaults to auto-detect using a [reliable heuristical algorithm](https://github.com/GCuser99/tbFileSysTools/blob/main/README.md#how-does-encoding-auto-detect-work) but user can specify a code-page if known.
 
 ### Line endings
 
