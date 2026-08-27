@@ -121,7 +121,7 @@ fdrPath = "path\to\my\twin\files"
 
 ' Normalize .twin files to twinBASIC encoding and line endings (skipped if already there)
 For Each f In GetFolder(fdrPath).Files
-    If f.ExtensionName = "twin" Then
+    If f.ExtensionName = "twin" Or f.ExtensionName = "tbform" Then
         f.Normalize toEncoding:=encUtf8, toLineEnding:=nlWindows
     End If
 Next f
