@@ -268,6 +268,7 @@ Auto-detection logic and parameters were tuned to publicly available datasets ([
 | Ansi | 254/254 | 100% |
 | Binary | 8/8 | 100% |
 | Binary (private) | 3009/3017 | 99.7% |
+
 *Pure Ascii gets correctly classified as UTF-8
 
 ---
