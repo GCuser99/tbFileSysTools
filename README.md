@@ -253,6 +253,23 @@ Below is a flow diagram illustrating how encoding autodetection works:
 
 Encoding detection precedence: BOM → known binary head signature → heuristics (UTF-16/32 → UTF-8 → ANSI), with binary content returning `encUnknown` rather than being misread as text. For performance, detection runs on sufficiently large head samples.
 
+### Testing
+
+Auto-detection logic and parameters were tuned to publicly available datasets ([char-det data](https://github.com/chardet/test-data), [plywood](https://github.com/preshing/plywood/tree/9c606056faf89f0918b81f5af09c23fefaf9a12d/repos/plywood/src/apps/AutodetectTest/tests), and [UnicodeTestSuite](https://github.com/amrali-eg/UnicodeTestSuite/tree/main)). Text BOM and Binary header sniffers were turned off for the testing. A large private corpus of binary files were included as well. The sample set contains a broad range of different languages/scripts including more challenging CJK UTF-16.
+
+| Encoding | Correct Class | Percent Correct |
+|-|-|-|
+| Ascii* | 32/32 | 100% |
+| UTF-8 | 316/316 | 100% |
+| UTF-16LE | 426/426 | 100% |
+| UTF-16BE | 418/418 | 100% |
+| UTF-32LE | 184/184 | 100% |
+| UTF-32BE | 183/183 | 100% |
+| Ansi | 254/254 | 100% |
+| Binary | 8/8 | 100% |
+| Binary (private) | 3009/3017 | 99.7% |
+*Pure Ascii gets correctly classified as UTF-8
+
 ---
 
 ## Project Structure
