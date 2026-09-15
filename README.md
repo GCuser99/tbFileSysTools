@@ -255,7 +255,7 @@ Encoding detection precedence: BOM → known binary head signature → heuristic
 
 ### Testing
 
-Auto-detection logic and parameters were tuned to publicly available datasets ([char-det data](https://github.com/chardet/test-data), [plywood](https://github.com/preshing/plywood/tree/9c606056faf89f0918b81f5af09c23fefaf9a12d/repos/plywood/src/apps/AutodetectTest/tests), and [UnicodeTestSuite](https://github.com/amrali-eg/UnicodeTestSuite/tree/main)). Text BOM and Binary header sniffers were turned off for the testing. A large private corpus of binary files were included as well. The sample set contains a broad range of different languages/scripts including the more challenging CJK UTF-16 files.
+Auto-detection logic and parameters were tuned to publicly available datasets ([char-det data](https://github.com/chardet/test-data), [plywood](https://github.com/preshing/plywood/tree/9c606056faf89f0918b81f5af09c23fefaf9a12d/repos/plywood/src/apps/AutodetectTest/tests), and [UnicodeTestSuite](https://github.com/amrali-eg/UnicodeTestSuite/tree/main)). Text BOM and Binary header sniffers were turned off for the testing. A large private corpus of binary files was included as well. The sample set contains a broad range of different languages/scripts including the more challenging CJK UTF-16 files.
 
 | Encoding | Class Score | Percent |
 |-|-|-|
