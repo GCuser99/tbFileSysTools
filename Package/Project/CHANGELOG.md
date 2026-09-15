@@ -1,5 +1,15 @@
 # Change Log
 
+[v1.8.0.0, 14 Sept 2026]
+
+ - Added Windows XP compatibility fallbacks for locale-invariant path comparison, GetSpecialFolder method, and folder/file enumeration.
+ - Faster directory enumeration on Windows 7 and later, using FindFirstFileExW with FindExInfoBasic and large-fetch batching across all file/folder walkers.
+ - Added binary file header signatures for .ico/cur, .twinproj/pack, and .wmv/.wma/.asf files to binary file sniffer for faster encoding auto-detection.
+ - Refactored encoding auto-detection by tuning logic and parameters to char-det's corpus of sample files
+    - Large improvement in auto-detection accuracy, especially on utf-16 CJK variants
+    - 100% correct classification of BOM-less char-det ascii/utf-8/utf-16/utf-32/ansi/binary samples (over 1800 files)
+    - Documented results of above in tbFileSysTools' GitHub repo
+ 
 [v1.7.2.0, 16 Aug 2026]
 
  - Encoding auto-detection now short-circuits on known binary file signatures. Reduces rare text file false-positives and speeds up scanning folders with many binary files.

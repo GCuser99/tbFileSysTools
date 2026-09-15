@@ -2,7 +2,7 @@ Private Module WinAPI
     
     'The Windows API declarations used here are from Jon Johnson's WinDevLib tB package (https://github.com/fafalone/WinDevLib).
     'This project was designed to function without this module if Jon Johnson's WinDevLib is referenced.
-
+    
     '/*
     Public Declare PtrSafe Function GetLastError Lib "kernel32" () As Long
     Public Declare PtrSafe Function GetFullPathNameW Lib "kernel32" (ByVal lpFileName As LongPtr, ByVal nBufferLength As Long, ByVal lpBuffer As LongPtr, lpFilePart As LongPtr) As Long
@@ -11,6 +11,7 @@ Private Module WinAPI
     Public Declare PtrSafe Function RemoveDirectoryW Lib "kernel32" (ByVal lpPathName As LongPtr) As BOOL
     Public Declare PtrSafe Function FindFirstFileW Lib "kernel32" (ByVal lpFileName As LongPtr, ByRef lpFindFileData As WIN32_FIND_DATAW) As LongPtr
     Public Declare PtrSafe Function FindNextFileW Lib "kernel32" (ByVal hFindFile As LongPtr, ByRef lpFindFileData As WIN32_FIND_DATAW) As Long
+    Public Declare PtrSafe Function FindFirstFileExW Lib "kernel32" (ByVal lpFileName As LongPtr, ByVal fInfoLevelId As FINDEX_INFO_LEVELS, ByRef lpFindFileData As WIN32_FIND_DATAW, ByVal fSearchOp As FINDEX_SEARCH_OPS, ByVal lpSearchFilter As LongPtr, ByVal dwAdditionalFlags As FINDEX_EXTRA_FLAGS) As LongPtr
     Public Declare PtrSafe Function FindClose Lib "kernel32" (ByVal hFindFile As LongPtr) As Long
     Public Declare PtrSafe Function SetFileAttributesW Lib "kernel32" (ByVal lpFileName As LongPtr, ByVal dwFileAttributes As FILE_ATTRIBUTES) As BOOL
     Public Declare PtrSafe Function GetFileAttributesW Lib "kernel32" (ByVal lpFileName As LongPtr) As FILE_ATTRIBUTES
@@ -27,6 +28,7 @@ Private Module WinAPI
     Public Declare PtrSafe Function lstrlenW Lib "kernel32" (lpString As Any) As Long
     Public Declare PtrSafe Sub CoTaskMemFree Lib "ole32" (ByVal pv As LongPtr)
     Public Declare PtrSafe Function SHGetKnownFolderPath Lib "shell32" (rfid As UUID, ByVal dwFlags As KNOWN_FOLDER_FLAG, ByVal hToken As LongPtr, ppszPath As LongPtr) As Long
+    Public Declare PtrSafe Function SHGetFolderPathW Lib "shell32" (ByVal hwnd As LongPtr, ByVal csidl As CSIDLs, ByVal hToken As LongPtr, ByVal dwFlags As SHGFP_TYPE, ByVal pszPath As LongPtr) As Long
     Public Declare PtrSafe Function SysReAllocStringW Lib "oleaut32" Alias "SysReAllocString" (ByVal pBSTR As LongPtr, Optional ByVal pszStrPtr As LongPtr) As Long
     Public Declare PtrSafe Function PathRelativePathToW Lib "shlwapi" (ByVal pszPath As LongPtr, ByVal pszFrom As LongPtr, ByVal dwAttrFrom As FILE_ATTRIBUTES, ByVal pszTo As LongPtr, ByVal dwAttrTo As FILE_ATTRIBUTES) As BOOL
     Public Declare PtrSafe Function GetFileAttributesExW Lib "kernel32" (ByVal lpFileName As LongPtr, ByVal fInfoLevelId As GET_FILEEX_INFO_LEVELS, ByRef lpFileInformation As Any) As BOOL
@@ -55,11 +57,32 @@ Private Module WinAPI
     
     Public Declare PtrSafe Function WNetGetConnectionW Lib "mpr.dll" (ByVal lpLocalName As LongPtr, ByVal lpRemoteName As LongPtr, lpnLength As Long) As Long
     
+    Public Declare PtrSafe Function LCMapStringW Lib "kernel32" (ByVal Locale As DefaultLocales, [TypeHint(LCMAP_FLAGS, COMPARE_FLAGS)] ByVal dwMapFlags As Long, ByVal lpSrcStr As LongPtr, ByVal cchSrc As Long, ByVal lpDestStr As LongPtr, ByVal cchDest As Long) As Long
     Public DeclareWide PtrSafe Function LCMapStringEx Lib "kernel32" (ByVal lpLocaleName As String, [TypeHint(LCMAP_FLAGS, COMPARE_FLAGS)] ByVal dwMapFlags As Long, ByVal lpSrcStr As String, ByVal cchSrc As Long, ByVal lpDestStr As LongPtr, ByVal cchDest As Long, lpVersionInformation As NLSVERSIONINFO, Optional ByVal lpReserved As LongPtr, Optional ByVal sortHandle As LongPtr) As Long
     Public Declare PtrSafe Function GetThreadLocale Lib "kernel32" () As Long
     Public Declare PtrSafe Function SetThreadLocale Lib "kernel32" (ByVal Locale As DefaultLocales) As BOOL
     
     Public Declare PtrSafe Function PathMatchSpecW Lib "shlwapi" (ByVal pszFile As LongPtr, ByVal pszSpec As LongPtr) As BOOL
+    
+    [UseGetLastError(False)] Public Declare PtrSafe Sub RtlGetNtVersionNumbers Lib "ntdll" (Major As Long, Minor As Long, Build As Long)
+    
+    Public Enum FINDEX_EXTRA_FLAGS
+        FIND_FIRST_EX_CASE_SENSITIVE = 1
+        FIND_FIRST_EX_LARGE_FETCH = 2
+        FIND_FIRST_EX_ON_DISK_ENTRIES_ONLY = 4
+    End Enum
+    
+    Public Enum FINDEX_INFO_LEVELS
+        FindExInfoStandard
+        FindExInfoBasic
+        FindExInfoMaxInfoLevel
+    End Enum
+    
+    Public Enum FINDEX_SEARCH_OPS
+        FindExSearchNameMatch
+        FindExSearchLimitToDirectories
+        FindExSearchLimitToDevices
+    End Enum
     
     Public Const LOCALE_NAME_INVARIANT As String = ""
     
@@ -72,6 +95,11 @@ Private Module WinAPI
         LOCALE_SYSTEM_DEFAULT = &H0800
     End Enum
     
+    Public Enum SHGFP_TYPE
+        SHGFP_TYPE_CURRENT = 0 ' current value for user, verify it exists
+        SHGFP_TYPE_DEFAULT = 1 ' default value, may not exist
+    End Enum
+    
     [Description("For Windows 8 and newer. Windows 7 and below: Use NLSVERSIONINFO_WIN7")]
     Public Type NLSVERSIONINFO
         dwNLSVersionInfoSize As Long
@@ -79,6 +107,13 @@ Private Module WinAPI
         dwDefinedVersion As Long
         dwEffectiveId As Long
         guidCustomVersion As UUID
+    End Type
+    
+    [Description("For Windows 7 and below only. For Windows 8 and newer, use NLSVERSIONINFO or NLSVERSIONINFOEX")]
+    Public Type NLSVERSIONINFO_WIN7         ' Use NLSVERSIONINFOEX instead
+        dwNLSVersionInfoSize As Long ' 12 bytes
+        dwNLSVersion As Long
+        dwDefinedVersion As Long ' Deprecated, use dwNLSVersion instead
     End Type
     
     Public Enum LCMAP_FLAGS
@@ -572,6 +607,71 @@ Private Module WinAPI
             lPtr = 0
         End If
     End Function
+    
+    Public Enum CSIDLs
+        CSIDL_DESKTOP = &H0000
+        CSIDL_INTERNET = &H0001
+        CSIDL_PROGRAMS = &H0002
+        CSIDL_CONTROLS = &H0003
+        CSIDL_PRINTERS = &H0004
+        CSIDL_PERSONAL = &H0005
+        CSIDL_FAVORITES = &H0006
+        CSIDL_STARTUP = &H0007
+        CSIDL_RECENT = &H0008
+        CSIDL_SENDTO = &H0009
+        CSIDL_BITBUCKET = &H000a
+        CSIDL_STARTMENU = &H000b
+        CSIDL_MYDOCUMENTS = &H000c
+        CSIDL_MYMUSIC = &H000d
+        CSIDL_MYVIDEO = &H000e
+        CSIDL_DESKTOPDIRECTORY = &H0010
+        CSIDL_DRIVES = &H0011
+        CSIDL_NETWORK = &H0012
+        CSIDL_NETHOOD = &H0013
+        CSIDL_FONTS = &H0014
+        CSIDL_TEMPLATES = &H0015
+        CSIDL_COMMON_STARTMENU = &H0016
+        CSIDL_COMMON_PROGRAMS = &H0017
+        CSIDL_COMMON_STARTUP = &H0018
+        CSIDL_COMMON_DESKTOPDIRECTORY = &H0019
+        CSIDL_APPDATA = &H001a
+        CSIDL_PRINTHOOD = &H001b
+        CSIDL_LOCAL_APPDATA = &H001c
+        CSIDL_ALTSTARTUP = &H001d
+        CSIDL_COMMON_ALTSTARTUP = &H001e
+        CSIDL_COMMON_FAVORITES = &H001f
+        CSIDL_INTERNET_CACHE = &H0020
+        CSIDL_COOKIES = &H0021
+        CSIDL_HISTORY = &H0022
+        CSIDL_COMMON_APPDATA = &H0023
+        CSIDL_WINDOWS = &H0024
+        CSIDL_SYSTEM = &H0025
+        CSIDL_PROGRAM_FILES = &H0026
+        CSIDL_MYPICTURES = &H0027
+        CSIDL_PROFILE = &H0028
+        CSIDL_SYSTEMX86 = &H0029
+        CSIDL_PROGRAM_FILESX86 = &H002a
+        CSIDL_PROGRAM_FILES_COMMON = &H002b
+        CSIDL_PROGRAM_FILES_COMMONX86 = &H002c
+        CSIDL_COMMON_TEMPLATES = &H002d
+        CSIDL_COMMON_DOCUMENTS = &H002e
+        CSIDL_COMMON_ADMINTOOLS = &H002f
+        CSIDL_ADMINTOOLS = &H0030
+        CSIDL_CONNECTIONS = &H0031
+        CSIDL_COMMON_MUSIC = &H0035
+        CSIDL_COMMON_PICTURES = &H0036
+        CSIDL_COMMON_VIDEO = &H0037
+        CSIDL_RESOURCES = &H0038
+        CSIDL_RESOURCES_LOCALIZED = &H0039
+        CSIDL_COMMON_OEM_LINKS = &H003a
+        CSIDL_CDBURN_AREA = &H003b
+        CSIDL_COMPUTERSNEARME = &H003d
+        CSIDL_FLAG_PER_USER_INIT = &H0800
+        CSIDL_FLAG_NO_ALIAS = &H1000
+        CSIDL_FLAG_CREATE = &H8000&
+        CSIDL_FLAG_DONT_VERIFY = &H4000
+        CSIDL_FLAG_MASK = &HFF00&
+    End Enum
     
     '*/
 

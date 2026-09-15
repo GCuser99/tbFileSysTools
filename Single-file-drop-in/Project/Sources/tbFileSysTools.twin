@@ -60,6 +60,7 @@
 '                           GetCurrentDir, SetCurrentDir, GetFileEncoding,
 '                           GetFileType, GetFileLineEnding, Rename,
 '                           NormalizeTextFile, MergeTextFiles, ReadStream/WriteStream,
+'                           FindInTextFiles, FileContainsText, IsFileLocked,
 '                           and the TextFile<->String/Array helpers.
 ' ==========================================================================
 ' MIT License - Copyright (c) 2026, GCUser99 (https://github.com/GCUser99)
@@ -310,10 +311,10 @@ Public Class FileSystemObject
     
     [Description("Merges two text files in the order specified. If outputFilePath is omitted, the first file is overwritten in place. The second file's line endings are converted to match the first file's. Streams line by line, so file size is not limited.")]
     Public Sub MergeTextFiles(ByVal firstFilePath As String, ByVal secondFilePath As String, _
-                          Optional ByVal outputFilePath As String, _
-                          Optional ByVal insertBlankLineBetween As Boolean = False, _
-                          Optional ByVal firstFileEncoding As TextEncoding = encAutoDetect, _
-                          Optional ByVal secondFileEncoding As TextEncoding = encAutoDetect)
+        Optional ByVal outputFilePath As String, _
+        Optional ByVal insertBlankLineBetween As Boolean = False, _
+        Optional ByVal firstFileEncoding As TextEncoding = encAutoDetect, _
+        Optional ByVal secondFileEncoding As TextEncoding = encAutoDetect)
         FileSystemTools.MergeTextFiles(firstFilePath, secondFilePath, outputFilePath, insertBlankLineBetween, firstFileEncoding, secondFileEncoding)
     End Sub
     
@@ -647,6 +648,7 @@ Public Module FileSystemTools
                 GetFileType = GetFileType & ChrW$(ch)
             Next
         End If
+        
         If Len(GetFileType) = 0 Then                          ' shell unavailable/headless -> fallback
             Dim ext As String
             ext = GetExtensionName(filePath)
@@ -726,6 +728,7 @@ Public Module FileSystemTools
         If HasWildcards(destination) Then
             Err.Raise 5, "CopyFolder", "Wildcards not permitted in destination: " & destination
         End If
+        
         If HasWildcards(source) Then
             CopyFolderWildcard source, destination, overwrite
         Else
@@ -1064,8 +1067,10 @@ Public Module FileSystemTools
             s = Left$(s, Len(s) - 1)
         Loop
         If IsUncRoot(s) Then Exit Function                  ' UNC root has no parent
+        
         Dim pos As Long: pos = LastSep(s)
         If pos = 0 Then Exit Function                       ' no separator -> no parent
+        
         Dim parent As String: parent = Left$(s, pos - 1)
         If Len(parent) = 2 And Mid$(parent, 2, 1) = ":" Then
             GetParentFolderName = parent & "\"              ' bare drive -> drive root "C:\"
@@ -1155,41 +1160,54 @@ Public Module FileSystemTools
     ' and the other using GuidFromString which the one that is currently implemented.
     [Description("Returns the absolute path to the requested known folder. The returned path does NOT include a trailing backslash.")]
     Public Function GetSpecialFolder(ByVal specialFolder As SpecialFolderConst) As String
+        ' TEMP is per-process and environment-driven - no shell call on any OS.
+        If specialFolder = sfTemporaryFolder Then          ' (= TemporaryFolder alias)
+            GetSpecialFolder = Environ$("TEMP")
+            Exit Function
+        End If
+
+        ' Vista+ resolves by KNOWNFOLDERID (SHGetKnownFolderPath). XP has no known-
+        ' folder system, so below Vista we translate to the legacy CSIDL and call
+        ' SHGetFolderPathW. A few folders (Downloads, PublicDownloads) are Vista-era
+        ' shell concepts with NO CSIDL equivalent - those raise on XP.
+        If OSVersion() >= WINDOWS_VISTA Then
+            GetSpecialFolder = GetSpecialFolderKnown(specialFolder)
+        Else
+            GetSpecialFolder = GetSpecialFolderCSIDL(specialFolder)
+        End If
+    End Function
+
+    ' Vista+ path: resolve by KNOWNFOLDERID. (This is the original implementation,
+    ' unchanged except for TEMP moving up to the caller.)
+    Private Function GetSpecialFolderKnown(ByVal specialFolder As SpecialFolderConst) As String
         Dim guid As UUID
-        'Dim guid As WinDevLib.UUID 'if using guid = FOLDERID_*() method below
         Dim pPath As LongPtr
         Dim hr As Long
-
         Select Case specialFolder
-            Case WindowsFolder, sfWindowsFolder:        guid = GuidFromString(KFID_Windows_STR)
-            Case SystemFolder, sfSystemFolder:         guid = GuidFromString(KFID_System_STR)
-            Case sfSystemX86Folder:      guid = GuidFromString(KFID_SystemX86_STR)
-            Case sfProgramFiles:         guid = GuidFromString(KFID_ProgramFiles_STR)
-            Case sfProgramFilesX86:      guid = GuidFromString(KFID_ProgramFilesX86_STR)
-            Case sfProgramData:          guid = GuidFromString(KFID_ProgramData_STR)
-            Case sfUserProfile:          guid = GuidFromString(KFID_Profile_STR)
-            Case sfDesktop:              guid = GuidFromString(KFID_Desktop_STR)
-            Case sfDocuments:            guid = GuidFromString(KFID_Documents_STR)
-            Case sfDownloads:            guid = GuidFromString(KFID_Downloads_STR)
-            Case sfPictures:             guid = GuidFromString(KFID_Pictures_STR)
-            Case sfMusic:                guid = GuidFromString(KFID_Music_STR)
-            Case sfVideos:               guid = GuidFromString(KFID_Videos_STR)
-            Case sfLocalAppData:         guid = GuidFromString(KFID_LocalAppData_STR)
-            Case sfRoamingAppData:       guid = GuidFromString(KFID_RoamingAppData_STR)
-            Case sfPublicDesktop:        guid = GuidFromString(KFID_PublicDesktop_STR)
-            Case sfPublicDocuments:      guid = GuidFromString(KFID_PublicDocuments_STR)
-            Case sfPublicDownloads:      guid = GuidFromString(KFID_PublicDownloads_STR)
-            Case sfPublicPictures:       guid = GuidFromString(KFID_PublicPictures_STR)
-            Case sfPublicMusic:          guid = GuidFromString(KFID_PublicMusic_STR)
-            Case sfPublicVideos:         guid = GuidFromString(KFID_PublicVideos_STR)
-            Case sfFonts:                guid = GuidFromString(KFID_Fonts_STR)
-            Case sfStartup:              guid = GuidFromString(KFID_Startup_STR)
-            Case sfCommonStartup:        guid = GuidFromString(KFID_CommonStartup_STR)
-            ' TEMP is the one folder with no KNOWNFOLDERID - it is per-process and
-            ' environment-driven, so it short-circuits out before the shell call.
-            Case TemporaryFolder, sfTemporaryFolder
-                GetSpecialFolder = Environ$("TEMP")
-                Exit Function
+            Case WindowsFolder, sfWindowsFolder:   guid = GuidFromString(KFID_Windows_STR)
+            Case SystemFolder, sfSystemFolder:     guid = GuidFromString(KFID_System_STR)
+            Case sfSystemX86Folder:                guid = GuidFromString(KFID_SystemX86_STR)
+            Case sfProgramFiles:                   guid = GuidFromString(KFID_ProgramFiles_STR)
+            Case sfProgramFilesX86:                guid = GuidFromString(KFID_ProgramFilesX86_STR)
+            Case sfProgramData:                    guid = GuidFromString(KFID_ProgramData_STR)
+            Case sfUserProfile:                    guid = GuidFromString(KFID_Profile_STR)
+            Case sfDesktop:                        guid = GuidFromString(KFID_Desktop_STR)
+            Case sfDocuments:                      guid = GuidFromString(KFID_Documents_STR)
+            Case sfDownloads:                      guid = GuidFromString(KFID_Downloads_STR)
+            Case sfPictures:                       guid = GuidFromString(KFID_Pictures_STR)
+            Case sfMusic:                          guid = GuidFromString(KFID_Music_STR)
+            Case sfVideos:                         guid = GuidFromString(KFID_Videos_STR)
+            Case sfLocalAppData:                   guid = GuidFromString(KFID_LocalAppData_STR)
+            Case sfRoamingAppData:                 guid = GuidFromString(KFID_RoamingAppData_STR)
+            Case sfPublicDesktop:                  guid = GuidFromString(KFID_PublicDesktop_STR)
+            Case sfPublicDocuments:                guid = GuidFromString(KFID_PublicDocuments_STR)
+            Case sfPublicDownloads:                guid = GuidFromString(KFID_PublicDownloads_STR)
+            Case sfPublicPictures:                 guid = GuidFromString(KFID_PublicPictures_STR)
+            Case sfPublicMusic:                    guid = GuidFromString(KFID_PublicMusic_STR)
+            Case sfPublicVideos:                   guid = GuidFromString(KFID_PublicVideos_STR)
+            Case sfFonts:                          guid = GuidFromString(KFID_Fonts_STR)
+            Case sfStartup:                        guid = GuidFromString(KFID_Startup_STR)
+            Case sfCommonStartup:                  guid = GuidFromString(KFID_CommonStartup_STR)
             Case Else
                 Err.Raise 5, "GetSpecialFolder", "Unknown SpecialFolder ID"
         End Select
@@ -1200,12 +1218,63 @@ Public Module FileSystemTools
                     "GetSpecialFolder", _
                     "SHGetKnownFolderPath failed (HRESULT 0x" & Hex$(hr) & ")"
         End If
-
         ' SHGetKnownFolderPath allocates with CoTaskMemAlloc; LPWSTRtoStr frees it.
         ' Do not add an early exit between the call above and this line or we leak.
-        GetSpecialFolder = LPWSTRtoStr(pPath)
+        GetSpecialFolderKnown = LPWSTRtoStr(pPath)
     End Function
 
+    ' XP path: resolve by legacy CSIDL via SHGetFolderPathW. Folders that are Vista-era
+    ' shell concepts with no CSIDL (Downloads, PublicDownloads) raise error 5 with an
+    ' explicit "requires Windows Vista or later" message rather than fabricate a path.
+    Private Function GetSpecialFolderCSIDL(ByVal specialFolder As SpecialFolderConst) As String
+        Dim csidl As CSIDLs
+        Select Case specialFolder
+            Case WindowsFolder, sfWindowsFolder:   csidl = CSIDL_WINDOWS
+            Case SystemFolder, sfSystemFolder:     csidl = CSIDL_SYSTEM
+            Case sfSystemX86Folder:                csidl = CSIDL_SYSTEMX86
+            Case sfProgramFiles:                   csidl = CSIDL_PROGRAM_FILES
+            Case sfProgramFilesX86:                csidl = CSIDL_PROGRAM_FILESX86
+            Case sfProgramData:                    csidl = CSIDL_COMMON_APPDATA   ' ProgramData == CommonAppData
+            Case sfUserProfile:                    csidl = CSIDL_PROFILE
+            Case sfDesktop:                        csidl = CSIDL_DESKTOPDIRECTORY ' filesystem Desktop (not the virtual CSIDL_DESKTOP)
+            Case sfDocuments:                      csidl = CSIDL_PERSONAL         ' "My Documents"
+            Case sfPictures:                       csidl = CSIDL_MYPICTURES
+            Case sfMusic:                          csidl = CSIDL_MYMUSIC
+            Case sfVideos:                         csidl = CSIDL_MYVIDEO
+            Case sfLocalAppData:                   csidl = CSIDL_LOCAL_APPDATA
+            Case sfRoamingAppData:                 csidl = CSIDL_APPDATA
+            Case sfPublicDesktop:                  csidl = CSIDL_COMMON_DESKTOPDIRECTORY
+            Case sfPublicDocuments:                csidl = CSIDL_COMMON_DOCUMENTS
+            Case sfPublicPictures:                 csidl = CSIDL_COMMON_PICTURES
+            Case sfPublicMusic:                    csidl = CSIDL_COMMON_MUSIC
+            Case sfPublicVideos:                   csidl = CSIDL_COMMON_VIDEO
+            Case sfFonts:                          csidl = CSIDL_FONTS
+            Case sfStartup:                        csidl = CSIDL_STARTUP
+            Case sfCommonStartup:                  csidl = CSIDL_COMMON_STARTUP
+            ' Vista-era folders with no CSIDL equivalent - cannot resolve on XP.
+            Case sfDownloads, sfPublicDownloads
+                Err.Raise 5, "GetSpecialFolder", _
+                    "This folder (Downloads) requires Windows Vista or later; " & _
+                    "it has no equivalent on Windows XP."
+            Case Else
+                Err.Raise 5, "GetSpecialFolder", "Unknown SpecialFolder ID"
+        End Select
+
+        ' SHGetFolderPathW writes into a caller-provided MAX_PATH buffer (no allocation
+        ' to free, unlike SHGetKnownFolderPath). SHGFP_TYPE_CURRENT = the current path.
+        Dim buf As String: buf = Space$(260)                ' MAX_PATH
+        Dim hr As Long
+        hr = SHGetFolderPathW(0, csidl, 0, SHGFP_TYPE_CURRENT, StrPtr(buf))
+        If hr < 0 Then
+            Err.Raise vbObjectError + (hr And &HFFFF&), _
+                    "GetSpecialFolder", _
+                    "SHGetFolderPathW failed (HRESULT 0x" & Hex$(hr) & ")"
+        End If
+        ' Buffer is NUL-terminated; trim at the first NUL.
+        Dim z As Long: z = InStr(buf, vbNullChar)
+        If z > 0 Then GetSpecialFolderCSIDL = Left$(buf, z - 1) Else GetSpecialFolderCSIDL = buf
+    End Function
+    
     [Description("Returns a relative path from a base path to a target path. The base path is treated as a folder by default. Relative inputs are resolved against the current directory. Returns the absolute target if no relative path exists (e.g. different drives).")]
     Public Function GetRelativePath(ByVal basePath As String, ByVal targetPath As String, _
         Optional ByVal basePathIsFolder As Boolean = True, _
@@ -1295,7 +1364,7 @@ Public Module FileSystemTools
     Public Function GetFileEncoding(ByVal filePath As String) As TextEncoding
         ' Reads a fixed 8192-byte head sample - the deepest any detector on this path
         ' scans (IsValidUTF8 / LooksLikeBinary cap there; the others use far less).
-        Const SAMPLE_BYTES As Long = 8192
+        Const SAMPLE_BYTES As Long = 32768
         Dim stream() As Byte
         ReadStream filePath, stream, SAMPLE_BYTES
     
@@ -1321,7 +1390,7 @@ Public Module FileSystemTools
             GetFileEncoding = TextCodec.Detect(stream)
         End If
     End Function
-        
+    
     [Description("Reads an entire text file to a string. With encAutoDetect (default) the encoding is detected, and a binary file raises; with an explicit encoding that encoding is used as-is (a byte-order mark still overrides it). A leading BOM is stripped. An empty file returns an empty string. Optionally normalizes line endings.")]
     Public Function TextFileToString(ByVal filePath As String, _
         Optional ByVal encoding As TextEncoding = encAutoDetect, _
@@ -1365,7 +1434,7 @@ Public Module FileSystemTools
         WriteStream bytes, filePath                           ' creates/truncates
     End Sub
 
-    ' Behaviour mirrors StringToTextFile except that a line ending is MANDATORY (it is 
+    ' Behavior mirrors StringToTextFile except that a line ending is MANDATORY (it is 
     ' the join separator), so nlNoChange/0 is coerced to nlWindows rather than skipped.
     [Description("Writes an array of lines to a file in the specified encoding (a BOM is emitted only for BOM-bearing members such as encUtf8Bom). Overwrites any existing file.")]
     Public Sub ArrayToTextFile(ByRef lines() As String, ByVal filePath As String, _
@@ -1398,8 +1467,7 @@ Public Module FileSystemTools
         Dim enc As TextEncoding
         enc = TextCodec.Detect(stream, encoding)
         If enc = encUnknown Then                           ' only reachable via auto-detect on binary content
-            Err.Raise ERR_NOT_TEXT, "TextFileToArray", _
-                "File appears to be binary; cannot read as text: " & filePath
+            Err.Raise ERR_NOT_TEXT, "TextFileToArray", "File appears to be binary; cannot read as text: " & filePath
         End If
             
         ' Normalizing to LF first is what makes mixed CR/LF/CRLF files split
@@ -1623,9 +1691,7 @@ OpenFailed:
             ' GetDriveName first. Matching that strictness (rather than leniently
             ' extracting the drive) keeps a ported caller's error surfacing as it did.
             Dim tail As String: tail = Mid$(drivePath, 3)
-            If Len(tail) = 0 Or tail = "\" Then
-                root = UCase$(Left$(drivePath, 1)) & ":"
-            End If
+            If Len(tail) = 0 Or tail = "\" Then root = UCase$(Left$(drivePath, 1)) & ":"
             ' else: leave root empty -> raises 5 below (see the raise, and note it's
             ' currently 68 - FSO uses 5 for this; see below)
         ElseIf Len(drivePath) = 1 And UCase$(drivePath) >= "A" And UCase$(drivePath) <= "Z" Then
@@ -1707,7 +1773,7 @@ OpenFailed:
             srcEnc = TextCodec.Detect(raw, fromEncoding)
 
             ' Refuse binary. On auto-detect, Detect already scanned the bytes,
-            ' o a binary file comes back as encUnknown. On an
+            ' and a binary file comes back as encUnknown. On an
             ' explicit seed, Detect trusts the caller, so scan
             ' here for added safety - except wide seeds, whose NULs are legitimate text.
             isBinary = (srcEnc = encUnknown) _
@@ -1910,8 +1976,7 @@ OpenFailed:
 
         Dim text As String
         text = TextFileToString(filePath, enc)
-        FileContainsText = (InStr(1, text, searchText, _
-            IIf(ignoreCase, vbTextCompare, vbBinaryCompare)) > 0)
+        FileContainsText = (InStr(1, text, searchText, IIf(ignoreCase, vbTextCompare, vbBinaryCompare)) > 0)
     End Function
 
     '-------------------------------------------------------------------------------------------------
@@ -1952,7 +2017,7 @@ OpenFailed:
             If Not FSTShared.IsReparsePoint(CStr(f)) Then
                 CollectFiles CStr(f), pattern, includeHidden, includeSystem, True, result
             End If
-        Next
+        Next f
     End Sub
 
     ' Files ONLY (directory bit excluded) in one folder matching 'pattern',
@@ -1964,10 +2029,13 @@ OpenFailed:
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
         Dim name As String
-
+        Dim searchPath As String
         Dim e As Long
-        hFind = FindFirstFileW(StrPtr(FSTShared.EnsureTrailingBackslash(FSTShared.ApiPath(folder)) & pattern), ffd)
-        e = Err.LastDllError                          ' capture BEFORE anything else
+        
+        searchPath = FSTShared.EnsureTrailingBackslash(FSTShared.ApiPath(folder)) & pattern
+
+        hFind = FSTShared.FindFirstOne(searchPath, ffd, e)
+  
         If hFind = INVALID_HANDLE_VALUE Then
             FSTShared.IsEmptySearch e, "GetFilePaths", folder   ' returns True, or raises
             Exit Sub
@@ -1999,17 +2067,18 @@ OpenFailed:
 
     ' Immediate subfolders of 'folder' as full paths. Always uses "*" - the caller's
     ' file pattern must not restrict which folders we are allowed to descend into.
-    Private Function EnumerateSubFolders(ByVal folder As String, _
-        ByVal includeHidden As Boolean, ByVal includeSystem As Boolean) As Collection
-
+    Private Function EnumerateSubFolders(ByVal folder As String, ByVal includeHidden As Boolean, ByVal includeSystem As Boolean) As Collection
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
         Dim name As String
         Dim folders As New Collection
-
+        Dim searchPath As String
         Dim e As Long
-        hFind = FindFirstFileW(StrPtr(FSTShared.EnsureTrailingBackslash(FSTShared.ApiPath(folder)) & "*"), ffd)
-        e = Err.LastDllError
+        
+        searchPath = FSTShared.EnsureTrailingBackslash(FSTShared.ApiPath(folder)) & "*"
+
+        hFind = FSTShared.FindFirstOne(searchPath, ffd, e)
+        
         If hFind = INVALID_HANDLE_VALUE Then
             FSTShared.IsEmptySearch e, "GetFilePaths", folder
             Set EnumerateSubFolders = folders          ' empty, and legitimately so
@@ -2128,7 +2197,8 @@ OpenFailed:
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
 
-        hFind = FindFirstFileW(StrPtr(pattern), ffd)
+        hFind = FSTShared.FindFirstOne(pattern, ffd)
+        
         If hFind = INVALID_HANDLE_VALUE Then
             If ignoreMissing Then Exit Sub                 ' pattern matched nothing
             Err.Raise 53, "DeleteFile", "File not found: " & pattern
@@ -2202,8 +2272,9 @@ OpenFailed:
         ' unchanged. 'folder' is already canonical (it descends from GetAbsolutePathName
         ' in DeleteOneFolder), which is what makes \\?\ safe to apply.
         searchPath = FSTShared.EnsureTrailingBackslash(FSTShared.ApiPath(folder)) & "*"
-
-        hFind = FindFirstFileW(StrPtr(searchPath), ffd)
+        
+        hFind = FSTShared.FindFirstOne(searchPath, ffd)
+        
         If hFind = INVALID_HANDLE_VALUE Then Exit Sub
 
         On Error GoTo CleanUp
@@ -2259,8 +2330,9 @@ OpenFailed:
         Dim names As New Collection
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
-
-        hFind = FindFirstFileW(StrPtr(pattern), ffd)
+        
+        hFind = FSTShared.FindFirstOne(pattern, ffd)
+        
         If hFind = INVALID_HANDLE_VALUE Then
             If ignoreMissing Then Exit Sub                 ' pattern matched nothing
             Err.Raise 76, "DeleteFolder", "Path not found: " & pattern
@@ -2309,8 +2381,9 @@ OpenFailed:
         ' split as DeleteFolderRecursive. ApiPath is a no-op under 248. 'source' is
         ' canonical (descends from CopyOneFolder's GetAbsolutePathName), so \\?\ is safe.
         searchPath = FSTShared.EnsureTrailingBackslash(FSTShared.ApiPath(source)) & "*"
-
-        hFind = FindFirstFileW(StrPtr(searchPath), ffd)
+        
+        hFind = FSTShared.FindFirstOne(searchPath, ffd)
+        
         If hFind = INVALID_HANDLE_VALUE Then Exit Sub
 
         On Error GoTo CleanUp
@@ -2645,8 +2718,8 @@ OpenFailed:
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
 
-        SetLastError 0
-        hFind = FindFirstFileW(StrPtr(sourcePattern), ffd)
+        hFind = FSTShared.FindFirstOne(sourcePattern, ffd)
+        
         If hFind = INVALID_HANDLE_VALUE Then
             Err.Raise IIf(wantFolders, 76, 53), IIf(wantFolders, "MoveFolder", "MoveFile"), _
                     "Path not found: " & sourcePattern
@@ -2712,8 +2785,8 @@ OpenFailed:
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
 
-        SetLastError 0
-        hFind = FindFirstFileW(StrPtr(sourcePattern), ffd)
+        hFind = FSTShared.FindFirstOne(sourcePattern, ffd)
+        
         If hFind = INVALID_HANDLE_VALUE Then
             Err.Raise 76, "CopyFolder", "Path not found: " & sourcePattern
         End If
@@ -2767,8 +2840,8 @@ OpenFailed:
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
 
-        SetLastError 0
-        hFind = FindFirstFileW(StrPtr(sourcePattern), ffd)
+        hFind = FSTShared.FindFirstOne(sourcePattern, ffd)
+        
         If hFind = INVALID_HANDLE_VALUE Then
             Err.Raise 53, "CopyFile", "File not found: " & sourcePattern
         End If
@@ -2863,7 +2936,7 @@ OpenFailed:
 SkipFile:
         ' Unreadable / oversized / binary / unknown - not a match, just move on.
     End Sub
-    
+
 End Module
 
 ' ==========================================================================
@@ -3458,7 +3531,7 @@ Public Class Folder
     ' holding 1500 bytes plus a junction to one of its own subfolders reports
     ' 1500 here and 2500 under FSO - it counted the target twice.
     '
-    ' We deviate because FSO's behaviour is unsafe, not merely different:
+    ' We deviate because FSO's behavior is unsafe, not merely different:
     '   * a junction pointing at an ancestor makes FSO recurse until it dies;
     '   * a size that changes with the number of junctions pointing into the tree
     '     is not measuring anything;
@@ -3483,7 +3556,7 @@ Public Class Folder
     ' unsettable bits anyway, so dropping them changes nothing on disk. Reading
     ' Attributes, flipping one bit and writing it back is therefore safe.
     '
-    ' Two behaviours worth knowing before writing:
+    ' Two behaviors worth knowing before writing:
     '   * Normal DOMINATES. Passing Normal (alone or OR'd with anything) clears
     '     every settable attribute - it means "no attributes", not "an attribute".
     '   * The write REPLACES the settable set; it does not merge. To flip one bit,
@@ -3638,10 +3711,13 @@ Public Class Folder
         Dim hFind As LongPtr
         Dim nm As String, full As String
         Dim isDir As Boolean
-
+        Dim searchPath As String
         Dim e As Long
-        hFind = FindFirstFileW(StrPtr(FSTShared.EnsureTrailingBackslash(folderPath) & "*"), ffd)
-        e = Err.LastDllError
+        
+        searchPath = FSTShared.EnsureTrailingBackslash(folderPath) & "*"
+
+        hFind = FSTShared.FindFirstOne(searchPath, ffd, e)
+        
         If hFind = INVALID_HANDLE_VALUE Then
             FSTShared.IsEmptySearch e, IIf(wantFolders, "Folder.SubFolders", "Folder.Files"), folderPath
             Set EnumChildren = out
@@ -3717,10 +3793,13 @@ Public Class Folder
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
         Dim nm As String, full As String
-
+        Dim searchPath As String
         Dim e As Long
-        hFind = FindFirstFileW(StrPtr(FSTShared.EnsureTrailingBackslash(folderPath) & "*"), ffd)
-        e = Err.LastDllError
+        
+        searchPath = FSTShared.EnsureTrailingBackslash(folderPath) & "*"
+  
+        hFind = FSTShared.FindFirstOne(searchPath, ffd, e)
+
         If hFind = INVALID_HANDLE_VALUE Then
             FSTShared.IsEmptySearch e, "Folder.Size", folderPath   ' raises 70 on a denied subtree
             Exit Function                                       ' truly empty -> contributes 0
@@ -3865,7 +3944,7 @@ End Class
 ' RootFolder is the odd one out: it raises 76, not 71, because the failure comes
 ' from GetFolder rather than from this class's own mapper.
 '
-' This raise-rather-than-return-zero behaviour is FSO parity, and it is
+' This raise-rather-than-return-zero behavior is FSO parity, and it is
 ' deliberate.
 '
 ' --- Two kinds of root ---------------------------------------------------
@@ -5727,54 +5806,53 @@ Private Module TextCodec
     '======================================================================
     ' Detects the encoding of a byte sample. A real BOM wins if found; otherwise a
     ' concrete seed (if given) wins; otherwise a known binary-format signature forces
-    ' encUnknown; otherwise the UTF-16/32 and UTF-8 heuristics run, falling back to
-    ' system ANSI.
+    ' encUnknown; otherwise UTF-8 validity is tested, then the UTF-16/32 heuristic,
+    ' then binary-vs-ANSI.
     '
     ' Precedence is deliberate and load-bearing:
-    '   BOM > caller seed > binary signature > heuristics > ANSI
-    ' encUnknown can come back from the signature step (a recognized binary container)
-    ' or the auto-detect heuristics (binary content). With a seed, step 2 always
-    ' returns something concrete - which is why the callers' binary guards have to
-    ' re-scan explicitly on the seeded path.
+    ' BOM > caller seed > binary signature > UTF-8 > UTF-16/32 > binary/ANSI
+    ' encUnknown can come back from the signature step (a recognized binary container),
+    ' the UTF-16/32 heuristic (content that isn't wide text), or the binary sniff. With
+    ' a seed, step 2 always returns something concrete - which is why the callers'
+    ' binary guards have to re-scan explicitly on the seeded path.
     '
-    ' The signature step (3.0) catches structured containers - OLE compound documents
+    ' Why UTF-8 is tested BEFORE UTF-16/32: most real text is UTF-8, and testing it
+    ' first removes it from the wide-text comparison entirely. This is safe (verified
+    ' against a large corpus with zero wide-text files stolen) because genuine UTF-16
+    ' fails UTF-8 validity two ways: non-Latin UTF-16 has high bytes that break UTF-8
+    ' sequencing, and Latin-range UTF-16 is caught by IsValidUTF8's leading-NUL guard
+    ' (a quarter of wide files depend on that guard - measured). So no wide file passes
+    ' UTF-8 validity, and testing UTF-8 first cannot misclassify wide text as UTF-8.
+    '
+    ' The signature step (step 3) catches structured containers - OLE compound documents
     ' (.doc/.xls/.ppt/.msi), SQLite, ZIP-based formats, PDF, common image/video/archive
     ' types - by their magic-number header. These EMBED genuine wide text (stream names,
-    ' GUIDs, table names), so a content heuristic could legitimately see "UTF-16/32" inside
-    ' them and can't cleanly reject them; identifying the container settles it. It's a
-    ' best-effort accelerator, not a correctness dependency: anything it misses still
-    ' faces the heuristics + LooksLikeBinary. It's also a performance win when scanning
-    ' folders full of binary files.
+    ' GUIDs, table names), so a content heuristic could legitimately see "UTF-16/32"
+    ' inside them and can't cleanly reject them; identifying the container settles it.
+    ' It's a best-effort accelerator, not a correctness dependency: anything it misses
+    ' still faces the heuristics + LooksLikeBinary. It's also a performance win when
+    ' scanning folders full of binary files.
     '
     ' trueLength: the ACTUAL file length, when 'stream' is a TRUNCATED head sample
     ' (as from GetFileEncoding reading only sampleBytes of a large file). The UTF-16/32
-    ' parity gates test whether the file's byte count is even / a multiple of 4 - a
-    ' real UTF-16 file can't be odd-length, a real UTF-32 file must be mult-of-4. That
-    ' invariant is about the FILE, not the sample: a large odd-length file sampled at
-    ' 8KB would otherwise be judged by the (even) sample length and pass the gate
-    ' spuriously. Pass the real length so the parity gate means what it claims. Default
-    ' -1 means 'stream' IS the whole buffer, so its own length is authoritative (all
-    ' callers that pass a complete buffer can omit this).
+    ' parity gate tests whether the file's byte count is even - a real UTF-16 file can't
+    ' be odd-length. That invariant is about the FILE, not the sample: a large odd-length
+    ' file sampled at 32KB would otherwise be judged by the (even) sample length and pass
+    ' the gate spuriously. Pass the real length so the parity gate means what it claims.
+    ' Default -1 means 'stream' IS the whole buffer, so its own length is authoritative
+    ' (all callers that pass a complete buffer can omit this).
     Public Function Detect(ByRef stream() As Byte, Optional ByVal seed As TextEncoding = encAutoDetect, _
                            Optional ByVal trueLength As Long = -1) As TextEncoding
-        
-        ' Within that sample, each detector scans as much as its job needs:
-        '   UTF-8 validity / binary sniff - the full sample (evidence can appear anywhere)
-        '   NUL-pattern wide-text scan     - a smaller window; wide text is NUL-DENSE, so its
-        '                                    pattern shows in the first ~2000 bytes and the
-        '                                    maxNullsToFind early-out usually stops sooner.
-        Const DETECT_SAMPLE As Long = 8192
-        Const NUL_SCAN_WINDOW As Long = 2000
-        
-        ' 1) BOM sniff overrides everything
+
+        ' BOM sniff overrides everything
         Dim bomEnc As TextEncoding
         bomEnc = SniffBom(stream)
         If bomEnc <> encUnknown Then
             Detect = bomEnc
             Exit Function
         End If
-        
-        ' 2) a concrete caller seed wins; but with no BOM found in file, then honor its code
+
+        ' A concrete caller seed wins; but with no BOM found in file, honor its code
         ' page without the BOM flag (a BOM-bearing seed degrades to no-BOM here)
         ' - i.e. passing encUtf8Bom for a file that has no BOM yields encUtf8, so the
         ' decoder does not try to strip bytes that aren't there.
@@ -5782,42 +5860,120 @@ Private Module TextCodec
             Detect = CodePageOf(seed)
             Exit Function
         End If
-        
-        ' 3) Known binary-format signatures short-circuit to encUnknown BEFORE the
+
+        ' Known binary-format signatures short-circuit to encUnknown BEFORE the
         ' heuristics. Structured containers (OLE Compound - .msi/.doc/.xls/.ppt) embed
-        ' genuine UTF-16 text (stream names, GUIDs), so a content heuristic legitimately
-        ' sees "wide text" inside them and can't cleanly reject them. A signature match
-        ' settles it by container identity, not by NUL patterns.
-        ' The list was selected based on low mis-classification risk. This also represents
-        ' a shortcutting performance win.
-        If SniffBinarySignature(stream) Then
+        ' genuine UTF-16 text (stream names, GUIDs), so a content heuristic could
+        ' legitimately see "wide text" inside them and can't cleanly reject them. A
+        ' signature match settles it by container identity, not by content. The list was
+        ' selected for low misclassification risk; it is also a shortcutting perf win.
+        If SniffBinary(stream) Then
             Detect = encUnknown
             Exit Function
         End If
-        
-        ' 4) heuristics: UTF-16/32 by null pattern, then UTF-8 validity, else ANSI
-        Dim enc As TextEncoding
-        enc = encUnknown
+
+        ' Content heuristics, in order: UTF-8 validity, then UTF-16/32, then binary/ANSI.
+        Dim enc As TextEncoding = encUnknown
+
+        ' UTF-8 first: catches most real text and removes it from the wide
+        ' comparison. No genuine wide file passes UTF-8 validity, so this is safe.
+        If IsValidUTF8(stream) Then
+            Detect = encUtf8
+            Exit Function
+        End If
+
         ' Parity gate uses the TRUE file length (not the sample length) so a truncated
         ' sample of a large odd-length file isn't judged even just because the sample is.
+        ' An odd-length file cannot be UTF-16/32, so skip the wide test entirely for odd.
         Dim fileLen As Long
         If trueLength >= 0 Then fileLen = trueLength Else fileLen = UBound(stream) + 1
-        ' Odd-length files can't be UTF-16/32, so skip straight to the 8-bit tests.
-        If (fileLen Mod 2) = 0 Then enc = DetectUTF1632(stream, NUL_SCAN_WINDOW, trueLength:=trueLength)
-        If enc = encUnknown Then
-            ' Order matters: pure ASCII is valid UTF-8, so UTF-8 is tested first and
-            ' ANSI is only the last resort for byte soup that is still plausibly text.
-            If IsValidUTF8(stream, DETECT_SAMPLE) Then
-                enc = encUtf8
-            ElseIf LooksLikeBinary(stream, DETECT_SAMPLE) Then
-                enc = encUnknown          ' binary: don't pass it off as ANSI; let the caller decide
-            Else
-                enc = encSystemAnsi
+
+        If (fileLen Mod 4) = 0 Then
+            enc = DetectUTF32(stream)
+            If enc <> encUnknown Then Detect = enc:Exit Function
+        End If
+        
+        Dim looksBinary As Boolean, looksText As Boolean
+        looksBinary = LooksLikeBinary(stream)
+        
+        If (fileLen Mod 2) = 0 Then
+            'now test for utf-16
+            'one of the best signals is shannon entropy skew (per lane)
+            'skew is important becuase utf-8, ansi, and binary almost always signal about 
+            'the same magnitude for le vs be, whereas utf-16 is usually highly skewed 
+            'skew is 100% accurate on sign (le vs be)
+            ' Determine skew from entropy difference since it seems very 100% determinative for our utf16 corpus
+            Dim skewPos As Boolean
+            skewPos = (EntropySkew(stream) >= 0)
+            looksText = LooksLikeText(stream, skewPos)
+            
+            If looksBinary And looksText Then
+                If skewPos Then
+                    Detect = encUtf16
+                Else
+                    Detect = encUtf16Be
+                End If
+                Exit Function
             End If
         End If
+
+        ' Not UTF-8, not wide text: binary or single-byte ANSI.
+        If enc = encUnknown Then
+            If looksBinary Then
+                enc = encUnknown          ' binary: don't pass it off as ANSI; let the caller decide
+            Else
+                enc = encSystemAnsi       ' last resort for a byte stream that is still plausibly text
+            End If
+        End If
+
         Detect = enc
     End Function
-
+    
+    ' Beyond 1024 bytes scan window no improvement in binary false-positives
+    Private Function DetectUTF32(bytes() As Byte, Optional ByVal maxBytesToScan As Long = 1024) As TextEncoding
+        Dim i As Long, b0 As Byte, b1 As Byte, b2 As Byte, b3 As Byte
+        Dim countValidLe As Long, countValidBe As Long
+        Dim total As Long
+        Dim cap As Long
+        Const MIN_BLOCKS As Long = 2
+        
+        cap = Min(UBound(bytes) + 1, maxBytesToScan)
+        
+        If cap < MIN_BLOCKS * 4 Then DetectUTF32 = encUnknown:Exit Function
+    
+        For i = 0 To cap - 4 Step 4
+            b0 = bytes(i)
+            b1 = bytes(i + 1)
+            b2 = bytes(i + 2)
+            b3 = bytes(i + 3)
+            If (b0 = 0 And b1 = 0) And (b2 <> 0 Or b3 <> 0) Then
+                countValidBe = countValidBe + 1
+            ElseIf (b2 = 0 And b3 = 0) And (b0 <> 0 Or b1 <> 0) Then
+                countValidLe = countValidLe + 1
+            End If
+            total = total + 1
+        Next i
+            
+        Dim nf32le As Double, nf32be As Double, nf32Skew As Double
+        nf32be = countValidBe / total
+        nf32le = countValidLe / total
+        nf32Skew = nf32le - nf32be
+        ' In the test corpus, 100% probability that if nf32dif (skew) is > .7 its utf-32
+        ' It's a very strong signal, but only because we have few
+        ' examples where the two higher bytes are used...
+        ' only one binary over .7 out of ~3000 (and it was caught by binary header snif)
+        If Abs(nf32Skew) > 0.70 Then
+            If nf32Skew < 0 Then
+                DetectUTF32 = encUtf32Be
+            Else
+                DetectUTF32 = encUtf32
+            End If
+            Exit Function
+        End If
+        
+        DetectUTF32 = encUnknown
+    End Function
+    
     ' Returns the matching *Bom encoding, or encUnknown if no BOM is present.
     ' Works on a hex string of the first <=4 bytes, so short buffers just produce a
     ' short string and fall through the prefix patterns harmlessly.
@@ -5848,6 +6004,314 @@ Private Module TextCodec
             ' any of four bit boundaries.
             If InStr("38 39 2B 2F", Mid$(bom, 7, 2)) > 0 Then SniffBom = encUtf7Bom
         End If
+    End Function
+    
+    ' Known binary-format signatures ("magic numbers"). Returns True when the head
+    ' bytes match a well-known non-text container. This is a CONTENT check (the file's
+    ' own bytes), NOT an extension check - it can't be fooled by a rename, and it
+    ' catches the case the NUL heuristics structurally cannot: OLE Compound Binary
+    ' files (.msi/.doc/.xls/.ppt) and other containers that legitimately EMBED wide
+    ' text (stream names, GUIDs), which makes them look like UTF-16/32 to a content
+    ' heuristic. Matching here short-circuits detection to encUnknown before the
+    ' heuristics run.
+    '
+    ' This is a POSITIVE list of common formats, not exhaustive - a binary format not
+    ' listed still falls through to the heuristics + LooksLikeBinary, which handle the
+    ' long tail. The list is the high-value, stable, well-documented signatures.
+    Private Function SniffBinary(ByRef stream() As Byte) As Boolean
+        ' Need enough bytes for the longest signature below (SQLite's is 16).
+        If UBound(stream) + 1 < 16 Then Exit Function          ' too short -> let heuristics decide
+
+        Dim sig As String
+        sig = BytesToHexString(MidB(stream, 1, 16))            ' first 16 bytes as hex
+
+        Select Case True
+            ' OLE2 / Compound Binary - .msi .doc .xls .ppt .msg (embedded UTF-16
+            ' stream names fooled the UTF-32 gate; the case that motivated this).
+            Case sig Like "D0CF11E0A1B11AE1*"
+                SniffBinary = True
+            ' SQLite database - "SQLite format 3\0". Full of embedded UTF-8/UTF-16
+            ' table/column names and string values plus NUL padding, so it fools the
+            ' wide-text heuristics the same way an OLE compound file does.
+            Case sig Like "53514C69746520666F726D6174203300*"
+                SniffBinary = True
+            ' ZIP local header - .zip and ZIP-based formats: .xlsx .docx .pptx .odt
+            ' .jar .apk .epub. (PK\x03\x04, plus empty/spanned variants.)
+            Case sig Like "504B0304*", sig Like "504B0506*", sig Like "504B0708*"
+                SniffBinary = True
+            ' PDF - "%PDF"
+            Case sig Like "25504446*"
+                SniffBinary = True
+            ' JPEG / JFIF / EXIF - FF D8 FF
+            Case sig Like "FFD8FF*"
+                SniffBinary = True
+            ' PNG
+            Case sig Like "89504E470D0A1A0A*"
+                SniffBinary = True
+            ' GIF - "GIF87a" / "GIF89a"
+            Case sig Like "474946383761*", sig Like "474946383961*"
+                SniffBinary = True
+            ' TIFF - "II*\0" (little-endian) / "MM\0*" (big-endian). Common in photo
+            ' and scan workflows; embeds tag tables and can carry text metadata.
+            Case sig Like "49492A00*", sig Like "4D4D002A*"
+                SniffBinary = True
+            ' BMP - "BM" (42 4D) then a reserved field at bytes 6-9 that a real BMP
+            ' sets to zero. "424D" alone is a weak 2-byte PRINTABLE signature that a
+            ' text file starting with the letters "BM" would match; requiring the
+            ' reserved 00 00 00 00 at offset 6 (hex chars 13-20 in the 16-byte sample)
+            ' rejects that false positive while still matching every real BMP.
+            Case sig Like "424D*" And Mid$(sig, 13, 8) = "00000000"
+                SniffBinary = True
+            ' ISO Base Media (MP4 / MOV / M4A / HEIC) - bytes 5..8 are "ftyp".
+            Case Mid$(sig, 9, 8) = "66747970"
+                SniffBinary = True
+            ' RIFF containers - AVI / WAV / WEBP ("RIFF")
+            Case sig Like "52494646*"
+                SniffBinary = True
+            ' GZIP
+            Case sig Like "1F8B*"
+                SniffBinary = True
+            ' 7-Zip
+            Case sig Like "377ABCAF271C*"
+                SniffBinary = True
+            ' RAR ("Rar!")
+            Case sig Like "526172211A07*"
+                SniffBinary = True
+            ' ELF executables
+            Case sig Like "7F454C46*"
+                SniffBinary = True
+            ' Windows icon (.ico) / cursor (.cur): 00 00, then type 01 00 (icon) or
+            ' 02 00 (cursor), then a 16-bit LE image count at bytes 4-5 that a REAL
+            ' icon sets to >= 1 (and realistically a small number). Requiring a valid
+            ' count rejects coincidental binary starting 00 00 01 00 / 00 00 02 00
+            ' whose bytes 4-5 are zero or garbage. (A text file can't match at all -
+            ' the two leading NULs rule that out.) Count low byte = Mid$(sig,9,2),
+            ' high byte = Mid$(sig,11,2); high byte must be 00 (no real icon has 256+
+            ' images) and the two must not both be 00 (>= 1 image).
+            Case (sig Like "00000100*" Or sig Like "00000200*") _
+                    And Mid$(sig, 11, 2) = "00" _
+                    And Mid$(sig, 9, 2) <> "00"
+                SniffBinary = True
+            ' twinBASIC project / package - .twinproj .twinpack. 4-byte magic
+            ' 0xEA0BA51C, stored little-endian, so the on-disk bytes are
+            ' 1C A5 0B EA. The two bytes that follow are a format-version word
+            ' (currently 01 00); it is deliberately NOT checked, because a
+            ' future format bump would change it and must not defeat the sniff.
+            ' The magic alone is a strong 4-byte signature. This identifies the
+            ' twinBASIC container; it cannot distinguish proj from pack, which
+            ' share the identical header and differ only by extension/intent.
+            Case sig Like "1CA50BEA*"
+                SniffBinary = True
+            ' ASF / Windows Media container - .wmv .wma .asf. All three share the ASF
+            ' Header Object GUID (75B22630-668E-11CF-A6D9-00AA0062CE6C) as the first
+            ' 16 bytes.    
+            Case sig Like "3026B2758E66CF11A6D900AA0062CE6C*"
+                SniffBinary = True
+            'MPEG‑1: .mpg, .mpeg, .m2p, .vob
+            Case sig Like "000001BA*"
+                SniffBinary = True
+        End Select
+    End Function
+    
+    ' This ignores a null if it the last byte in the file (.rtf files are sometimes like this)
+    ' 32768 byte scan window needed to prevent false binary positives for wide detection
+    Public Function LooksLikeBinary(ByRef raw() As Byte, Optional ByVal maxBytesToScan As Long = 32768, _
+                                    Optional ByVal trueLength As Long = -1) As Boolean
+        Dim i As Long, cap As Long, ctrl As Long
+        If Not IsArrayInitialized(raw) Then Exit Function    ' empty -> not binary
+
+        cap = Min(UBound(raw) + 1, maxBytesToScan)
+
+        ' Do we have the whole file in this sample? A trailing NUL is only forgivable
+        ' when we do - a NUL at the edge of a TRUNCATED sample is mid-file (real binary
+        ' evidence), not a trailing terminator.
+        Dim haveWholeFile As Boolean
+        If trueLength >= 0 Then
+            haveWholeFile = (cap >= trueLength)
+        Else
+            haveWholeFile = (UBound(raw) + 1 <= maxBytesToScan)
+        End If
+
+        '--- Scan for NULs and count C0 controls
+        For i = 0 To cap - 1
+            Select Case raw(i)
+                Case 0
+                    ' A NUL normally means binary - bail immediately. The ONE exception:
+                    ' a NUL that is the last byte of the whole file is a trailing
+                    ' terminator (some RTF writers append one after the closing brace),
+                    ' which is a cosmetic artifact on a text file, not binary content.
+                    If haveWholeFile And i = cap - 1 Then
+                        LooksLikeBinary = False      ' trailing NUL only -> not binary
+                    Else
+                        LooksLikeBinary = True       ' NUL in the body -> binary
+                    End If
+                    Exit Function
+                Case 9, 10, 13, 12
+                    ' allowed whitespace; tab/LF/CR/FF: legitimate
+                Case Is < 32                         ' stray C0 control
+                    ctrl = ctrl + 1
+            End Select
+        Next i
+
+        '--- Too small to classify reliably
+        If cap < 64 Then
+            LooksLikeBinary = False
+            Exit Function
+        End If
+
+        '--- Binary if >2% control bytes
+        LooksLikeBinary = (ctrl * 100 > cap * 2)
+    End Function
+    
+    ' True if the sample is plausible UTF-16 text, tolerating a SMALL fraction of
+    ' implausible units. Surrogate-pair aware: a well-formed pair (high D800-DBFF
+    ' followed by low DC00-DFFF) is a valid astral character and counts as plausible;
+    ' a lone/unpaired surrogate is implausible.
+    '
+    ' Why a tolerance, not zero: genuine UTF-16 files can contain a rare stray unit -
+    ' an embedded C1 control, a corrupted/interleaved region, a copy-paste artifact -
+    ' while being overwhelmingly valid wide text (a real file was 1 bad unit in 18000).
+    ' Strict "any implausible -> not text" wrongly rejects such a file as binary; a
+    ' tolerance accepts it (it's ~100% plausible) while still rejecting binary and
+    ' ANSI-misread-as-wide, which are implausible in a LARGE fraction of units, nowhere
+    ' near the threshold. The gap between "one stray unit" (~0%) and "binary" (tens of
+    ' percent) is huge, so the exact threshold isn't delicate.
+    '
+    ' Fast reject preserved: we bail as soon as the implausible count exceeds the
+    ' allowed budget, so binary (implausible early and often) still exits quickly.
+    '
+    ' skewPos: True => validate as LE (byte i is low, i+1 high); False => BE (i high, i+1 low).
+    ' Max scan window of 32768 needed with .0001 (about 3 null chars allowed)
+    Private Function LooksLikeText(bytes() As Byte, ByVal skewPos As Boolean, Optional ByVal maxBytesToScan As Long = 32768) As Boolean
+        Const MAX_IMPLAUSIBLE_FRACTION As Double = 0.0001   ' 1 null char per 10kb allowed
+
+        Dim i As Long, cu As Long, nextCu As Long, consumed As Long, cap As Long
+        Dim units As Long, implausible As Long, maxAllowed As Long
+
+        cap = Min(UBound(bytes) + 1, maxBytesToScan)
+
+        ' Budget of implausible units we'll tolerate, based on how many units the sample
+        ' holds. Computed once up front so we can early-out the moment we exceed it.
+        maxAllowed = CLng((cap \ 2) * MAX_IMPLAUSIBLE_FRACTION)
+
+        i = 0
+        Do While i <= cap - 2
+            cu = UnitAt(bytes, i, skewPos)
+            consumed = 2                                  ' default: advance one 2-byte unit
+            units = units + 1
+
+            If cu >= &HD800& And cu <= &HDBFF& Then
+                ' High surrogate - valid only as the head of a well-formed pair.
+                If i + 3 <= cap - 1 Then                  ' room for a following unit
+                    nextCu = UnitAt(bytes, i + 2, skewPos)
+                    If nextCu >= &HDC00& And nextCu <= &HDFFF& Then
+                        consumed = 4                       ' valid pair -> skip BOTH units
+                        units = units + 1                  ' count the consumed 2nd unit
+                    Else
+                        implausible = implausible + 1      ' high surrogate, no low
+                    End If
+                Else
+                    ' High surrogate at the very end of the sample - its low half may lie
+                    ' just past the window. Boundary artifact, not a failure: stop and
+                    ' accept what we've validated so far (subject to the budget below).
+                    Exit Do
+                End If
+            ElseIf cu >= &HDC00& And cu <= &HDFFF& Then
+                implausible = implausible + 1             ' lone LOW surrogate
+            Else
+                If Not IsPlausibleBmpUnit(cu) Then implausible = implausible + 1
+            End If
+
+            ' Fast reject: once we've blown the budget, it can't be text - bail.
+            If implausible > maxAllowed Then LooksLikeText = False:Exit Function
+
+            i = i + consumed
+        Loop
+
+        ' Reached the end (or the boundary-surrogate stop) within the budget.
+        LooksLikeText = True
+    End Function
+
+    ' Assemble a 16-bit code unit from the two bytes at offset i, honoring endianness.
+    ' LE: byte i is low, byte i+1 is high. BE: byte i is high, byte i+1 is low.
+    Private Function UnitAt(bytes() As Byte, ByVal i As Long, ByVal skewPos As Boolean) As Long
+        If skewPos Then                                   ' little-endian
+            UnitAt = (CLng(bytes(i + 1)) << 8) Or bytes(i)
+        Else                                              ' big-endian
+            UnitAt = (CLng(bytes(i)) << 8) Or bytes(i + 1)
+        End If
+    End Function
+
+    ' Plausible non-surrogate BMP text unit. Surrogates are handled by LooksLikeText's
+    ' pair logic and never reach here, so this only screens ordinary BMP code units.
+    Private Function IsPlausibleBmpUnit(ByVal cu As Long) As Boolean
+        ' Reject C0 controls, except common text whitespace.
+        If cu <= &H1F Then
+            Select Case cu
+                Case 7, 8, 9, 10, 11, 12, 13, 27: IsPlausibleBmpUnit = True
+                Case Else:                        IsPlausibleBmpUnit = False
+            End Select
+            Exit Function
+        End If
+        ' Reject DEL + C1 controls.
+        If cu >= &H7F And cu <= &H9F Then Exit Function              ' False
+        ' Reject noncharacters.
+        If (cu >= &HFDD0& And cu <= &HFDEF&) Or cu = &HFFFE& Or cu = &HFFFF& Then Exit Function
+        ' Everything else in the BMP is plausible text.
+        IsPlausibleBmpUnit = True
+    End Function
+    
+    ' UTF-16 endianness by entropy-skew SIGN. Returns +1 for LE, -1 for BE, 0 if
+    ' undetermined (no data, or the two lanes have equal entropy).
+    '
+    ' skew = entropy(even-position bytes) - entropy(odd-position bytes). For UTF-16LE,
+    ' the odd positions hold the high/script/NUL byte (concentrated -> low entropy) and
+    ' the even positions hold the varied content byte (high entropy) -> even > odd ->
+    ' positive. For UTF-16BE the lanes swap -> negative. Only the SIGN is used (which
+    ' endianness), never the magnitude, so we skip returning the entropy value.
+    '
+    ' Single pass: both lane histograms are tallied together as the bytes are walked
+    ' once; the entropy is then computed over the fixed 256-bucket histograms (not a
+    ' re-scan of the data). Step is fixed at 2 (UTF-16 only; UTF-32 uses null counting).
+    ' This correctly predicts all wide endiness using only first 64 bytes - use 1024 for extra margin
+    Private Function EntropySkew(b() As Byte, Optional ByVal maxBytesToScan As Long = 1024) As Long
+        Dim evenCounts(0 To 255) As Long, oddCounts(0 To 255) As Long
+        Dim i As Long, cap As Long, total As Long
+
+        cap = Min(UBound(b) + 1, maxBytesToScan)
+
+        ' One walk, reading a full 2-byte unit per step. Loop to cap-2 so b(i+1) is
+        ' always in bounds; an odd trailing byte (can't be part of a UTF-16 unit) is
+        ' correctly ignored.
+        For i = 0 To cap - 2 Step 2
+            evenCounts(b(i)) = evenCounts(b(i)) + 1
+            oddCounts(b(i + 1)) = oddCounts(b(i + 1)) + 1
+            total = total + 1
+        Next
+        If total = 0 Then Exit Function                     ' fewer than 2 bytes
+
+        Dim skew As Double
+        skew = EntropyOf(evenCounts, total) - EntropyOf(oddCounts, total)
+        If skew > 0 Then
+            EntropySkew = 1                                     ' LE
+        ElseIf skew < 0 Then
+            EntropySkew = -1                                    ' BE
+        End If
+        ' skew = 0 falls through -> SkewSign = 0 (undetermined; equal lanes)
+    End Function
+
+    ' Shannon entropy (bits) from a pre-tallied 256-bucket histogram and its total.
+    ' Separated so SkewSign computes both lanes without re-walking the byte array.
+    Private Function EntropyOf(counts() As Long, ByVal total As Long) As Double
+        If total = 0 Then Exit Function
+        Dim ent As Double, j As Long, pj As Double
+        For j = 0 To 255
+            If counts(j) > 0 Then
+                pj = counts(j) / total
+                ent = ent - pj * (Log(pj) / Log(2#))
+            End If
+        Next
+        EntropyOf = ent
     End Function
 
     '======================================================================
@@ -6319,263 +6783,6 @@ Private Module TextCodec
         Next i
     End Sub
     
-    '======================================================================
-    ' Heuristics (no BOM available)
-    '
-    ' All three are bounded-window scans and therefore probabilistic. The knobs are
-    ' the maxBytesToScan / density-threshold constants; a file that misdetects is
-    ' nearly always one whose distinguishing evidence lies past the window.
-    '======================================================================
-
-    ' UTF-16/32 detection by NUL-padding pattern: Latin-range text in a wide encoding
-    ' produces a strong, positionally regular run of zero bytes (e.g. "A" in UTF-16LE
-    ' is 41 00). Returns encUnknown when the evidence is too thin or too binary-like -
-    ' the signal for Detect() to fall through to the 8-bit tests.
-    '
-    ' A NUL-pattern winner is NOT trusted on count alone - binary files (JPEG, MOV,
-    ' PDF, Office docs) are full of NULs that coincidentally mimic the wide-text shape.
-    ' A candidate must clear FOUR guards, applied to both UTF-16 and UTF-32:
-    '   MIN_NULL_DENSITY      - too few NULs overall => not wide text at all
-    '   dominance gate        - the winning parity must match in a strong fraction of
-    '                           the units/blocks examined, not just beat the other side
-    '                           (MIN_UTF16_DOMINANCE / MIN_UTF32_DOMINANCE)
-    '   text-plausibility     - the non-NUL "character" bytes must actually be printable
-    '                           text (MIN_TEXT_FRACTION); a binary file matches the NUL
-    '                           SHAPE but its non-NUL bytes are garbage. This is the
-    '                           check NUL-counting alone cannot make.
-    '   UTF32_DOMINANCE_RATIO - UTF-32LE text ALSO looks like UTF-16LE with lots of
-    '                           NULs, so UTF-32 only wins over UTF-16 if it wins decisively
-    ' UTF32_SCAN_LIMIT bounds the UTF-32 counting to an early window (its 00 00 pairs
-    ' are rarer and cheap to confirm); the UTF-32 dominance denominator is scoped to
-    ' that window so a long genuine UTF-32 file isn't unfairly deflated.
-    '
-    ' KNOWN LIMITATION - BOM-less CJK / non-Latin-1 wide text:
-    ' Detection relies on the zero-byte padding Latin-range characters produce.
-    ' CJK and most non-Latin scripts have BOTH bytes non-zero in UTF-16 (U+65E5 ->
-    ' E5 65, no NUL), so predominantly-CJK text carries almost no padding and fails
-    ' the dominance gate, returning encUnknown. This is STRUCTURAL, not tunable: CJK
-    ' wide text and binary both have low NUL density, so loosening the gate to admit
-    ' CJK would re-admit the binary files the gate exists to reject. Rarely bites in
-    ' practice - real CJK wide files almost always carry a BOM (SniffBom handles those
-    ' before this runs). BOM-less CJK wide text returns encUnknown; add a BOM or pass
-    ' an explicit encoding for such files.
-    Private Function DetectUTF1632(stream() As Byte, Optional ByVal maxBytesToScan As Long = 2000, Optional ByVal maxNullsToFind As Long = 100, Optional ByVal trueLength As Long = -1) As TextEncoding
-        Const MIN_NULL_DENSITY As Double = 0.005   ' 0.5%
-        Const UTF32_DOMINANCE_RATIO As Long = 2
-        Const UTF32_SCAN_LIMIT As Long = 256
-        ' Binary files (ZIP-based docs, PDF, JPEG, MOV) are full of NULs that can
-        ' coincidentally match a wide-text NUL SHAPE. Two defenses, applied to BOTH
-        ' UTF-16 and UTF-32:
-        '   1. dominance - the winning parity must match in a strong fraction of the
-        '      units/blocks examined (a coincidental margin isn't enough);
-        '   2. text-plausibility - the non-NUL "character" bytes must actually be
-        '      printable text. Real wide text is ~all printable; a binary file that
-        '      matches the NUL shape has garbage non-NUL bytes. This is the check that
-        '      NUL-counting alone cannot make (it caught JPEGs on the UTF-32 path and
-        '      MOV headers on the UTF-16 path).
-        Const MIN_UTF16_DOMINANCE As Double = 0.4
-        Const MIN_UTF32_DOMINANCE As Double = 0.4
-        Const MIN_TEXT_FRACTION As Double = 0.75
-
-        Dim windowEnd As Long
-        Dim utf32WindowEnd As Long
-        Dim i As Long
-        Dim b1 As Byte, b2 As Byte, b3 As Byte, b4 As Byte
-
-        Dim nulls16le As Long, nulls16be As Long
-        Dim nulls32le As Long, nulls32be As Long
-        Dim text16le As Long, text16be As Long          ' printable non-NUL bytes among UTF-16 matches
-        Dim text32le As Long, text32be As Long          ' printable non-NUL bytes among UTF-32 matches
-        Dim examinedBytes As Long
-
-        ' The UTF-32 parity gate below tests whether the FILE length is a multiple of 4.
-        ' That is a fact about the file, not the sample: a large file sampled at 64KB
-        ' would be judged by the (mult-of-4) sample length and pass spuriously. Use the
-        ' true file length when the caller supplied it (truncated sample); otherwise the
-        ' buffer IS the whole file, so its own length is authoritative.
-        Dim fileLen As Long
-        If trueLength >= 0 Then fileLen = trueLength Else fileLen = UBound(stream) + 1
-
-        ' --- Edge case: exactly 2 bytes ---
-        ' Too short for the 4-byte block loop below, but a single NUL still tells us
-        ' the endianness of a one-character UTF-16 file.
-        If UBound(stream) = 1 Then
-            If stream(0) = 0 And stream(1) <> 0 Then
-                DetectUTF1632 = encUtf16Be
-            ElseIf stream(1) = 0 And stream(0) <> 0 Then
-                DetectUTF1632 = encUtf16
-            Else
-                DetectUTF1632 = encUnknown
-            End If
-            Exit Function
-        End If
-
-        ' -4 keeps i+3 in bounds. A short buffer makes this negative, the loop is
-        ' skipped entirely, and the density test below then returns encUnknown.
-        windowEnd = Min(UBound(stream) - 4, maxBytesToScan)
-        utf32WindowEnd = Min(windowEnd, UTF32_SCAN_LIMIT)
-
-        ' --- Scan window: one 4-byte block per iteration ---
-        For i = 0 To windowEnd Step 4
-            b1 = stream(i)
-            b2 = stream(i + 1)
-            b3 = stream(i + 2)
-            b4 = stream(i + 3)
-
-            ' UTF‑32 detection (only early window).
-            ' A block that scores as UTF-32 skips the UTF-16 test - counting it as
-            ' both would inflate the UTF-16 score and defeat the dominance ratio.
-            ' Tally whether the single non-NUL byte is printable (BE: b4; LE: b1).
-            If i <= utf32WindowEnd Then
-                If (b1 = 0 And b2 = 0) And (b3 <> 0 Or b4 <> 0) Then
-                    nulls32be = nulls32be + 1
-                    If IsTextByte(b4) Then text32be = text32be + 1
-                    GoTo NextBlock
-                ElseIf (b3 = 0 And b4 = 0) And (b1 <> 0 Or b2 <> 0) Then
-                    nulls32le = nulls32le + 1
-                    If IsTextByte(b1) Then text32le = text32le + 1
-                    GoTo NextBlock
-                End If
-            End If
-
-            ' UTF‑16 detection: two independent 2-byte units per block.
-            ' A NUL in the HIGH byte means big-endian (text byte is the LOW byte);
-            ' a NUL in the LOW byte means little-endian (text byte is the HIGH byte).
-            ' Tally whether that non-NUL text byte is printable, for the gate below.
-            If b1 = 0 And b2 <> 0 Then
-                nulls16be = nulls16be + 1
-                If IsTextByte(b2) Then text16be = text16be + 1
-            ElseIf b2 = 0 And b1 <> 0 Then
-                nulls16le = nulls16le + 1
-                If IsTextByte(b1) Then text16le = text16le + 1
-            End If
-
-            If b3 = 0 And b4 <> 0 Then
-                nulls16be = nulls16be + 1
-                If IsTextByte(b4) Then text16be = text16be + 1
-            ElseIf b4 = 0 And b3 <> 0 Then
-                nulls16le = nulls16le + 1
-                If IsTextByte(b3) Then text16le = text16le + 1
-            End If
-
-    NextBlock:
-            ' Early out: enough evidence gathered, stop burning cycles on a big file.
-            If nulls16le + nulls16be + nulls32le + nulls32be >= maxNullsToFind Then Exit For
-        Next i
-
-        ' Approximate - i has already been advanced past the last block (or Exit For'd).
-        ' Only feeds the density ratio, so the slop is tolerable.
-        examinedBytes = i + 4
-
-        ' --- Minimum null density check ---
-        ' Ordinary 8-bit text has essentially no NULs; a handful in a large window is
-        ' noise, not wide text.
-        If examinedBytes > 0 Then
-            If (nulls16le + nulls16be + nulls32le + nulls32be) / examinedBytes < MIN_NULL_DENSITY Then
-                DetectUTF1632 = encUnknown
-                Exit Function
-            End If
-        End If
-
-        ' --- Determine UTF‑16 winner ---
-        ' A tie leaves utf16Winner/utf16Score at 0 - deliberately no winner.
-        Dim utf16Winner As TextEncoding
-        Dim utf16Score As Long
-        Dim utf16Text As Long          ' printable count for the winning parity
-
-        If nulls16le > nulls16be Then
-            utf16Winner = encUtf16
-            utf16Score = nulls16le
-            utf16Text = text16le
-        ElseIf nulls16be > nulls16le Then
-            utf16Winner = encUtf16Be
-            utf16Score = nulls16be
-            utf16Text = text16be
-        End If
-
-        ' --- UTF-16 dominance gate ---
-        ' The winning parity must be NUL in a strong fraction of the 2-byte units
-        ' examined. Real wide text approaches ~1.0; binary NUL-noise sits far below.
-        Dim unitsExamined As Long
-        unitsExamined = examinedBytes \ 2
-        If utf16Score > 0 And unitsExamined > 0 Then
-            If utf16Score / unitsExamined < MIN_UTF16_DOMINANCE Then
-                utf16Winner = encUnknown
-                utf16Score = 0
-            End If
-        End If
-
-        ' --- UTF-16 text-plausibility gate ---
-        ' A MOV/binary header can match the NUL shape in many units (e.g. 541 LE units)
-        ' while the non-NUL bytes are garbage, not characters. Require the winner's
-        ' text bytes to be printable in a strong majority, or it's binary.
-        If utf16Score > 0 Then
-            If utf16Text / utf16Score < MIN_TEXT_FRACTION Then
-                utf16Winner = encUnknown
-                utf16Score = 0
-            End If
-        End If
-
-        ' --- Determine UTF‑32 winner ---
-        ' Only considered when the FILE length is a multiple of 4 - it cannot be UTF-32
-        ' otherwise. Uses the true file length (fileLen), not the sample length, so a
-        ' truncated sample of a large file isn't judged mult-of-4 just because the
-        ' sample happens to be.
-        Dim utf32Winner As TextEncoding
-        Dim utf32Score As Long
-        Dim utf32Text As Long
-
-        If (fileLen Mod 4) = 0 Then
-            If nulls32le > nulls32be Then
-                utf32Winner = encUtf32
-                utf32Score = nulls32le
-                utf32Text = text32le
-            ElseIf nulls32be > nulls32le Then
-                utf32Winner = encUtf32Be
-                utf32Score = nulls32be
-                utf32Text = text32be
-            End If
-        End If
-
-        ' --- UTF-32 dominance gate ---
-        ' Denominator scoped to the UTF-32 scan window (not the whole examined range),
-        ' or a long genuine UTF-32 file would be unfairly deflated.
-        Dim utf32BlocksExamined As Long
-        utf32BlocksExamined = Min(examinedBytes, UTF32_SCAN_LIMIT) \ 4
-        If utf32Score > 0 And utf32BlocksExamined > 0 Then
-            If utf32Score / utf32BlocksExamined < MIN_UTF32_DOMINANCE Then
-                utf32Winner = encUnknown
-                utf32Score = 0
-            End If
-        End If
-
-        ' --- UTF-32 text-plausibility gate ---
-        ' Same as UTF-16: match the NUL shape is not enough, the non-NUL bytes must be
-        ' printable text. This is what caught the JPEGs.
-        If utf32Score > 0 Then
-            If utf32Text / utf32Score < MIN_TEXT_FRACTION Then
-                utf32Winner = encUnknown
-                utf32Score = 0
-            End If
-        End If
-
-        ' --- Final decision: UTF-32 must dominate; otherwise UTF-16 if it scored ---
-        If utf32Score > utf16Score * UTF32_DOMINANCE_RATIO Then
-            DetectUTF1632 = utf32Winner
-        ElseIf utf16Score > 0 Then
-            DetectUTF1632 = utf16Winner
-        Else
-            DetectUTF1632 = encUnknown
-        End If
-    End Function
-
-    ' A plausible text byte: tab / LF / CR, or printable ASCII. Used by the
-    ' text-plausibility gates to tell real wide text (printable chars) from a binary
-    ' file that merely matches the NUL pattern (garbage non-NUL bytes).
-    Private Function IsTextByte(ByVal b As Byte) As Boolean
-        IsTextByte = (b = 9 Or b = 10 Or b = 13 Or (b >= 32 And b <= 126))
-    End Function
-    
     ' Is the head of this buffer valid UTF-8? Delegates the real work to
     ' MultiByteToWideChar with MB_ERR_INVALID_CHARS (fail-on-invalid), so the only
     ' job here is trimming the scan window so it does NOT end mid-sequence - a
@@ -6589,7 +6796,8 @@ Private Module TextCodec
     ' Note that pure ASCII is valid UTF-8 and returns True - which is why Detect()
     ' must test UTF-16/32 first and treat ANSI as the last resort.
     ' On using MB_ERR_INVALID_CHARS for validation: https://devblogs.microsoft.com/oldnewthing/20120504-00/?p=7703
-    Private Function IsValidUTF8(stream() As Byte, Optional ByVal maxBytesToScan As Long = 8192) As Boolean
+    ' maxBytesToScan: a relatively large 32768 scan window needed to avoid Ansi false-positives
+    Private Function IsValidUTF8(stream() As Byte, Optional ByVal maxBytesToScan As Long = 32768) As Boolean
         Dim byteCount As Long
         Dim testCount As Long
         Dim endPos As Long
@@ -6652,8 +6860,17 @@ Private Module TextCodec
             ' Ensure we don't include extra continuation bytes beyond the expected sequence
             testCount = endPos + 1
         End If
+        
+        ' Scan only the first 256 bytes for a NUL and early exit. A LEADING NUL is a
+        ' reliable binary signal (binary formats declare themselves at the start); 
+        ' NULs further in are less decisive.
+        ' Also - this guard needed to prevent some wide/binary FP's - null
+        ' strcitly legal utf-8 character
+        If LooksLikeBinary(stream, 256) Then
+            IsValidUTF8 = False
+            Exit Function
+        End If
 
-        ' Validate the trimmed window. A nonzero char count = every byte was legal
         ' UTF-8; MB_ERR_INVALID_CHARS is what turns a substitution into a failure.
         IsValidUTF8 = (MultiByteToWideChar(encUtf8, MB_ERR_INVALID_CHARS, VarPtr(stream(0)), testCount, 0&, 0&) <> 0)
     End Function
@@ -6753,128 +6970,7 @@ Private Module TextCodec
         End Select
     End Function
     
-    ' Pure byte-level "does this look like binary?" - avoid using for wide-text encodings
-    '
-    ' (UTF-16/32 are full of legitimate NUL padding and would trip the first test
-    ' immediately - hence IsWideText() guarding the call sites.)
-    '
-    ' Two independent tests:
-    '   1. ANY NUL byte => binary, immediately. Real 8-bit text never contains one.
-    '   2. >2% stray C0 control bytes => binary. Tab/LF/CR/FF are whitelisted as
-    '      legitimate text formatting and don't count toward the ratio.
-    ' Buffers under 64 bytes skip test 2 (the ratio is meaningless on a tiny sample)
-    ' and are reported as text - false negatives are the safer failure here, since
-    ' the caller will simply try to decode and produce garbage rather than refuse a
-    ' legitimate file.
-    Public Function LooksLikeBinary(ByRef raw() As Byte, Optional ByVal maxBytesToScan As Long = 8192) As Boolean
-        Dim i As Long, cap As Long, ctrl As Long
-        If Not IsArrayInitialized(raw) Then Exit Function    ' empty -> not binary
-        
-        cap = Min(UBound(raw) + 1, maxBytesToScan)
-
-        '--- Scan for NULs and count C0 controls
-        For i = 0 To cap - 1
-            Select Case raw(i)
-                Case 0
-                    LooksLikeBinary = True ' any NUL -> binary
-                    Exit Function
-                Case 9, 10, 13, 12
-                    ' allowed whitespace; tab/LF/CR/FF: legitimate
-                Case Is < 32 ' stray C0 control
-                    ctrl = ctrl + 1
-            End Select
-        Next i
-
-        '--- Too small to classify reliably
-        If cap < 64 Then
-            LooksLikeBinary = False
-            Exit Function
-        End If
-
-        '--- Binary if >2% control bytes
-        LooksLikeBinary = (ctrl * 100 > cap * 2)
-    End Function
-    
-    ' Known binary-format signatures ("magic numbers"). Returns True when the head
-    ' bytes match a well-known non-text container. This is a CONTENT check (the file's
-    ' own bytes), NOT an extension check - it can't be fooled by a rename, and it
-    ' catches the case the NUL heuristics structurally cannot: OLE Compound Binary
-    ' files (.msi/.doc/.xls/.ppt) and other containers that legitimately EMBED wide
-    ' text (stream names, GUIDs), which makes them look like UTF-16/32 to a content
-    ' heuristic. Matching here short-circuits detection to encUnknown before the
-    ' heuristics run.
-    '
-    ' This is a POSITIVE list of common formats, not exhaustive - a binary format not
-    ' listed still falls through to the heuristics + LooksLikeBinary, which handle the
-    ' long tail. The list is the high-value, stable, well-documented signatures.
-    Private Function SniffBinarySignature(ByRef stream() As Byte) As Boolean
-        ' Need enough bytes for the longest signature below (SQLite's is 16).
-        If UBound(stream) + 1 < 16 Then Exit Function          ' too short -> let heuristics decide
-
-        Dim sig As String
-        sig = BytesToHexString(MidB(stream, 1, 16))            ' first 16 bytes as hex
-
-        Select Case True
-            ' OLE2 / Compound Binary - .msi .doc .xls .ppt .msg (embedded UTF-16
-            ' stream names fooled the UTF-32 gate; the case that motivated this).
-            Case sig Like "D0CF11E0A1B11AE1*"
-                SniffBinarySignature = True
-            ' SQLite database - "SQLite format 3\0". Full of embedded UTF-8/UTF-16
-            ' table/column names and string values plus NUL padding, so it fools the
-            ' wide-text heuristics the same way an OLE compound file does.
-            Case sig Like "53514C69746520666F726D6174203300*"
-                SniffBinarySignature = True
-            ' ZIP local header - .zip and ZIP-based formats: .xlsx .docx .pptx .odt
-            ' .jar .apk .epub. (PK\x03\x04, plus empty/spanned variants.)
-            Case sig Like "504B0304*", sig Like "504B0506*", sig Like "504B0708*"
-                SniffBinarySignature = True
-            ' PDF - "%PDF"
-            Case sig Like "25504446*"
-                SniffBinarySignature = True
-            ' JPEG / JFIF / EXIF - FF D8 FF
-            Case sig Like "FFD8FF*"
-                SniffBinarySignature = True
-            ' PNG
-            Case sig Like "89504E470D0A1A0A*"
-                SniffBinarySignature = True
-            ' GIF - "GIF87a" / "GIF89a"
-            Case sig Like "474946383761*", sig Like "474946383961*"
-                SniffBinarySignature = True
-            ' TIFF - "II*\0" (little-endian) / "MM\0*" (big-endian). Common in photo
-            ' and scan workflows; embeds tag tables and can carry text metadata.
-            Case sig Like "49492A00*", sig Like "4D4D002A*"
-                SniffBinarySignature = True
-            ' BMP - "BM" (42 4D) then a reserved field at bytes 6-9 that a real BMP
-            ' sets to zero. "424D" alone is a weak 2-byte PRINTABLE signature that a
-            ' text file starting with the letters "BM" would match; requiring the
-            ' reserved 00 00 00 00 at offset 6 (hex chars 13-20 in the 16-byte sample)
-            ' rejects that false positive while still matching every real BMP.
-            Case sig Like "424D*" And Mid$(sig, 13, 8) = "00000000"
-                SniffBinarySignature = True
-            ' ISO Base Media (MP4 / MOV / M4A / HEIC) - bytes 5..8 are "ftyp".
-            Case Mid$(sig, 9, 8) = "66747970"
-                SniffBinarySignature = True
-            ' RIFF containers - AVI / WAV / WEBP ("RIFF")
-            Case sig Like "52494646*"
-                SniffBinarySignature = True
-            ' GZIP
-            Case sig Like "1F8B*"
-                SniffBinarySignature = True
-            ' 7-Zip
-            Case sig Like "377ABCAF271C*"
-                SniffBinarySignature = True
-            ' RAR ("Rar!")
-            Case sig Like "526172211A07*"
-                SniffBinarySignature = True
-            ' ELF executables
-            Case sig Like "7F454C46*"
-                SniffBinarySignature = True
-        End Select
-    End Function
-
 End Module
-
-
 ' ==========================================================================
 ' Shared
 '
@@ -6903,6 +6999,10 @@ End Module
 
 Private Module FSTShared
     Option Explicit
+    
+    Private mOSVersion As Double            ' 0 = not yet determined
+    Public Const WINDOWS_VISTA As Double = 6.0
+    Public Const WINDOWS_7 As Double = 6.1
     
     '======================================================================
     ' Attributes
@@ -6986,8 +7086,7 @@ Private Module FSTShared
         If ft.dwLowDateTime = 0 And ft.dwHighDateTime = 0 Then Exit Function   ' "no value" -> 0
         If FileTimeToLocalFileTime(ft, lft) = 0 Then Exit Function
         If FileTimeToSystemTime(lft, st) = 0 Then Exit Function
-        FileTimeToDate = DateSerial(st.wYear, st.wMonth, st.wDay) + _
-                         TimeSerial(st.wHour, st.wMinute, st.wSecond)
+        FileTimeToDate = DateSerial(st.wYear, st.wMonth, st.wDay) + TimeSerial(st.wHour, st.wMinute, st.wSecond)
     End Function
 
     ' Reassembles Win32's split 64-bit file size from its high/low DWORDs.
@@ -7349,14 +7448,26 @@ Private Module FSTShared
     Public Function InvariantUpper(ByVal s As String) As String
         If Len(s) = 0 Then Exit Function
         Dim n As Long
-        n = LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE, s, Len(s), 0, 0, ByVal vbNullPtr)
-        If n <= 0 Then InvariantUpper = s: Exit Function
-        Dim buf As String: buf = Space$(n)
-        LCMapStringEx LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE, s, Len(s), StrPtr(buf), n, ByVal vbNullPtr
-        ' No terminator to strip: passing an explicit source length (Len(s), not -1)
-        ' makes LCMapStringEx write exactly n mapped chars into the exact-sized buffer -
-        ' no NUL appended (verified: "café"->"CAFÉ" len 4).
-        InvariantUpper = buf
+        Dim buf As String
+        If OSVersion() >= WINDOWS_VISTA Then
+            n = LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE, s, Len(s), 0, 0, ByVal vbNullPtr)
+            If n <= 0 Then InvariantUpper = s: Exit Function
+            buf = Space$(n)
+            LCMapStringEx LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE, s, Len(s), StrPtr(buf), n, ByVal vbNullPtr
+            ' No terminator to strip: passing an explicit source length (Len(s), not -1)
+            ' makes LCMapStringEx write exactly n mapped chars into the exact-sized buffer -
+            ' no NUL appended (verified: "café"->"CAFÉ" len 4).
+            InvariantUpper = buf
+        Else
+            ' XP: LCID-based W form. LOCALE_INVARIANT (&H7F) gives the same locale-
+            ' independent fold as LOCALE_NAME_INVARIANT - verified to match on the
+            ' Turkish-i / café cases.
+            n = LCMapStringW(LOCALE_INVARIANT, LCMAP_UPPERCASE, StrPtr(s), Len(s), 0, 0)
+            If n <= 0 Then InvariantUpper = s: Exit Function
+            buf = Space$(n)
+            LCMapStringW LOCALE_INVARIANT, LCMAP_UPPERCASE, StrPtr(s), Len(s), StrPtr(buf), n
+            InvariantUpper = buf
+        End If
     End Function
 
     ' True if two paths are equal under invariant (filesystem) case-folding.
@@ -7369,8 +7480,7 @@ Private Module FSTShared
     Public Function PathIsUnderOrEqual(ByVal childPath As String, ByVal parentPath As String) As Boolean
         If PathEquals(childPath, parentPath) Then PathIsUnderOrEqual = True: Exit Function
         Dim pfx As String: pfx = parentPath & "\"
-        PathIsUnderOrEqual = (Len(childPath) >= Len(pfx)) AndAlso _
-                             PathEquals(Left$(childPath, Len(pfx)), pfx)
+        PathIsUnderOrEqual = (Len(childPath) >= Len(pfx)) AndAlso PathEquals(Left$(childPath, Len(pfx)), pfx)
     End Function
     
     ' True if the path is a reparse point (junction or symlink). Used by the
@@ -7400,13 +7510,46 @@ Private Module FSTShared
         MatchesLongName = (PathMatchSpecW(StrPtr(longName), StrPtr(pattern)) <> 0)
     End Function
     
+    ' OS version (major.minor), e.g. 6.1 = Win7, 6.0 = Vista, 10.0 = Win10/11.
+    ' Computed once on first use and cached. Returned as major.minor so a single
+    ' cached value serves every OS floor decision.
+    Public Function OSVersion() As Double
+        If mOSVersion = 0 Then
+            Dim maj As Long, min As Long, bld As Long
+            RtlGetNtVersionNumbers maj, min, bld
+            mOSVersion = maj + min / 10#     ' 6 + 1/10 = 6.1, 10 + 0/10 = 10.0
+        End If
+        OSVersion = mOSVersion
+    End Function
+    
+    ' Opens a find handle for a directory search, selecting fast-enumeration args when
+    ' the OS supports them: FindExInfoBasic (skips the unused 8.3 short-name lookup) and
+    ' FIND_FIRST_EX_LARGE_FETCH (batches directory reads), both Win7+; standard args
+    ' below. Clears the last error before the call and captures it into lastErr after,
+    ' so callers get a reliable code for IsEmptySearch's "empty vs. denied" distinction.
+    ' Callers keep their own INVALID_HANDLE_VALUE check and error policy (raise 76 / 53
+    ' / IsEmptySearch / silent-empty - it differs by site).
+    Public Function FindFirstOne(ByVal searchSpec As String, ByRef ffd As WIN32_FIND_DATAW, Optional ByRef lastErr As Long) As LongPtr
+        Dim infoLevel As FINDEX_INFO_LEVELS, extraFlags As FINDEX_EXTRA_FLAGS
+        If FSTShared.OSVersion() >= WINDOWS_7 Then
+            infoLevel = FindExInfoBasic
+            extraFlags = FIND_FIRST_EX_LARGE_FETCH
+        Else
+            infoLevel = FindExInfoStandard
+            extraFlags = 0
+        End If
+        SetLastError 0                     ' clear stale error so lastErr reflects THIS call
+        FindFirstOne = FindFirstFileExW(StrPtr(searchSpec), infoLevel, ffd, 0, 0, extraFlags)
+        lastErr = Err.LastDllError
+    End Function
+    
 End Module
 
 Private Module WinAPI
     
     'The Windows API declarations used here are from Jon Johnson's WinDevLib tB package (https://github.com/fafalone/WinDevLib).
     'This project was designed to function without this module if Jon Johnson's WinDevLib is referenced.
-
+    
     '/*
     Public Declare PtrSafe Function GetLastError Lib "kernel32" () As Long
     Public Declare PtrSafe Function GetFullPathNameW Lib "kernel32" (ByVal lpFileName As LongPtr, ByVal nBufferLength As Long, ByVal lpBuffer As LongPtr, lpFilePart As LongPtr) As Long
@@ -7415,6 +7558,7 @@ Private Module WinAPI
     Public Declare PtrSafe Function RemoveDirectoryW Lib "kernel32" (ByVal lpPathName As LongPtr) As BOOL
     Public Declare PtrSafe Function FindFirstFileW Lib "kernel32" (ByVal lpFileName As LongPtr, ByRef lpFindFileData As WIN32_FIND_DATAW) As LongPtr
     Public Declare PtrSafe Function FindNextFileW Lib "kernel32" (ByVal hFindFile As LongPtr, ByRef lpFindFileData As WIN32_FIND_DATAW) As Long
+    Public Declare PtrSafe Function FindFirstFileExW Lib "kernel32" (ByVal lpFileName As LongPtr, ByVal fInfoLevelId As FINDEX_INFO_LEVELS, ByRef lpFindFileData As WIN32_FIND_DATAW, ByVal fSearchOp As FINDEX_SEARCH_OPS, ByVal lpSearchFilter As LongPtr, ByVal dwAdditionalFlags As FINDEX_EXTRA_FLAGS) As LongPtr
     Public Declare PtrSafe Function FindClose Lib "kernel32" (ByVal hFindFile As LongPtr) As Long
     Public Declare PtrSafe Function SetFileAttributesW Lib "kernel32" (ByVal lpFileName As LongPtr, ByVal dwFileAttributes As FILE_ATTRIBUTES) As BOOL
     Public Declare PtrSafe Function GetFileAttributesW Lib "kernel32" (ByVal lpFileName As LongPtr) As FILE_ATTRIBUTES
@@ -7431,6 +7575,7 @@ Private Module WinAPI
     Public Declare PtrSafe Function lstrlenW Lib "kernel32" (lpString As Any) As Long
     Public Declare PtrSafe Sub CoTaskMemFree Lib "ole32" (ByVal pv As LongPtr)
     Public Declare PtrSafe Function SHGetKnownFolderPath Lib "shell32" (rfid As UUID, ByVal dwFlags As KNOWN_FOLDER_FLAG, ByVal hToken As LongPtr, ppszPath As LongPtr) As Long
+    Public Declare PtrSafe Function SHGetFolderPathW Lib "shell32" (ByVal hwnd As LongPtr, ByVal csidl As CSIDLs, ByVal hToken As LongPtr, ByVal dwFlags As SHGFP_TYPE, ByVal pszPath As LongPtr) As Long
     Public Declare PtrSafe Function SysReAllocStringW Lib "oleaut32" Alias "SysReAllocString" (ByVal pBSTR As LongPtr, Optional ByVal pszStrPtr As LongPtr) As Long
     Public Declare PtrSafe Function PathRelativePathToW Lib "shlwapi" (ByVal pszPath As LongPtr, ByVal pszFrom As LongPtr, ByVal dwAttrFrom As FILE_ATTRIBUTES, ByVal pszTo As LongPtr, ByVal dwAttrTo As FILE_ATTRIBUTES) As BOOL
     Public Declare PtrSafe Function GetFileAttributesExW Lib "kernel32" (ByVal lpFileName As LongPtr, ByVal fInfoLevelId As GET_FILEEX_INFO_LEVELS, ByRef lpFileInformation As Any) As BOOL
@@ -7459,11 +7604,32 @@ Private Module WinAPI
     
     Public Declare PtrSafe Function WNetGetConnectionW Lib "mpr.dll" (ByVal lpLocalName As LongPtr, ByVal lpRemoteName As LongPtr, lpnLength As Long) As Long
     
+    Public Declare PtrSafe Function LCMapStringW Lib "kernel32" (ByVal Locale As DefaultLocales, [TypeHint(LCMAP_FLAGS, COMPARE_FLAGS)] ByVal dwMapFlags As Long, ByVal lpSrcStr As LongPtr, ByVal cchSrc As Long, ByVal lpDestStr As LongPtr, ByVal cchDest As Long) As Long
     Public DeclareWide PtrSafe Function LCMapStringEx Lib "kernel32" (ByVal lpLocaleName As String, [TypeHint(LCMAP_FLAGS, COMPARE_FLAGS)] ByVal dwMapFlags As Long, ByVal lpSrcStr As String, ByVal cchSrc As Long, ByVal lpDestStr As LongPtr, ByVal cchDest As Long, lpVersionInformation As NLSVERSIONINFO, Optional ByVal lpReserved As LongPtr, Optional ByVal sortHandle As LongPtr) As Long
     Public Declare PtrSafe Function GetThreadLocale Lib "kernel32" () As Long
     Public Declare PtrSafe Function SetThreadLocale Lib "kernel32" (ByVal Locale As DefaultLocales) As BOOL
     
     Public Declare PtrSafe Function PathMatchSpecW Lib "shlwapi" (ByVal pszFile As LongPtr, ByVal pszSpec As LongPtr) As BOOL
+    
+    [UseGetLastError(False)] Public Declare PtrSafe Sub RtlGetNtVersionNumbers Lib "ntdll" (Major As Long, Minor As Long, Build As Long)
+    
+    Public Enum FINDEX_EXTRA_FLAGS
+        FIND_FIRST_EX_CASE_SENSITIVE = 1
+        FIND_FIRST_EX_LARGE_FETCH = 2
+        FIND_FIRST_EX_ON_DISK_ENTRIES_ONLY = 4
+    End Enum
+    
+    Public Enum FINDEX_INFO_LEVELS
+        FindExInfoStandard
+        FindExInfoBasic
+        FindExInfoMaxInfoLevel
+    End Enum
+    
+    Public Enum FINDEX_SEARCH_OPS
+        FindExSearchNameMatch
+        FindExSearchLimitToDirectories
+        FindExSearchLimitToDevices
+    End Enum
     
     Public Const LOCALE_NAME_INVARIANT As String = ""
     
@@ -7476,6 +7642,11 @@ Private Module WinAPI
         LOCALE_SYSTEM_DEFAULT = &H0800
     End Enum
     
+    Public Enum SHGFP_TYPE
+        SHGFP_TYPE_CURRENT = 0 ' current value for user, verify it exists
+        SHGFP_TYPE_DEFAULT = 1 ' default value, may not exist
+    End Enum
+    
     [Description("For Windows 8 and newer. Windows 7 and below: Use NLSVERSIONINFO_WIN7")]
     Public Type NLSVERSIONINFO
         dwNLSVersionInfoSize As Long
@@ -7483,6 +7654,13 @@ Private Module WinAPI
         dwDefinedVersion As Long
         dwEffectiveId As Long
         guidCustomVersion As UUID
+    End Type
+    
+    [Description("For Windows 7 and below only. For Windows 8 and newer, use NLSVERSIONINFO or NLSVERSIONINFOEX")]
+    Public Type NLSVERSIONINFO_WIN7         ' Use NLSVERSIONINFOEX instead
+        dwNLSVersionInfoSize As Long ' 12 bytes
+        dwNLSVersion As Long
+        dwDefinedVersion As Long ' Deprecated, use dwNLSVersion instead
     End Type
     
     Public Enum LCMAP_FLAGS
@@ -7976,6 +8154,71 @@ Private Module WinAPI
             lPtr = 0
         End If
     End Function
+    
+    Public Enum CSIDLs
+        CSIDL_DESKTOP = &H0000
+        CSIDL_INTERNET = &H0001
+        CSIDL_PROGRAMS = &H0002
+        CSIDL_CONTROLS = &H0003
+        CSIDL_PRINTERS = &H0004
+        CSIDL_PERSONAL = &H0005
+        CSIDL_FAVORITES = &H0006
+        CSIDL_STARTUP = &H0007
+        CSIDL_RECENT = &H0008
+        CSIDL_SENDTO = &H0009
+        CSIDL_BITBUCKET = &H000a
+        CSIDL_STARTMENU = &H000b
+        CSIDL_MYDOCUMENTS = &H000c
+        CSIDL_MYMUSIC = &H000d
+        CSIDL_MYVIDEO = &H000e
+        CSIDL_DESKTOPDIRECTORY = &H0010
+        CSIDL_DRIVES = &H0011
+        CSIDL_NETWORK = &H0012
+        CSIDL_NETHOOD = &H0013
+        CSIDL_FONTS = &H0014
+        CSIDL_TEMPLATES = &H0015
+        CSIDL_COMMON_STARTMENU = &H0016
+        CSIDL_COMMON_PROGRAMS = &H0017
+        CSIDL_COMMON_STARTUP = &H0018
+        CSIDL_COMMON_DESKTOPDIRECTORY = &H0019
+        CSIDL_APPDATA = &H001a
+        CSIDL_PRINTHOOD = &H001b
+        CSIDL_LOCAL_APPDATA = &H001c
+        CSIDL_ALTSTARTUP = &H001d
+        CSIDL_COMMON_ALTSTARTUP = &H001e
+        CSIDL_COMMON_FAVORITES = &H001f
+        CSIDL_INTERNET_CACHE = &H0020
+        CSIDL_COOKIES = &H0021
+        CSIDL_HISTORY = &H0022
+        CSIDL_COMMON_APPDATA = &H0023
+        CSIDL_WINDOWS = &H0024
+        CSIDL_SYSTEM = &H0025
+        CSIDL_PROGRAM_FILES = &H0026
+        CSIDL_MYPICTURES = &H0027
+        CSIDL_PROFILE = &H0028
+        CSIDL_SYSTEMX86 = &H0029
+        CSIDL_PROGRAM_FILESX86 = &H002a
+        CSIDL_PROGRAM_FILES_COMMON = &H002b
+        CSIDL_PROGRAM_FILES_COMMONX86 = &H002c
+        CSIDL_COMMON_TEMPLATES = &H002d
+        CSIDL_COMMON_DOCUMENTS = &H002e
+        CSIDL_COMMON_ADMINTOOLS = &H002f
+        CSIDL_ADMINTOOLS = &H0030
+        CSIDL_CONNECTIONS = &H0031
+        CSIDL_COMMON_MUSIC = &H0035
+        CSIDL_COMMON_PICTURES = &H0036
+        CSIDL_COMMON_VIDEO = &H0037
+        CSIDL_RESOURCES = &H0038
+        CSIDL_RESOURCES_LOCALIZED = &H0039
+        CSIDL_COMMON_OEM_LINKS = &H003a
+        CSIDL_CDBURN_AREA = &H003b
+        CSIDL_COMPUTERSNEARME = &H003d
+        CSIDL_FLAG_PER_USER_INIT = &H0800
+        CSIDL_FLAG_NO_ALIAS = &H1000
+        CSIDL_FLAG_CREATE = &H8000&
+        CSIDL_FLAG_DONT_VERIFY = &H4000
+        CSIDL_FLAG_MASK = &HFF00&
+    End Enum
     
     '*/
 

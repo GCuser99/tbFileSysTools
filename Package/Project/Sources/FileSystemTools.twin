@@ -309,6 +309,7 @@ Public Module FileSystemTools
                 GetFileType = GetFileType & ChrW$(ch)
             Next
         End If
+        
         If Len(GetFileType) = 0 Then                          ' shell unavailable/headless -> fallback
             Dim ext As String
             ext = GetExtensionName(filePath)
@@ -388,6 +389,7 @@ Public Module FileSystemTools
         If HasWildcards(destination) Then
             Err.Raise 5, "CopyFolder", "Wildcards not permitted in destination: " & destination
         End If
+        
         If HasWildcards(source) Then
             CopyFolderWildcard source, destination, overwrite
         Else
@@ -726,8 +728,10 @@ Public Module FileSystemTools
             s = Left$(s, Len(s) - 1)
         Loop
         If IsUncRoot(s) Then Exit Function                  ' UNC root has no parent
+        
         Dim pos As Long: pos = LastSep(s)
         If pos = 0 Then Exit Function                       ' no separator -> no parent
+        
         Dim parent As String: parent = Left$(s, pos - 1)
         If Len(parent) = 2 And Mid$(parent, 2, 1) = ":" Then
             GetParentFolderName = parent & "\"              ' bare drive -> drive root "C:\"
@@ -817,41 +821,54 @@ Public Module FileSystemTools
     ' and the other using GuidFromString which the one that is currently implemented.
     [Description("Returns the absolute path to the requested known folder. The returned path does NOT include a trailing backslash.")]
     Public Function GetSpecialFolder(ByVal specialFolder As SpecialFolderConst) As String
+        ' TEMP is per-process and environment-driven - no shell call on any OS.
+        If specialFolder = sfTemporaryFolder Then          ' (= TemporaryFolder alias)
+            GetSpecialFolder = Environ$("TEMP")
+            Exit Function
+        End If
+
+        ' Vista+ resolves by KNOWNFOLDERID (SHGetKnownFolderPath). XP has no known-
+        ' folder system, so below Vista we translate to the legacy CSIDL and call
+        ' SHGetFolderPathW. A few folders (Downloads, PublicDownloads) are Vista-era
+        ' shell concepts with NO CSIDL equivalent - those raise on XP.
+        If OSVersion() >= WINDOWS_VISTA Then
+            GetSpecialFolder = GetSpecialFolderKnown(specialFolder)
+        Else
+            GetSpecialFolder = GetSpecialFolderCSIDL(specialFolder)
+        End If
+    End Function
+
+    ' Vista+ path: resolve by KNOWNFOLDERID. (This is the original implementation,
+    ' unchanged except for TEMP moving up to the caller.)
+    Private Function GetSpecialFolderKnown(ByVal specialFolder As SpecialFolderConst) As String
         Dim guid As UUID
-        'Dim guid As WinDevLib.UUID 'if using guid = FOLDERID_*() method below
         Dim pPath As LongPtr
         Dim hr As Long
-
         Select Case specialFolder
-            Case WindowsFolder, sfWindowsFolder:        guid = GuidFromString(KFID_Windows_STR)
-            Case SystemFolder, sfSystemFolder:         guid = GuidFromString(KFID_System_STR)
-            Case sfSystemX86Folder:      guid = GuidFromString(KFID_SystemX86_STR)
-            Case sfProgramFiles:         guid = GuidFromString(KFID_ProgramFiles_STR)
-            Case sfProgramFilesX86:      guid = GuidFromString(KFID_ProgramFilesX86_STR)
-            Case sfProgramData:          guid = GuidFromString(KFID_ProgramData_STR)
-            Case sfUserProfile:          guid = GuidFromString(KFID_Profile_STR)
-            Case sfDesktop:              guid = GuidFromString(KFID_Desktop_STR)
-            Case sfDocuments:            guid = GuidFromString(KFID_Documents_STR)
-            Case sfDownloads:            guid = GuidFromString(KFID_Downloads_STR)
-            Case sfPictures:             guid = GuidFromString(KFID_Pictures_STR)
-            Case sfMusic:                guid = GuidFromString(KFID_Music_STR)
-            Case sfVideos:               guid = GuidFromString(KFID_Videos_STR)
-            Case sfLocalAppData:         guid = GuidFromString(KFID_LocalAppData_STR)
-            Case sfRoamingAppData:       guid = GuidFromString(KFID_RoamingAppData_STR)
-            Case sfPublicDesktop:        guid = GuidFromString(KFID_PublicDesktop_STR)
-            Case sfPublicDocuments:      guid = GuidFromString(KFID_PublicDocuments_STR)
-            Case sfPublicDownloads:      guid = GuidFromString(KFID_PublicDownloads_STR)
-            Case sfPublicPictures:       guid = GuidFromString(KFID_PublicPictures_STR)
-            Case sfPublicMusic:          guid = GuidFromString(KFID_PublicMusic_STR)
-            Case sfPublicVideos:         guid = GuidFromString(KFID_PublicVideos_STR)
-            Case sfFonts:                guid = GuidFromString(KFID_Fonts_STR)
-            Case sfStartup:              guid = GuidFromString(KFID_Startup_STR)
-            Case sfCommonStartup:        guid = GuidFromString(KFID_CommonStartup_STR)
-            ' TEMP is the one folder with no KNOWNFOLDERID - it is per-process and
-            ' environment-driven, so it short-circuits out before the shell call.
-            Case TemporaryFolder, sfTemporaryFolder
-                GetSpecialFolder = Environ$("TEMP")
-                Exit Function
+            Case WindowsFolder, sfWindowsFolder:   guid = GuidFromString(KFID_Windows_STR)
+            Case SystemFolder, sfSystemFolder:     guid = GuidFromString(KFID_System_STR)
+            Case sfSystemX86Folder:                guid = GuidFromString(KFID_SystemX86_STR)
+            Case sfProgramFiles:                   guid = GuidFromString(KFID_ProgramFiles_STR)
+            Case sfProgramFilesX86:                guid = GuidFromString(KFID_ProgramFilesX86_STR)
+            Case sfProgramData:                    guid = GuidFromString(KFID_ProgramData_STR)
+            Case sfUserProfile:                    guid = GuidFromString(KFID_Profile_STR)
+            Case sfDesktop:                        guid = GuidFromString(KFID_Desktop_STR)
+            Case sfDocuments:                      guid = GuidFromString(KFID_Documents_STR)
+            Case sfDownloads:                      guid = GuidFromString(KFID_Downloads_STR)
+            Case sfPictures:                       guid = GuidFromString(KFID_Pictures_STR)
+            Case sfMusic:                          guid = GuidFromString(KFID_Music_STR)
+            Case sfVideos:                         guid = GuidFromString(KFID_Videos_STR)
+            Case sfLocalAppData:                   guid = GuidFromString(KFID_LocalAppData_STR)
+            Case sfRoamingAppData:                 guid = GuidFromString(KFID_RoamingAppData_STR)
+            Case sfPublicDesktop:                  guid = GuidFromString(KFID_PublicDesktop_STR)
+            Case sfPublicDocuments:                guid = GuidFromString(KFID_PublicDocuments_STR)
+            Case sfPublicDownloads:                guid = GuidFromString(KFID_PublicDownloads_STR)
+            Case sfPublicPictures:                 guid = GuidFromString(KFID_PublicPictures_STR)
+            Case sfPublicMusic:                    guid = GuidFromString(KFID_PublicMusic_STR)
+            Case sfPublicVideos:                   guid = GuidFromString(KFID_PublicVideos_STR)
+            Case sfFonts:                          guid = GuidFromString(KFID_Fonts_STR)
+            Case sfStartup:                        guid = GuidFromString(KFID_Startup_STR)
+            Case sfCommonStartup:                  guid = GuidFromString(KFID_CommonStartup_STR)
             Case Else
                 Err.Raise 5, "GetSpecialFolder", "Unknown SpecialFolder ID"
         End Select
@@ -862,12 +879,63 @@ Public Module FileSystemTools
                     "GetSpecialFolder", _
                     "SHGetKnownFolderPath failed (HRESULT 0x" & Hex$(hr) & ")"
         End If
-
         ' SHGetKnownFolderPath allocates with CoTaskMemAlloc; LPWSTRtoStr frees it.
         ' Do not add an early exit between the call above and this line or we leak.
-        GetSpecialFolder = LPWSTRtoStr(pPath)
+        GetSpecialFolderKnown = LPWSTRtoStr(pPath)
     End Function
 
+    ' XP path: resolve by legacy CSIDL via SHGetFolderPathW. Folders that are Vista-era
+    ' shell concepts with no CSIDL (Downloads, PublicDownloads) raise error 5 with an
+    ' explicit "requires Windows Vista or later" message rather than fabricate a path.
+    Private Function GetSpecialFolderCSIDL(ByVal specialFolder As SpecialFolderConst) As String
+        Dim csidl As CSIDLs
+        Select Case specialFolder
+            Case WindowsFolder, sfWindowsFolder:   csidl = CSIDL_WINDOWS
+            Case SystemFolder, sfSystemFolder:     csidl = CSIDL_SYSTEM
+            Case sfSystemX86Folder:                csidl = CSIDL_SYSTEMX86
+            Case sfProgramFiles:                   csidl = CSIDL_PROGRAM_FILES
+            Case sfProgramFilesX86:                csidl = CSIDL_PROGRAM_FILESX86
+            Case sfProgramData:                    csidl = CSIDL_COMMON_APPDATA   ' ProgramData == CommonAppData
+            Case sfUserProfile:                    csidl = CSIDL_PROFILE
+            Case sfDesktop:                        csidl = CSIDL_DESKTOPDIRECTORY ' filesystem Desktop (not the virtual CSIDL_DESKTOP)
+            Case sfDocuments:                      csidl = CSIDL_PERSONAL         ' "My Documents"
+            Case sfPictures:                       csidl = CSIDL_MYPICTURES
+            Case sfMusic:                          csidl = CSIDL_MYMUSIC
+            Case sfVideos:                         csidl = CSIDL_MYVIDEO
+            Case sfLocalAppData:                   csidl = CSIDL_LOCAL_APPDATA
+            Case sfRoamingAppData:                 csidl = CSIDL_APPDATA
+            Case sfPublicDesktop:                  csidl = CSIDL_COMMON_DESKTOPDIRECTORY
+            Case sfPublicDocuments:                csidl = CSIDL_COMMON_DOCUMENTS
+            Case sfPublicPictures:                 csidl = CSIDL_COMMON_PICTURES
+            Case sfPublicMusic:                    csidl = CSIDL_COMMON_MUSIC
+            Case sfPublicVideos:                   csidl = CSIDL_COMMON_VIDEO
+            Case sfFonts:                          csidl = CSIDL_FONTS
+            Case sfStartup:                        csidl = CSIDL_STARTUP
+            Case sfCommonStartup:                  csidl = CSIDL_COMMON_STARTUP
+            ' Vista-era folders with no CSIDL equivalent - cannot resolve on XP.
+            Case sfDownloads, sfPublicDownloads
+                Err.Raise 5, "GetSpecialFolder", _
+                    "This folder (Downloads) requires Windows Vista or later; " & _
+                    "it has no equivalent on Windows XP."
+            Case Else
+                Err.Raise 5, "GetSpecialFolder", "Unknown SpecialFolder ID"
+        End Select
+
+        ' SHGetFolderPathW writes into a caller-provided MAX_PATH buffer (no allocation
+        ' to free, unlike SHGetKnownFolderPath). SHGFP_TYPE_CURRENT = the current path.
+        Dim buf As String: buf = Space$(260)                ' MAX_PATH
+        Dim hr As Long
+        hr = SHGetFolderPathW(0, csidl, 0, SHGFP_TYPE_CURRENT, StrPtr(buf))
+        If hr < 0 Then
+            Err.Raise vbObjectError + (hr And &HFFFF&), _
+                    "GetSpecialFolder", _
+                    "SHGetFolderPathW failed (HRESULT 0x" & Hex$(hr) & ")"
+        End If
+        ' Buffer is NUL-terminated; trim at the first NUL.
+        Dim z As Long: z = InStr(buf, vbNullChar)
+        If z > 0 Then GetSpecialFolderCSIDL = Left$(buf, z - 1) Else GetSpecialFolderCSIDL = buf
+    End Function
+    
     [Description("Returns a relative path from a base path to a target path. The base path is treated as a folder by default. Relative inputs are resolved against the current directory. Returns the absolute target if no relative path exists (e.g. different drives).")]
     Public Function GetRelativePath(ByVal basePath As String, ByVal targetPath As String, _
         Optional ByVal basePathIsFolder As Boolean = True, _
@@ -957,7 +1025,7 @@ Public Module FileSystemTools
     Public Function GetFileEncoding(ByVal filePath As String) As TextEncoding
         ' Reads a fixed 8192-byte head sample - the deepest any detector on this path
         ' scans (IsValidUTF8 / LooksLikeBinary cap there; the others use far less).
-        Const SAMPLE_BYTES As Long = 8192
+        Const SAMPLE_BYTES As Long = 32768
         Dim stream() As Byte
         ReadStream filePath, stream, SAMPLE_BYTES
     
@@ -983,7 +1051,7 @@ Public Module FileSystemTools
             GetFileEncoding = TextCodec.Detect(stream)
         End If
     End Function
-        
+    
     [Description("Reads an entire text file to a string. With encAutoDetect (default) the encoding is detected, and a binary file raises; with an explicit encoding that encoding is used as-is (a byte-order mark still overrides it). A leading BOM is stripped. An empty file returns an empty string. Optionally normalizes line endings.")]
     Public Function TextFileToString(ByVal filePath As String, _
         Optional ByVal encoding As TextEncoding = encAutoDetect, _
@@ -1027,7 +1095,7 @@ Public Module FileSystemTools
         WriteStream bytes, filePath                           ' creates/truncates
     End Sub
 
-    ' Behaviour mirrors StringToTextFile except that a line ending is MANDATORY (it is 
+    ' Behavior mirrors StringToTextFile except that a line ending is MANDATORY (it is 
     ' the join separator), so nlNoChange/0 is coerced to nlWindows rather than skipped.
     [Description("Writes an array of lines to a file in the specified encoding (a BOM is emitted only for BOM-bearing members such as encUtf8Bom). Overwrites any existing file.")]
     Public Sub ArrayToTextFile(ByRef lines() As String, ByVal filePath As String, _
@@ -1060,8 +1128,7 @@ Public Module FileSystemTools
         Dim enc As TextEncoding
         enc = TextCodec.Detect(stream, encoding)
         If enc = encUnknown Then                           ' only reachable via auto-detect on binary content
-            Err.Raise ERR_NOT_TEXT, "TextFileToArray", _
-                "File appears to be binary; cannot read as text: " & filePath
+            Err.Raise ERR_NOT_TEXT, "TextFileToArray", "File appears to be binary; cannot read as text: " & filePath
         End If
             
         ' Normalizing to LF first is what makes mixed CR/LF/CRLF files split
@@ -1285,9 +1352,7 @@ OpenFailed:
             ' GetDriveName first. Matching that strictness (rather than leniently
             ' extracting the drive) keeps a ported caller's error surfacing as it did.
             Dim tail As String: tail = Mid$(drivePath, 3)
-            If Len(tail) = 0 Or tail = "\" Then
-                root = UCase$(Left$(drivePath, 1)) & ":"
-            End If
+            If Len(tail) = 0 Or tail = "\" Then root = UCase$(Left$(drivePath, 1)) & ":"
             ' else: leave root empty -> raises 5 below (see the raise, and note it's
             ' currently 68 - FSO uses 5 for this; see below)
         ElseIf Len(drivePath) = 1 And UCase$(drivePath) >= "A" And UCase$(drivePath) <= "Z" Then
@@ -1369,7 +1434,7 @@ OpenFailed:
             srcEnc = TextCodec.Detect(raw, fromEncoding)
 
             ' Refuse binary. On auto-detect, Detect already scanned the bytes,
-            ' o a binary file comes back as encUnknown. On an
+            ' and a binary file comes back as encUnknown. On an
             ' explicit seed, Detect trusts the caller, so scan
             ' here for added safety - except wide seeds, whose NULs are legitimate text.
             isBinary = (srcEnc = encUnknown) _
@@ -1572,8 +1637,7 @@ OpenFailed:
 
         Dim text As String
         text = TextFileToString(filePath, enc)
-        FileContainsText = (InStr(1, text, searchText, _
-            IIf(ignoreCase, vbTextCompare, vbBinaryCompare)) > 0)
+        FileContainsText = (InStr(1, text, searchText, IIf(ignoreCase, vbTextCompare, vbBinaryCompare)) > 0)
     End Function
 
     '-------------------------------------------------------------------------------------------------
@@ -1614,7 +1678,7 @@ OpenFailed:
             If Not FSTShared.IsReparsePoint(CStr(f)) Then
                 CollectFiles CStr(f), pattern, includeHidden, includeSystem, True, result
             End If
-        Next
+        Next f
     End Sub
 
     ' Files ONLY (directory bit excluded) in one folder matching 'pattern',
@@ -1626,10 +1690,13 @@ OpenFailed:
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
         Dim name As String
-
+        Dim searchPath As String
         Dim e As Long
-        hFind = FindFirstFileW(StrPtr(FSTShared.EnsureTrailingBackslash(FSTShared.ApiPath(folder)) & pattern), ffd)
-        e = Err.LastDllError                          ' capture BEFORE anything else
+        
+        searchPath = FSTShared.EnsureTrailingBackslash(FSTShared.ApiPath(folder)) & pattern
+
+        hFind = FSTShared.FindFirstOne(searchPath, ffd, e)
+  
         If hFind = INVALID_HANDLE_VALUE Then
             FSTShared.IsEmptySearch e, "GetFilePaths", folder   ' returns True, or raises
             Exit Sub
@@ -1661,17 +1728,18 @@ OpenFailed:
 
     ' Immediate subfolders of 'folder' as full paths. Always uses "*" - the caller's
     ' file pattern must not restrict which folders we are allowed to descend into.
-    Private Function EnumerateSubFolders(ByVal folder As String, _
-        ByVal includeHidden As Boolean, ByVal includeSystem As Boolean) As Collection
-
+    Private Function EnumerateSubFolders(ByVal folder As String, ByVal includeHidden As Boolean, ByVal includeSystem As Boolean) As Collection
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
         Dim name As String
         Dim folders As New Collection
-
+        Dim searchPath As String
         Dim e As Long
-        hFind = FindFirstFileW(StrPtr(FSTShared.EnsureTrailingBackslash(FSTShared.ApiPath(folder)) & "*"), ffd)
-        e = Err.LastDllError
+        
+        searchPath = FSTShared.EnsureTrailingBackslash(FSTShared.ApiPath(folder)) & "*"
+
+        hFind = FSTShared.FindFirstOne(searchPath, ffd, e)
+        
         If hFind = INVALID_HANDLE_VALUE Then
             FSTShared.IsEmptySearch e, "GetFilePaths", folder
             Set EnumerateSubFolders = folders          ' empty, and legitimately so
@@ -1790,7 +1858,8 @@ OpenFailed:
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
 
-        hFind = FindFirstFileW(StrPtr(pattern), ffd)
+        hFind = FSTShared.FindFirstOne(pattern, ffd)
+        
         If hFind = INVALID_HANDLE_VALUE Then
             If ignoreMissing Then Exit Sub                 ' pattern matched nothing
             Err.Raise 53, "DeleteFile", "File not found: " & pattern
@@ -1864,8 +1933,9 @@ OpenFailed:
         ' unchanged. 'folder' is already canonical (it descends from GetAbsolutePathName
         ' in DeleteOneFolder), which is what makes \\?\ safe to apply.
         searchPath = FSTShared.EnsureTrailingBackslash(FSTShared.ApiPath(folder)) & "*"
-
-        hFind = FindFirstFileW(StrPtr(searchPath), ffd)
+        
+        hFind = FSTShared.FindFirstOne(searchPath, ffd)
+        
         If hFind = INVALID_HANDLE_VALUE Then Exit Sub
 
         On Error GoTo CleanUp
@@ -1921,8 +1991,9 @@ OpenFailed:
         Dim names As New Collection
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
-
-        hFind = FindFirstFileW(StrPtr(pattern), ffd)
+        
+        hFind = FSTShared.FindFirstOne(pattern, ffd)
+        
         If hFind = INVALID_HANDLE_VALUE Then
             If ignoreMissing Then Exit Sub                 ' pattern matched nothing
             Err.Raise 76, "DeleteFolder", "Path not found: " & pattern
@@ -1971,8 +2042,9 @@ OpenFailed:
         ' split as DeleteFolderRecursive. ApiPath is a no-op under 248. 'source' is
         ' canonical (descends from CopyOneFolder's GetAbsolutePathName), so \\?\ is safe.
         searchPath = FSTShared.EnsureTrailingBackslash(FSTShared.ApiPath(source)) & "*"
-
-        hFind = FindFirstFileW(StrPtr(searchPath), ffd)
+        
+        hFind = FSTShared.FindFirstOne(searchPath, ffd)
+        
         If hFind = INVALID_HANDLE_VALUE Then Exit Sub
 
         On Error GoTo CleanUp
@@ -2307,8 +2379,8 @@ OpenFailed:
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
 
-        SetLastError 0
-        hFind = FindFirstFileW(StrPtr(sourcePattern), ffd)
+        hFind = FSTShared.FindFirstOne(sourcePattern, ffd)
+        
         If hFind = INVALID_HANDLE_VALUE Then
             Err.Raise IIf(wantFolders, 76, 53), IIf(wantFolders, "MoveFolder", "MoveFile"), _
                     "Path not found: " & sourcePattern
@@ -2374,8 +2446,8 @@ OpenFailed:
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
 
-        SetLastError 0
-        hFind = FindFirstFileW(StrPtr(sourcePattern), ffd)
+        hFind = FSTShared.FindFirstOne(sourcePattern, ffd)
+        
         If hFind = INVALID_HANDLE_VALUE Then
             Err.Raise 76, "CopyFolder", "Path not found: " & sourcePattern
         End If
@@ -2429,8 +2501,8 @@ OpenFailed:
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
 
-        SetLastError 0
-        hFind = FindFirstFileW(StrPtr(sourcePattern), ffd)
+        hFind = FSTShared.FindFirstOne(sourcePattern, ffd)
+        
         If hFind = INVALID_HANDLE_VALUE Then
             Err.Raise 53, "CopyFile", "File not found: " & sourcePattern
         End If
@@ -2525,5 +2597,5 @@ OpenFailed:
 SkipFile:
         ' Unreadable / oversized / binary / unknown - not a match, just move on.
     End Sub
-    
+
 End Module

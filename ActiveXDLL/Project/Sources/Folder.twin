@@ -157,7 +157,7 @@ Public Class Folder
     ' holding 1500 bytes plus a junction to one of its own subfolders reports
     ' 1500 here and 2500 under FSO - it counted the target twice.
     '
-    ' We deviate because FSO's behaviour is unsafe, not merely different:
+    ' We deviate because FSO's behavior is unsafe, not merely different:
     '   * a junction pointing at an ancestor makes FSO recurse until it dies;
     '   * a size that changes with the number of junctions pointing into the tree
     '     is not measuring anything;
@@ -182,7 +182,7 @@ Public Class Folder
     ' unsettable bits anyway, so dropping them changes nothing on disk. Reading
     ' Attributes, flipping one bit and writing it back is therefore safe.
     '
-    ' Two behaviours worth knowing before writing:
+    ' Two behaviors worth knowing before writing:
     '   * Normal DOMINATES. Passing Normal (alone or OR'd with anything) clears
     '     every settable attribute - it means "no attributes", not "an attribute".
     '   * The write REPLACES the settable set; it does not merge. To flip one bit,
@@ -337,10 +337,13 @@ Public Class Folder
         Dim hFind As LongPtr
         Dim nm As String, full As String
         Dim isDir As Boolean
-
+        Dim searchPath As String
         Dim e As Long
-        hFind = FindFirstFileW(StrPtr(FSTShared.EnsureTrailingBackslash(folderPath) & "*"), ffd)
-        e = Err.LastDllError
+        
+        searchPath = FSTShared.EnsureTrailingBackslash(folderPath) & "*"
+
+        hFind = FSTShared.FindFirstOne(searchPath, ffd, e)
+        
         If hFind = INVALID_HANDLE_VALUE Then
             FSTShared.IsEmptySearch e, IIf(wantFolders, "Folder.SubFolders", "Folder.Files"), folderPath
             Set EnumChildren = out
@@ -416,10 +419,13 @@ Public Class Folder
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
         Dim nm As String, full As String
-
+        Dim searchPath As String
         Dim e As Long
-        hFind = FindFirstFileW(StrPtr(FSTShared.EnsureTrailingBackslash(folderPath) & "*"), ffd)
-        e = Err.LastDllError
+        
+        searchPath = FSTShared.EnsureTrailingBackslash(folderPath) & "*"
+  
+        hFind = FSTShared.FindFirstOne(searchPath, ffd, e)
+
         If hFind = INVALID_HANDLE_VALUE Then
             FSTShared.IsEmptySearch e, "Folder.Size", folderPath   ' raises 70 on a denied subtree
             Exit Function                                       ' truly empty -> contributes 0

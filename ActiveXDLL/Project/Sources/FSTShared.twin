@@ -27,6 +27,10 @@
 Private Module FSTShared
     Option Explicit
     
+    Private mOSVersion As Double            ' 0 = not yet determined
+    Public Const WINDOWS_VISTA As Double = 6.0
+    Public Const WINDOWS_7 As Double = 6.1
+    
     '======================================================================
     ' Attributes
     '======================================================================
@@ -109,8 +113,7 @@ Private Module FSTShared
         If ft.dwLowDateTime = 0 And ft.dwHighDateTime = 0 Then Exit Function   ' "no value" -> 0
         If FileTimeToLocalFileTime(ft, lft) = 0 Then Exit Function
         If FileTimeToSystemTime(lft, st) = 0 Then Exit Function
-        FileTimeToDate = DateSerial(st.wYear, st.wMonth, st.wDay) + _
-                         TimeSerial(st.wHour, st.wMinute, st.wSecond)
+        FileTimeToDate = DateSerial(st.wYear, st.wMonth, st.wDay) + TimeSerial(st.wHour, st.wMinute, st.wSecond)
     End Function
 
     ' Reassembles Win32's split 64-bit file size from its high/low DWORDs.
@@ -472,14 +475,26 @@ Private Module FSTShared
     Public Function InvariantUpper(ByVal s As String) As String
         If Len(s) = 0 Then Exit Function
         Dim n As Long
-        n = LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE, s, Len(s), 0, 0, ByVal vbNullPtr)
-        If n <= 0 Then InvariantUpper = s: Exit Function
-        Dim buf As String: buf = Space$(n)
-        LCMapStringEx LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE, s, Len(s), StrPtr(buf), n, ByVal vbNullPtr
-        ' No terminator to strip: passing an explicit source length (Len(s), not -1)
-        ' makes LCMapStringEx write exactly n mapped chars into the exact-sized buffer -
-        ' no NUL appended (verified: "café"->"CAFÉ" len 4).
-        InvariantUpper = buf
+        Dim buf As String
+        If OSVersion() >= WINDOWS_VISTA Then
+            n = LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE, s, Len(s), 0, 0, ByVal vbNullPtr)
+            If n <= 0 Then InvariantUpper = s: Exit Function
+            buf = Space$(n)
+            LCMapStringEx LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE, s, Len(s), StrPtr(buf), n, ByVal vbNullPtr
+            ' No terminator to strip: passing an explicit source length (Len(s), not -1)
+            ' makes LCMapStringEx write exactly n mapped chars into the exact-sized buffer -
+            ' no NUL appended (verified: "café"->"CAFÉ" len 4).
+            InvariantUpper = buf
+        Else
+            ' XP: LCID-based W form. LOCALE_INVARIANT (&H7F) gives the same locale-
+            ' independent fold as LOCALE_NAME_INVARIANT - verified to match on the
+            ' Turkish-i / café cases.
+            n = LCMapStringW(LOCALE_INVARIANT, LCMAP_UPPERCASE, StrPtr(s), Len(s), 0, 0)
+            If n <= 0 Then InvariantUpper = s: Exit Function
+            buf = Space$(n)
+            LCMapStringW LOCALE_INVARIANT, LCMAP_UPPERCASE, StrPtr(s), Len(s), StrPtr(buf), n
+            InvariantUpper = buf
+        End If
     End Function
 
     ' True if two paths are equal under invariant (filesystem) case-folding.
@@ -492,8 +507,7 @@ Private Module FSTShared
     Public Function PathIsUnderOrEqual(ByVal childPath As String, ByVal parentPath As String) As Boolean
         If PathEquals(childPath, parentPath) Then PathIsUnderOrEqual = True: Exit Function
         Dim pfx As String: pfx = parentPath & "\"
-        PathIsUnderOrEqual = (Len(childPath) >= Len(pfx)) AndAlso _
-                             PathEquals(Left$(childPath, Len(pfx)), pfx)
+        PathIsUnderOrEqual = (Len(childPath) >= Len(pfx)) AndAlso PathEquals(Left$(childPath, Len(pfx)), pfx)
     End Function
     
     ' True if the path is a reparse point (junction or symlink). Used by the
@@ -521,6 +535,39 @@ Private Module FSTShared
             Exit Function
         End If
         MatchesLongName = (PathMatchSpecW(StrPtr(longName), StrPtr(pattern)) <> 0)
+    End Function
+    
+    ' OS version (major.minor), e.g. 6.1 = Win7, 6.0 = Vista, 10.0 = Win10/11.
+    ' Computed once on first use and cached. Returned as major.minor so a single
+    ' cached value serves every OS floor decision.
+    Public Function OSVersion() As Double
+        If mOSVersion = 0 Then
+            Dim maj As Long, min As Long, bld As Long
+            RtlGetNtVersionNumbers maj, min, bld
+            mOSVersion = maj + min / 10#     ' 6 + 1/10 = 6.1, 10 + 0/10 = 10.0
+        End If
+        OSVersion = mOSVersion
+    End Function
+    
+    ' Opens a find handle for a directory search, selecting fast-enumeration args when
+    ' the OS supports them: FindExInfoBasic (skips the unused 8.3 short-name lookup) and
+    ' FIND_FIRST_EX_LARGE_FETCH (batches directory reads), both Win7+; standard args
+    ' below. Clears the last error before the call and captures it into lastErr after,
+    ' so callers get a reliable code for IsEmptySearch's "empty vs. denied" distinction.
+    ' Callers keep their own INVALID_HANDLE_VALUE check and error policy (raise 76 / 53
+    ' / IsEmptySearch / silent-empty - it differs by site).
+    Public Function FindFirstOne(ByVal searchSpec As String, ByRef ffd As WIN32_FIND_DATAW, Optional ByRef lastErr As Long) As LongPtr
+        Dim infoLevel As FINDEX_INFO_LEVELS, extraFlags As FINDEX_EXTRA_FLAGS
+        If FSTShared.OSVersion() >= WINDOWS_7 Then
+            infoLevel = FindExInfoBasic
+            extraFlags = FIND_FIRST_EX_LARGE_FETCH
+        Else
+            infoLevel = FindExInfoStandard
+            extraFlags = 0
+        End If
+        SetLastError 0                     ' clear stale error so lastErr reflects THIS call
+        FindFirstOne = FindFirstFileExW(StrPtr(searchSpec), infoLevel, ffd, 0, 0, extraFlags)
+        lastErr = Err.LastDllError
     End Function
     
 End Module

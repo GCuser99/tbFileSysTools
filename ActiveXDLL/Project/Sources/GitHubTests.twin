@@ -128,7 +128,7 @@ Module GitHubTests
                     "Drive object  (drive " & letter & " ready=" & d.IsReady & ")"
         ok = ok And pass
         
-    '--- 9. TextStream: streaming read/write, line by line -----------------
+        '--- 9. TextStream: streaming read/write, line by line -----------------
         p = fso.BuildPath(root, "stream.txt")
         Dim ts As tbFileSysTools.TextStream
         Set ts = fso.CreateTextFile(p, True, encUtf8, nlUnix)

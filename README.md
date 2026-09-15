@@ -255,21 +255,21 @@ Encoding detection precedence: BOM → known binary head signature → heuristic
 
 ### Testing
 
-Auto-detection logic and parameters were tuned to publicly available datasets ([char-det data](https://github.com/chardet/test-data), [plywood](https://github.com/preshing/plywood/tree/9c606056faf89f0918b81f5af09c23fefaf9a12d/repos/plywood/src/apps/AutodetectTest/tests), and [UnicodeTestSuite](https://github.com/amrali-eg/UnicodeTestSuite/tree/main)). Text BOM and Binary header sniffers were turned off for the testing. A large private corpus of binary files were included as well. The sample set contains a broad range of different languages/scripts including more challenging CJK UTF-16.
+Auto-detection logic and parameters were tuned to publicly available datasets ([char-det data](https://github.com/chardet/test-data), [plywood](https://github.com/preshing/plywood/tree/9c606056faf89f0918b81f5af09c23fefaf9a12d/repos/plywood/src/apps/AutodetectTest/tests), and [UnicodeTestSuite](https://github.com/amrali-eg/UnicodeTestSuite/tree/main)). Text BOM and Binary header sniffers were turned off for the testing. A large private corpus of binary files were included as well. The sample set contains a broad range of different languages/scripts including the more challenging CJK UTF-16 files.
 
-| Encoding | Correct Class | Percent Correct |
+| Encoding | Class Score | Percent |
 |-|-|-|
-| Ascii* | 32/32 | 100% |
+| ASCII* | 32/32 | 100% |
 | UTF-8 | 316/316 | 100% |
 | UTF-16LE | 426/426 | 100% |
 | UTF-16BE | 418/418 | 100% |
 | UTF-32LE | 184/184 | 100% |
 | UTF-32BE | 183/183 | 100% |
-| Ansi | 254/254 | 100% |
+| ANSI | 254/254 | 100% |
 | Binary | 8/8 | 100% |
 | Binary (private) | 3009/3017 | 99.7% |
 
-*Pure Ascii gets correctly classified as UTF-8
+*Pure ASCII is correctly classified as UTF-8
 
 ---
 

@@ -32,7 +32,7 @@
 ' RootFolder is the odd one out: it raises 76, not 71, because the failure comes
 ' from GetFolder rather than from this class's own mapper.
 '
-' This raise-rather-than-return-zero behaviour is FSO parity, and it is
+' This raise-rather-than-return-zero behavior is FSO parity, and it is
 ' deliberate.
 '
 ' --- Two kinds of root ---------------------------------------------------

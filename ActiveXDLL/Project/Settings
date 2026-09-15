@@ -1,7 +1,7 @@
 {
         "configuration.inherits": "Defaults",
         "project.appTitle": "tbFileSysTools",
-        "project.buildPath": "${SourcePath}\\\\Build\\\\${ProjectName}_${Architecture}.${FileExtension}",
+        "project.buildPath": "${SourcePath}\\Build\\${ProjectName}_${Architecture}.${FileExtension}",
         "project.buildType": "ActiveX DLL",
         "project.description": "tbFileSysTools",
         "project.dllRegisterAfterBuild": false,
@@ -52,9 +52,9 @@
         ],
         "project.settingsVersion": 1,
         "project.useProjectIdForTypeLibraryId": true,
-        "project.versionBuild": 2,
+        "project.versionBuild": 0,
         "project.versionMajor": 1,
-        "project.versionMinor": 7,
+        "project.versionMinor": 8,
         "project.versionRevision": 0,
         "project.warnings": {
                 "errors": [],

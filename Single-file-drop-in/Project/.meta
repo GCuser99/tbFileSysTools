@@ -1,23 +1,695 @@
 {
-	"rootFolder": "/NewProject",
+	"rootFolder": "/tbFileSysTools",
 	"fs_expandedFolders": [
-		"/NewProject",
-		"/NewProject/Sources"
+		"/tbFileSysTools",
+		"/tbFileSysTools/Packages",
+		"/tbFileSysTools/Packages/tbProjPacker/Sources/Examples",
+		"/tbFileSysTools/References",
+		"/tbFileSysTools/Resources",
+		"/tbFileSysTools/Resources/NOTES",
+		"/tbFileSysTools/Sources",
+		"/tbFileSysTools/Sources/Automation",
+		"/tbFileSysTools/Sources/Tests"
 	],
 	"openEditors": [
 		{
-			"uri": "/NewProject/Sources/MyClass.twin",
+			"uri": "/tbFileSysTools/Sources/TextCodec.twin",
 			"state": {
 				"cursorState": [
 					{
 						"inSelectionMode": false,
 						"selectionStart": {
-							"lineNumber": 4,
+							"lineNumber": 170,
+							"column": 105
+						},
+						"position": {
+							"lineNumber": 170,
+							"column": 105
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 157,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -13
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": false,
+					"editor.contrib.folding": {
+						"lineCount": 1283,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": true
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Drives.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": false,
+						"selectionStart": {
+							"lineNumber": 25,
+							"column": 22
+						},
+						"position": {
+							"lineNumber": 25,
+							"column": 22
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 17,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -12
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": true,
+					"editor.contrib.folding": {
+						"lineCount": 70,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Tests/Ideas.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": true,
+						"selectionStart": {
+							"lineNumber": 174,
+							"column": 1
+						},
+						"position": {
+							"lineNumber": 219,
+							"column": 15
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 287,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -17
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": false,
+					"editor.contrib.folding": {
+						"lineCount": 326,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/CHANGELOG.md",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": true,
+						"selectionStart": {
+							"lineNumber": 51,
+							"column": 103
+						},
+						"position": {
+							"lineNumber": 51,
+							"column": 110
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 242,
+					"firstPosition": {
+						"lineNumber": 35,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -17
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": false,
+					"editor.contrib.folding": {
+						"lineCount": 63,
+						"provider": "indent",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/FileSystemTools.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": false,
+						"selectionStart": {
+							"lineNumber": 1063,
+							"column": 60
+						},
+						"position": {
+							"lineNumber": 1063,
+							"column": 60
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 1055,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -5
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": true,
+					"editor.contrib.folding": {
+						"lineCount": 2598,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Automation/AutoDev.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": false,
+						"selectionStart": {
+							"lineNumber": 15,
+							"column": 22
+						},
+						"position": {
+							"lineNumber": 15,
+							"column": 22
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 1,
+						"column": 1
+					},
+					"firstPositionDeltaTop": 0
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": true,
+					"editor.contrib.folding": {
+						"lineCount": 56,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Tests/GetFilePathsBench.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": false,
+						"selectionStart": {
+							"lineNumber": 100,
+							"column": 15
+						},
+						"position": {
+							"lineNumber": 100,
+							"column": 15
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 1,
+						"column": 1
+					},
+					"firstPositionDeltaTop": 0
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": true,
+					"editor.contrib.folding": {
+						"lineCount": 252,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/FSTShared.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": false,
+						"selectionStart": {
+							"lineNumber": 329,
+							"column": 1
+						},
+						"position": {
+							"lineNumber": 329,
+							"column": 1
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 317,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -17
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": false,
+					"editor.contrib.folding": {
+						"lineCount": 574,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/WinAPI.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": false,
+						"selectionStart": {
+							"lineNumber": 51,
+							"column": 41
+						},
+						"position": {
+							"lineNumber": 51,
+							"column": 41
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 45,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -4
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": true,
+					"editor.contrib.folding": {
+						"lineCount": 678,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Tests/TestOSDetect.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": false,
+						"selectionStart": {
+							"lineNumber": 16,
+							"column": 22
+						},
+						"position": {
+							"lineNumber": 16,
+							"column": 22
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 11,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -16
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": true,
+					"editor.contrib.folding": {
+						"lineCount": 32,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/FileSystemObject.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": true,
+						"selectionStart": {
+							"lineNumber": 194,
+							"column": 32
+						},
+						"position": {
+							"lineNumber": 194,
+							"column": 48
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 189,
+						"column": 1
+					},
+					"firstPositionDeltaTop": 0
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": false,
+					"editor.contrib.folding": {
+						"lineCount": 342,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Folder.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": true,
+						"selectionStart": {
+							"lineNumber": 185,
+							"column": 11
+						},
+						"position": {
+							"lineNumber": 185,
+							"column": 18
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 170,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -17
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": false,
+					"editor.contrib.folding": {
+						"lineCount": 480,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Tests/TestSuite.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": true,
+						"selectionStart": {
+							"lineNumber": 87,
+							"column": 17
+						},
+						"position": {
+							"lineNumber": 87,
+							"column": 24
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 72,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -17
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": false,
+					"editor.contrib.folding": {
+						"lineCount": 276,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Tests/FSOParityTests.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": false,
+						"selectionStart": {
+							"lineNumber": 32,
+							"column": 17
+						},
+						"position": {
+							"lineNumber": 32,
+							"column": 17
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 219,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -17
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": true,
+					"editor.contrib.folding": {
+						"lineCount": 239,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Tests/GeneralTests.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": false,
+						"selectionStart": {
+							"lineNumber": 1212,
 							"column": 5
 						},
 						"position": {
-							"lineNumber": 4,
+							"lineNumber": 1212,
 							"column": 5
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 1401,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -16
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": false,
+					"editor.contrib.folding": {
+						"lineCount": 2576,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Drive.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": true,
+						"selectionStart": {
+							"lineNumber": 35,
+							"column": 38
+						},
+						"position": {
+							"lineNumber": 35,
+							"column": 45
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 36,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -6
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": false,
+					"editor.contrib.folding": {
+						"lineCount": 369,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/File.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": true,
+						"selectionStart": {
+							"lineNumber": 182,
+							"column": 36
+						},
+						"position": {
+							"lineNumber": 182,
+							"column": 51
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 175,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -1
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": false,
+					"editor.contrib.folding": {
+						"lineCount": 379,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/TextStream.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": true,
+						"selectionStart": {
+							"lineNumber": 1210,
+							"column": 59
+						},
+						"position": {
+							"lineNumber": 1210,
+							"column": 65
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 1201,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -12
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": false,
+					"editor.contrib.folding": {
+						"lineCount": 1376,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Tests/GitHubExamples.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": false,
+						"selectionStart": {
+							"lineNumber": 28,
+							"column": 27
+						},
+						"position": {
+							"lineNumber": 28,
+							"column": 27
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 24,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -10
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": true,
+					"editor.contrib.folding": {
+						"lineCount": 49,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Resources/NOTES/APIOS_AUDIT",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": false,
+						"selectionStart": {
+							"lineNumber": 39,
+							"column": 66
+						},
+						"position": {
+							"lineNumber": 39,
+							"column": 66
 						}
 					}
 				],
@@ -32,16 +704,412 @@
 				"contributionsState": {
 					"editor.contrib.wordHighlighter": false,
 					"editor.contrib.folding": {
-						"lineCount": 6,
+						"lineCount": 39,
+						"provider": "indent",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Automation/AutoDLL.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": true,
+						"selectionStart": {
+							"lineNumber": 30,
+							"column": 9
+						},
+						"position": {
+							"lineNumber": 30,
+							"column": 90
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 10,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -8
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": false,
+					"editor.contrib.folding": {
+						"lineCount": 108,
 						"provider": "syntax",
 						"foldedImports": false
 					}
 				}
 			},
-			"isSelected": true
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Automation/AutoPackage.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": false,
+						"selectionStart": {
+							"lineNumber": 36,
+							"column": 90
+						},
+						"position": {
+							"lineNumber": 36,
+							"column": 90
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 21,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -3
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": false,
+					"editor.contrib.folding": {
+						"lineCount": 157,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Automation/AutoSFDI.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": true,
+						"selectionStart": {
+							"lineNumber": 27,
+							"column": 34
+						},
+						"position": {
+							"lineNumber": 27,
+							"column": 51
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 15,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -6
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": false,
+					"editor.contrib.folding": {
+						"lineCount": 155,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Tests/NameValidationTests.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": true,
+						"selectionStart": {
+							"lineNumber": 506,
+							"column": 16
+						},
+						"position": {
+							"lineNumber": 506,
+							"column": 23
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 484,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -17
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": false,
+					"editor.contrib.folding": {
+						"lineCount": 724,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Tests/LongPathOracle.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": true,
+						"selectionStart": {
+							"lineNumber": 14,
+							"column": 15
+						},
+						"position": {
+							"lineNumber": 14,
+							"column": 22
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 1,
+						"column": 1
+					},
+					"firstPositionDeltaTop": 0
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": false,
+					"editor.contrib.folding": {
+						"lineCount": 265,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Tests/WideEncodingDetection.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": false,
+						"selectionStart": {
+							"lineNumber": 1,
+							"column": 1
+						},
+						"position": {
+							"lineNumber": 1,
+							"column": 1
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 51,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -4
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": false,
+					"editor.contrib.folding": {
+						"lineCount": 200,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Tests/Misc.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": false,
+						"selectionStart": {
+							"lineNumber": 22,
+							"column": 19
+						},
+						"position": {
+							"lineNumber": 22,
+							"column": 19
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 11,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -1
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": true,
+					"editor.contrib.folding": {
+						"lineCount": 29,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Tests/GitHubTests.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": false,
+						"selectionStart": {
+							"lineNumber": 7,
+							"column": 20
+						},
+						"position": {
+							"lineNumber": 7,
+							"column": 20
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 1,
+						"column": 1
+					},
+					"firstPositionDeltaTop": 0
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": true,
+					"editor.contrib.folding": {
+						"lineCount": 253,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Tests/AdvancePositionTests.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": true,
+						"selectionStart": {
+							"lineNumber": 6,
+							"column": 62
+						},
+						"position": {
+							"lineNumber": 6,
+							"column": 69
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 1,
+						"column": 1
+					},
+					"firstPositionDeltaTop": 0
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": false,
+					"editor.contrib.folding": {
+						"lineCount": 178,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Tests/UnicodePathTests.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": true,
+						"selectionStart": {
+							"lineNumber": 28,
+							"column": 18
+						},
+						"position": {
+							"lineNumber": 28,
+							"column": 25
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 1,
+						"column": 1
+					},
+					"firstPositionDeltaTop": 0
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": false,
+					"editor.contrib.folding": {
+						"lineCount": 246,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
+		},
+		{
+			"uri": "/tbFileSysTools/Sources/Tests/Chardet.twin",
+			"state": {
+				"cursorState": [
+					{
+						"inSelectionMode": false,
+						"selectionStart": {
+							"lineNumber": 270,
+							"column": 23
+						},
+						"position": {
+							"lineNumber": 270,
+							"column": 23
+						}
+					}
+				],
+				"viewState": {
+					"scrollLeft": 0,
+					"firstPosition": {
+						"lineNumber": 315,
+						"column": 1
+					},
+					"firstPositionDeltaTop": -16
+				},
+				"contributionsState": {
+					"editor.contrib.wordHighlighter": true,
+					"editor.contrib.folding": {
+						"lineCount": 1810,
+						"provider": "syntax",
+						"foldedImports": false
+					}
+				}
+			},
+			"isSelected": false
 		}
 	],
-	"debugConsoleEntryHistory": [],
+	"debugConsoleEntryHistory": [
+		"?mpath",
+		"?mPath",
+		"?Debug.Print FSTShared.IsReparsePoint(\"C:\\Windows\")   ' must be False",
+		"?Print FSTShared.IsReparsePoint(\"C:\\Windows\")   ' must be False",
+		"?FSTShared.IsReparsePoint(\"C:\\Windows\")   ' must be False",
+		"mOSVersion=0",
+		"byte",
+		"?&hac00&",
+		"?&HAC00&",
+		"?&HAC00"
+	],
 	"variables_expandedCache": {
 		"/Locals": true
 	},
@@ -71,11 +1139,74 @@
 	},
 	"history": [
 		{
-			"path": "/NewProject/Sources/MyClass.twin",
-			"positionId": "MyClass",
-			"lineNumber": 5,
-			"shortTime": "11:34",
-			"time": "2025-06-26T10:34:39.422Z"
+			"path": "/tbFileSysTools/Sources/Tests/Chardet.twin",
+			"positionId": "Chardet.utf16pattern2",
+			"lineNumber": 609,
+			"shortTime": "12:34",
+			"time": "2026-09-10T18:34:49.641Z"
+		},
+		{
+			"path": "/tbFileSysTools/Sources/Tests/Chardet.twin",
+			"positionId": "Chardet.expand_binary",
+			"lineNumber": 617,
+			"shortTime": "12:34",
+			"time": "2026-09-10T18:34:53.513Z"
+		},
+		{
+			"path": "/tbFileSysTools/Sources/Tests/Chardet.twin",
+			"positionId": "Chardet.IsPlausibleBmpText",
+			"lineNumber": 1652,
+			"shortTime": "13:24",
+			"time": "2026-09-10T19:24:47.224Z"
+		},
+		{
+			"path": "/tbFileSysTools/Sources/Tests/Chardet.twin",
+			"positionId": "Chardet",
+			"lineNumber": 1735,
+			"shortTime": "13:43",
+			"time": "2026-09-10T19:43:48.270Z"
+		},
+		{
+			"path": "/tbFileSysTools/Sources/Tests/Chardet.twin",
+			"positionId": "Chardet.PlausibleFraction",
+			"lineNumber": 1768,
+			"shortTime": "13:44",
+			"time": "2026-09-10T19:44:14.022Z"
+		},
+		{
+			"path": "/tbFileSysTools/Sources/Tests/Chardet.twin",
+			"positionId": "Chardet.IsPlausibleBmpUnit",
+			"lineNumber": 1805,
+			"shortTime": "13:44",
+			"time": "2026-09-10T19:44:33.450Z"
+		},
+		{
+			"path": "/tbFileSysTools/Sources/Tests/Chardet.twin",
+			"positionId": "Chardet.WriteMetrics",
+			"lineNumber": 469,
+			"shortTime": "14:12",
+			"time": "2026-09-10T20:12:42.308Z"
+		},
+		{
+			"path": "/tbFileSysTools/Sources/Tests/Chardet.twin",
+			"positionId": "Chardet.probeEntropyMetric",
+			"lineNumber": 264,
+			"shortTime": "14:13",
+			"time": "2026-09-10T20:13:41.660Z"
+		},
+		{
+			"path": "/tbFileSysTools/Sources/TextCodec.twin",
+			"positionId": "TextCodec.IsValidUTF8",
+			"lineNumber": 1033,
+			"shortTime": "14:36",
+			"time": "2026-09-10T20:36:58.376Z"
+		},
+		{
+			"path": "/tbFileSysTools/Sources/TextCodec.twin",
+			"positionId": "TextCodec.Detect",
+			"lineNumber": 170,
+			"shortTime": "14:53",
+			"time": "2026-09-10T20:53:37.623Z"
 		}
 	],
 	"toolWindows": [],
@@ -83,7 +1214,53 @@
 		"/NewProject/Sources/Form1.twin": {},
 		"/myActiveXControlProject/Sources/myActiveXControl.twin": {},
 		"/NewProject/Sources/MainModule.twin": {},
-		"/NewProject/Sources/MyClass.twin": {}
+		"/NewProject/Sources/MyClass.twin": {},
+		"/tbFileSysTools/Sources/Automation/AutoSFDI.twin": {},
+		"/tbFileSysTools/Sources/Automation/AutoDev.twin": {},
+		"/tbFileSysTools/Sources/Automation/AutoDLL.twin": {},
+		"/tbFileSysTools/Sources/Automation/AutoPackage.twin": {},
+		"/tbFileSysTools/README2.md": {},
+		"/tbFileSysTools/README.MD": {},
+		"/tbFileSysTools/Sources/Automation/MyModule.twin": {},
+		"/tbFileSysTools/LICENSE": {},
+		"/tbFileSysTools/Sources/FileSystemTools.twin": {},
+		"/tbFileSysTools/Sources/FileSystemObject.twin": {},
+		"/tbFileSysTools/Sources/File.twin": {},
+		"/tbFileSysTools/Sources/Tests/EncodingBench.twin": {},
+		"/tbFileSysTools/Sources/TextCodec.twin": {},
+		"/tbFileSysTools/Sources/Tests/GitHubExamples.twin": {},
+		"/tbFileSysTools/Sources/Tests/MyModule.twin": {},
+		"/tbFileSysTools/Sources/Tests/UnicodePathTests.twin": {},
+		"/tbFileSysTools/Sources/Tests/GitHubTests.twin": {},
+		"/tbFileSysTools/Sources/Folder.twin": {},
+		"/tbFileSysTools/Sources/TextStream.twin": {},
+		"/tbFileSysTools/Sources/FSTShared.twin": {},
+		"/tbFileSysTools/Sources/Tests/BadNameDestOracle.twin": {},
+		"/tbFileSysTools/Sources/Tests/NameValidationTests.twin": {},
+		"/tbFileSysTools/Sources/WinAPI.twin": {},
+		"/tbFileSysTools/Sources/Tests/FSOParityTests.twin": {},
+		"/tbFileSysTools/Sources/Tests/GeneralTests.twin": {},
+		"/tbFileSysTools/Sources/Tests/ReparseLoopTests.twin": {},
+		"/tbFileSysTools/Sources/Tests/DriveEnumOracle.twin": {},
+		"/tbFileSysTools/Sources/Tests/TestSuite.twin": {},
+		"/tbFileSysTools/Sources/Drives.twin": {},
+		"/tbFileSysTools/Sources/Tests/DrivesOracle.twin": {},
+		"/tbFileSysTools/Sources/Tests/DriveOracle.twin": {},
+		"/tbFileSysTools/Sources/Tests/Misc.twin": {},
+		"/tbFileSysTools/Sources/Files.twin": {},
+		"/tbFileSysTools/Sources/Folders.twin": {},
+		"/tbFileSysTools/Sources/Tests/Ideas.twin": {},
+		"/tbFileSysTools/Sources/Tests/WideEncodingDetection.twin": {},
+		"/tbFileSysTools/Sources/Automation/Dictionary.cls": {},
+		"/tbFileSysTools/Sources/Automation/Dictionary.twin": {},
+		"/tbFileSysTools/Sources/Automation/LibJSON.bas": {},
+		"/tbFileSysTools/Resources/MyFolder": {},
+		"/tbFileSysTools/Sources/Tests/GetFilePathsBench.twin": {},
+		"/tbFileSysTools/Sources/Tests/TestOSDetect.twin": {},
+		"/tbFileSysTools/Sources/Tests/AdvancePositionTests.twin": {},
+		"/tbFileSysTools/Sources/Tests/LongPathOracle.twin": {},
+		"/tbFileSysTools/Sources/Drive.twin": {},
+		"/tbFileSysTools/Sources/Tests/Chardet.twin": {}
 	},
 	"searchInsidePackages": false,
 	"searchCaseSensitive": false,
@@ -101,7 +1278,79 @@
 		8,
 		9
 	],
-	"findReplaceHistory": {},
+	"findReplaceHistory": {
+		"findHistory": [
+			"GetAbs",
+			"absolute",
+			"NewlineType",
+			"useLongPathPrefix",
+			"AscW",
+			"IsReservedDeviceName",
+			"TestRenameCase",
+			"ErrOf_CreateFolder",
+			"IsFolderPathOrExistingFolder",
+			"GuardWriteName",
+			"GuardLeafName",
+			"Contrast FileSystemTools",
+			"reject the colon",
+			"LOCALE_NAME_INVARIANT",
+			"vbTextCompare ",
+			"ReadFile",
+			"Turkey",
+			"0x041f",
+			"FileIsLocked",
+			"IsFileLocked",
+			"mItems.Add",
+			"Internal_Init",
+			"GetDrives",
+			"GetFilePaths",
+			"Test_DrivesCollection",
+			"VB runtime",
+			"tB runtime",
+			"VB 'Open'",
+			"VB's",
+			"VB",
+			"checkwide",
+			"Resume Next",
+			"QueryPerformanceCounter",
+			"FindFirstFileExW",
+			"InvariantUpper",
+			"SelectFindArgs",
+			"FindNextFileW",
+			"FindExInfoBasic",
+			"LCMapStringEx",
+			"FINDEX_INFO_LEVELS",
+			"FSTShared.FindFirstOne",
+			"mOSVersion",
+			"OSVersion",
+			"FindFirstOne",
+			"Behavio",
+			"GetACP",
+			"psd",
+			"evenE16",
+			"oddE16",
+			"evenE32A",
+			"oddE32A",
+			"evenE32B",
+			"oddE32B",
+			"0E",
+			"hebrew",
+			"05",
+			"countcharle",
+			"countcharbe"
+		],
+		"replaceHistory": [
+			"tB's",
+			"e16_0",
+			"e16_1",
+			"e32_0",
+			"e32_1",
+			"e32_2",
+			"e32_3",
+			"countValidLe",
+			"countValidBe"
+		]
+	},
 	"findReplaceOptions": {
 		"InsidePackages": false,
 		"WholeWordOnly": false,
