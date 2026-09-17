@@ -268,33 +268,7 @@ Public Class FileSystemObject
         Optional ByVal lineEnding As NewlineType = nlWindows) As TextStream
         Set CreateTextFile = FileSystemTools.CreateTextFile(fileName, overwrite, encoding, lineEnding)
     End Function
-
-    ' --- public factories -------------------------------------------------
-    [Description("Returns a File object for an existing file.")]
-    Public Function GetFile(ByVal filePath As String) As File
-        Set GetFile = FileSystemTools.GetFile(filePath)
-    End Function
-
-    [Description("Returns a Folder object for an existing folder.")]
-    Public Function GetFolder(ByVal folderPath As String) As Folder
-        Set GetFolder = FileSystemTools.GetFolder(folderPath)
-    End Function
-
-    [Description("Returns a Drive object for a drive spec: ""C"", ""C:"", ""C:\"", a UNC share, or any path on the drive.")]
-    Public Function GetDrive(ByVal driveSpec As String) As Drive
-        Set GetDrive = FileSystemTools.GetDrive(driveSpec)
-    End Function
     
-    [Description("Returns a Drives collection of all logical drives present on the system.")]
-    Public Function Drives() As Drives
-        Set Drives = FileSystemTools.GetDrives()
-    End Function
-
-    [Description("Returns a TextStream over one of the process's standard streams. unicode:=True gives UTF-16LE (no BOM); default is the system ANSI code page. Raises if no handle is available (e.g. no console).")]
-    Public Function GetStandardStream(ByVal standardStreamType As StandardStreamTypes, Optional ByVal unicode As Boolean = False) As TextStream
-        Set GetStandardStream = FileSystemTools.GetStandardStream(standardStreamType, unicode)
-    End Function
- 
     [Description("Rewrites a text file in place in the target encoding and newline style (source auto-detected). toAttributes enforces a target attribute set (settable bits only); NoChange (the default) preserves the file's current attributes. Skips the write when content is already in target form. Refuses binary files. Returns True if the file was modified.")]
     Public Function NormalizeTextFile(ByVal filePath As String, _
         Optional ByVal toEncoding As TextEncoding = encUtf8, _
@@ -339,7 +313,32 @@ Public Class FileSystemObject
         FileContainsText = FileSystemTools.FileContainsText(filePath, searchText, ignoreCase)
     End Function
     
+    ' --- public factories -------------------------------------------------
+    [Description("Returns a File object for an existing file.")]
+    Public Function GetFile(ByVal filePath As String) As File
+        Set GetFile = FileSystemTools.GetFile(filePath)
+    End Function
+
+    [Description("Returns a Folder object for an existing folder.")]
+    Public Function GetFolder(ByVal folderPath As String) As Folder
+        Set GetFolder = FileSystemTools.GetFolder(folderPath)
+    End Function
+
+    [Description("Returns a Drive object for a drive spec: ""C"", ""C:"", ""C:\"", a UNC share, or any path on the drive.")]
+    Public Function GetDrive(ByVal driveSpec As String) As Drive
+        Set GetDrive = FileSystemTools.GetDrive(driveSpec)
+    End Function
     
+    [Description("Returns a Drives collection of all logical drives present on the system.")]
+    Public Function Drives() As Drives
+        Set Drives = FileSystemTools.GetDrives()
+    End Function
+
+    [Description("Returns a TextStream over one of the process's standard streams. unicode:=True gives UTF-16LE (no BOM); default is the system ANSI code page. Raises if no handle is available (e.g. no console).")]
+    Public Function GetStandardStream(ByVal standardStreamType As StandardStreamTypes, Optional ByVal unicode As Boolean = False) As TextStream
+        Set GetStandardStream = FileSystemTools.GetStandardStream(standardStreamType, unicode)
+    End Function
+ 
 End Class
 ' ==========================================================================
 ' FileSystemTools
@@ -5893,17 +5892,16 @@ Private Module TextCodec
             If enc <> encUnknown Then Detect = enc:Exit Function
         End If
         
-        Dim looksBinary As Boolean, looksText As Boolean
+        Dim looksBinary As Boolean
         looksBinary = LooksLikeBinary(stream)
         
         If (fileLen Mod 2) = 0 Then
-            'now test for utf-16
-            'one of the best signals is shannon entropy skew (per lane)
-            'skew is important becuase utf-8, ansi, and binary almost always signal about 
-            'the same magnitude for le vs be, whereas utf-16 is usually highly skewed 
-            'skew is 100% accurate on sign (le vs be)
-            ' Determine skew from entropy difference since it seems very 100% determinative for our utf16 corpus
-            Dim skewPos As Boolean
+            ' Now test for utf-16
+            ' One of the best signals is shannon entropy skew (per lane)
+            ' Skew is important because utf-8, ansi, and binary almost always signal about 
+            ' the same magnitude for le vs be, whereas utf-16 is usually highly skewed 
+            ' Skew is 100% accurate on sign (le vs be) in the utf16 sample corpus
+            Dim skewPos As Boolean, looksText As Boolean
             skewPos = (EntropySkew(stream) >= 0)
             looksText = LooksLikeText(stream, skewPos)
             
@@ -6000,7 +5998,7 @@ Private Module TextCodec
             SniffBom = encGB18030Bom
         ElseIf bom Like "2B2F76*" Then
             ' UTF-7's signature is "+/v" plus ONE of four possible 4th bytes
-            ' (8/9/+//), because the mark is base64-packed and the run can start on
+            ' (8,9,+,/), because the mark is base64-packed and the run can start on
             ' any of four bit boundaries.
             If InStr("38 39 2B 2F", Mid$(bom, 7, 2)) > 0 Then SniffBom = encUtf7Bom
         End If
@@ -6396,6 +6394,8 @@ Private Module TextCodec
     ' bytes or just their length (e.g. seeking past a BOM on a streaming read, where
     ' decoding the head just to throw it away would be wasteful).
     ' Keep both tables in sync with each other and with what Encode() emits.
+    ' Note that BomBytes and BomLen are only called in the streaming read/write
+    ' paths and so UTF-7 is excluded here (not streamable).
     '======================================================================
     ' The BOM byte sequence for a BOM-bearing encoding (empty otherwise).
     Public Function BomBytes(ByVal enc As TextEncoding) As Byte()
@@ -6411,15 +6411,12 @@ Private Module TextCodec
             Case encUtf32:   ReDim b(0 To 3): b(0) = &HFF: b(1) = &HFE: b(2) = 0: b(3) = 0
             Case encUtf32Be: ReDim b(0 To 3): b(0) = 0: b(1) = 0: b(2) = &HFE: b(3) = &HFF
             Case encGB18030: ReDim b(0 To 3): b(0) = &H84: b(1) = &H31: b(2) = &H95: b(3) = &H33
-            Case encUtf7:    ReDim b(0 To 4): b(0) = &H2B: b(1) = &H2F: b(2) = &H76: b(3) = &H38: b(4) = &H2D  ' "+/v8-" (shift-out closes the run)
         End Select
         BomBytes = b
     End Function
 
-    ' Byte length of the BOM for a BOM-bearing encoding (0 otherwise). Used to seek past the BOM on a streaming read.
-    ' Must equal UBound(BomBytes(enc)) + 1 for every case above - including the
-    ' 5-byte UTF-7 form, whose trailing "-" is part of what SniffBom will have
-    ' matched and therefore part of what has to be skipped.
+    ' Byte length of the BOM for a BOM-bearing encoding (0 otherwise). Used to seek past 
+    ' the BOM on a streaming read.
     Public Function BomLen(ByVal enc As TextEncoding) As Long
         If Not HasBom(enc) Then Exit Function
         Select Case CodePageOf(enc)
@@ -6427,7 +6424,6 @@ Private Module TextCodec
             Case encUtf16, encUtf16Be:  BomLen = 2
             Case encUtf32, encUtf32Be:  BomLen = 4
             Case encGB18030:            BomLen = 4
-            Case encUtf7:               BomLen = 5
         End Select
     End Function
 

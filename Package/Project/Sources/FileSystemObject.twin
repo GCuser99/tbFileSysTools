@@ -268,33 +268,7 @@ Public Class FileSystemObject
         Optional ByVal lineEnding As NewlineType = nlWindows) As TextStream
         Set CreateTextFile = FileSystemTools.CreateTextFile(fileName, overwrite, encoding, lineEnding)
     End Function
-
-    ' --- public factories -------------------------------------------------
-    [Description("Returns a File object for an existing file.")]
-    Public Function GetFile(ByVal filePath As String) As File
-        Set GetFile = FileSystemTools.GetFile(filePath)
-    End Function
-
-    [Description("Returns a Folder object for an existing folder.")]
-    Public Function GetFolder(ByVal folderPath As String) As Folder
-        Set GetFolder = FileSystemTools.GetFolder(folderPath)
-    End Function
-
-    [Description("Returns a Drive object for a drive spec: ""C"", ""C:"", ""C:\"", a UNC share, or any path on the drive.")]
-    Public Function GetDrive(ByVal driveSpec As String) As Drive
-        Set GetDrive = FileSystemTools.GetDrive(driveSpec)
-    End Function
     
-    [Description("Returns a Drives collection of all logical drives present on the system.")]
-    Public Function Drives() As Drives
-        Set Drives = FileSystemTools.GetDrives()
-    End Function
-
-    [Description("Returns a TextStream over one of the process's standard streams. unicode:=True gives UTF-16LE (no BOM); default is the system ANSI code page. Raises if no handle is available (e.g. no console).")]
-    Public Function GetStandardStream(ByVal standardStreamType As StandardStreamTypes, Optional ByVal unicode As Boolean = False) As TextStream
-        Set GetStandardStream = FileSystemTools.GetStandardStream(standardStreamType, unicode)
-    End Function
- 
     [Description("Rewrites a text file in place in the target encoding and newline style (source auto-detected). toAttributes enforces a target attribute set (settable bits only); NoChange (the default) preserves the file's current attributes. Skips the write when content is already in target form. Refuses binary files. Returns True if the file was modified.")]
     Public Function NormalizeTextFile(ByVal filePath As String, _
         Optional ByVal toEncoding As TextEncoding = encUtf8, _
@@ -339,5 +313,30 @@ Public Class FileSystemObject
         FileContainsText = FileSystemTools.FileContainsText(filePath, searchText, ignoreCase)
     End Function
     
+    ' --- public factories -------------------------------------------------
+    [Description("Returns a File object for an existing file.")]
+    Public Function GetFile(ByVal filePath As String) As File
+        Set GetFile = FileSystemTools.GetFile(filePath)
+    End Function
+
+    [Description("Returns a Folder object for an existing folder.")]
+    Public Function GetFolder(ByVal folderPath As String) As Folder
+        Set GetFolder = FileSystemTools.GetFolder(folderPath)
+    End Function
+
+    [Description("Returns a Drive object for a drive spec: ""C"", ""C:"", ""C:\"", a UNC share, or any path on the drive.")]
+    Public Function GetDrive(ByVal driveSpec As String) As Drive
+        Set GetDrive = FileSystemTools.GetDrive(driveSpec)
+    End Function
     
+    [Description("Returns a Drives collection of all logical drives present on the system.")]
+    Public Function Drives() As Drives
+        Set Drives = FileSystemTools.GetDrives()
+    End Function
+
+    [Description("Returns a TextStream over one of the process's standard streams. unicode:=True gives UTF-16LE (no BOM); default is the system ANSI code page. Raises if no handle is available (e.g. no console).")]
+    Public Function GetStandardStream(ByVal standardStreamType As StandardStreamTypes, Optional ByVal unicode As Boolean = False) As TextStream
+        Set GetStandardStream = FileSystemTools.GetStandardStream(standardStreamType, unicode)
+    End Function
+ 
 End Class

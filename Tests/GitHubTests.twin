@@ -1,6 +1,6 @@
 Module GitHubTests
 
-    Public Sub SimpleTest()
+    Public Sub Demo()
         Dim ok As Boolean:  ok = True
         Dim pass As Boolean
         Dim root As String, p As String, a As String, b As String, c As String
@@ -83,7 +83,7 @@ Module GitHubTests
                     "File object  (Name=" & f.Name & " Size=" & f.Size & ")"
         ok = ok And pass
 
-        '--- 6. Folder object + For-Each 
+        '--- 6. Folder object + For-Each --------------------------------------
         Dim fdr As tbFileSysTools.Folder
         Set fdr = fso.GetFolder(root)
         Dim count As Long: count = 0
