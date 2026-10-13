@@ -190,9 +190,14 @@ Public Class FileSystemObject
         FileSystemTools.Rename source, newName
     End Sub
     
-    [Description("Returns the absolute path to the requested known folder. The returned path does NOT include a trailing backslash.")]
-    Public Function GetSpecialFolder(ByVal specialFolder As SpecialFolderConst) As String
+    [Description("Returns a Folder object for the requested known folder. Raises 76 if the folder does not exist on this system.")]
+    Public Function GetSpecialFolder(ByVal specialFolder As SpecialFolderConst) As Folder
         Return FileSystemTools.GetSpecialFolder(specialFolder)
+    End Function
+    
+    [Description("Returns the absolute path to the requested known folder as a String. The returned path does NOT include a trailing backslash, and the folder is not required to exist.")]
+    Public Function GetSpecialFolderPath(ByVal specialFolder As SpecialFolderConst) As String
+        Return FileSystemTools.GetSpecialFolderPath(specialFolder)
     End Function
 
     [Description("Returns a relative path from a base path to a target path. The base path is treated as a folder by default. Relative inputs are resolved against the current directory. Returns the absolute target if no relative path exists (e.g. different drives).")]

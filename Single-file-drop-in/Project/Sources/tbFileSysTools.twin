@@ -190,9 +190,14 @@ Public Class FileSystemObject
         FileSystemTools.Rename source, newName
     End Sub
     
-    [Description("Returns the absolute path to the requested known folder. The returned path does NOT include a trailing backslash.")]
-    Public Function GetSpecialFolder(ByVal specialFolder As SpecialFolderConst) As String
+    [Description("Returns a Folder object for the requested known folder. Raises 76 if the folder does not exist on this system.")]
+    Public Function GetSpecialFolder(ByVal specialFolder As SpecialFolderConst) As Folder
         Return FileSystemTools.GetSpecialFolder(specialFolder)
+    End Function
+    
+    [Description("Returns the absolute path to the requested known folder as a String. The returned path does NOT include a trailing backslash, and the folder is not required to exist.")]
+    Public Function GetSpecialFolderPath(ByVal specialFolder As SpecialFolderConst) As String
+        Return FileSystemTools.GetSpecialFolderPath(specialFolder)
     End Function
 
     [Description("Returns a relative path from a base path to a target path. The base path is treated as a folder by default. Relative inputs are resolved against the current directory. Returns the absolute target if no relative path exists (e.g. different drives).")]
@@ -591,12 +596,29 @@ Public Module FileSystemTools
     '=================================================================================================
 
     ' Three-step version-resource read: size the block, load it, then query it.
-    ' Any of the three can legitimately fail (no version resource at all), in
-    ' which case we return "" rather than raising - matching FSO.
-    [Description("Returns the file's version. By default (fvFixed) returns the binary version as major.minor.build.revision, fvFileString returns the authored StringFileInfo FileVersion string and fvProductString returns the ProductVersion string; both fall back to the fixed version when the file has no string block. Returns an empty string when the file carries no version resource, and also for paths longer than 260 characters, which the version-resource APIs do not support.")]
+    ' Any of the three can legitimately fail on a file that HAS no version resource
+    ' (a .txt, say), in which case we return "" rather than raising - matching FSO,
+    ' which was verified to return "" with no error for that case.
+    '
+    ' A MISSING file is different: FSO raises there (HRESULT 0x80070002, i.e. Win32
+    ' ERROR_FILE_NOT_FOUND), so returning "" would hide a caller's typo behind the
+    ' same empty string that means "no version info". We raise 53 rather than FSO's
+    ' raw HRESULT, to match this module's documented convention (53 = file not found)
+    ' and every other member here. GetFileVersionInfoSizeW cannot distinguish the two
+    ' cases - both yield size = 0 - which is why the existence check is separate and
+    ' must come first.
+    [Description("Returns the file's version. By default (fvFixed) returns the binary version as major.minor.build.revision, fvFileString returns the authored StringFileInfo FileVersion string and fvProductString returns the ProductVersion string; both fall back to the fixed version when the file has no string block. Raises 53 if the file does not exist. Returns an empty string when the file carries no version resource, and also for paths longer than 260 characters, which the version-resource APIs do not support.")]
     Public Function GetFileVersion(ByVal filePath As String, Optional ByVal source As FileVersionSource = fvFixed) As String
         Dim size As Long
         filePath = VBA.Replace$(filePath, "/", "\")
+
+        ' FSO parity: a MISSING file is an error (53), while an existing file with no
+        ' version resource returns "". GetFileVersionInfoSizeW cannot tell these apart
+        ' (both give size = 0), so the existence check has to happen here, before it.
+        If Not FileExists(filePath) Then
+            Err.Raise 53, "GetFileVersion", "File not found: " & filePath
+        End If
+
         ' LONG-PATH LIMIT: the version-resource APIs don't reliably honor \\?\, so this
         ' member is 260-capped (a >260 path returns "", same as "no version resource").
         size = GetFileVersionInfoSizeW(StrPtr(filePath), 0&)
@@ -1155,13 +1177,36 @@ Public Module FileSystemTools
         End If
     End Sub
         
+    ' FSO parity: GetSpecialFolder returns a FOLDER OBJECT, not a path. Use
+    ' GetSpecialFolderPath when you want the string, when the folder may not exist
+    ' (this one raises 76 via GetFolder if it doesn't), or to avoid the stat.
+    '
+    ' Because Folder's default member is Path, "s = GetSpecialFolder(x)" and
+    ' "BuildPath(GetSpecialFolder(x), y)" still yield the path string - which is what
+    ' keeps this change from breaking most existing callers. Code that needs the
+    ' string EXPLICITLY should move to GetSpecialFolderPath rather than lean on the
+    ' coercion.
+    [Description("Returns a Folder object for the requested known folder. Raises 76 if the folder does not exist on this system.")]
+    Public Function GetSpecialFolder(ByVal specialFolder As SpecialFolderConst) As Folder
+        Dim p As String
+        p = GetSpecialFolderPath(specialFolder)
+        If Len(p) = 0 Then
+            ' Only reachable for TemporaryFolder with TEMP unset/empty - every other
+            ' member either resolves or raises inside GetSpecialFolderPath. Raise here
+            ' rather than letting GetFolder("") surface as a bare 52 from the path
+            ' resolver, which names nothing the caller asked for.
+            Err.Raise 76, "GetSpecialFolder", "The requested special folder is not defined on this system."
+        End If
+        Set GetSpecialFolder = GetFolder(p)
+    End Function
+
     ' Note that there are two ways we can go here - one that requires WinDevLib (FOLDERID_*() method)
     ' and the other using GuidFromString which the one that is currently implemented.
-    [Description("Returns the absolute path to the requested known folder. The returned path does NOT include a trailing backslash.")]
-    Public Function GetSpecialFolder(ByVal specialFolder As SpecialFolderConst) As String
+    [Description("Returns the absolute path to the requested known folder as a String. The returned path does NOT include a trailing backslash, and the folder is not required to exist.")]
+    Public Function GetSpecialFolderPath(ByVal specialFolder As SpecialFolderConst) As String
         ' TEMP is per-process and environment-driven - no shell call on any OS.
         If specialFolder = sfTemporaryFolder Then          ' (= TemporaryFolder alias)
-            GetSpecialFolder = Environ$("TEMP")
+            GetSpecialFolderPath = Environ$("TEMP")
             Exit Function
         End If
 
@@ -1170,9 +1215,9 @@ Public Module FileSystemTools
         ' SHGetFolderPathW. A few folders (Downloads, PublicDownloads) are Vista-era
         ' shell concepts with NO CSIDL equivalent - those raise on XP.
         If OSVersion() >= WINDOWS_VISTA Then
-            GetSpecialFolder = GetSpecialFolderKnown(specialFolder)
+            GetSpecialFolderPath = GetSpecialFolderKnown(specialFolder)
         Else
-            GetSpecialFolder = GetSpecialFolderCSIDL(specialFolder)
+            GetSpecialFolderPath = GetSpecialFolderCSIDL(specialFolder)
         End If
     End Function
 
@@ -1345,7 +1390,7 @@ Public Module FileSystemTools
             Err.Raise 76, "GetFilePaths", "Path not found: " & folderPath
         End If
 
-        Dim result As New Collection
+        Dim result As Collection: Set result = New Collection
         CollectFiles folderPath, pattern, includeHidden, includeSystem, recursive, result
         Set GetFilePaths = result
     End Function
@@ -1522,7 +1567,7 @@ ReadFailed:
         Err.Raise vberr, "ReadStream", vbdesc & " (reading " & filePath & ")"
     End Sub
         
-    [Description("Writes a byte array to the file specified.")]
+    [Description("Writes a byte array to the file specified. Raises 70 if the target exists and is read-only - clear the attribute first if replacement is intended.")]
     Public Sub WriteStream(ByRef stream() As Byte, ByVal filePath As String)
         ' This is fully Unicode safe (unlike in VBA).
         ' Write to a temp file in the same folder, then atomically replace the
@@ -1555,6 +1600,28 @@ ReadFailed:
             If Not FolderExists(parentPath) Then Err.Raise 76, "WriteStream", "Path not found: " & filePath
         End If
 
+        ' Refuse a READ-ONLY target before writing anything. Checked up front, not
+        ' after the temp is written, so a refusal costs no I/O and leaves nothing to
+        ' clean up.
+        '
+        ' This used to clear the attribute instead (SetFileAttributesW ... NORMAL)
+        ' because MoveFileExW + REPLACE_EXISTING cannot overwrite a read-only file -
+        ' so the swap was made to work by silently destroying the protection the
+        ' read-only bit represents. CreateTextFile already raised 70 here, and so does
+        ' FSO; these write helpers were the inconsistent ones.
+        '
+        ' A caller that genuinely intends to replace a read-only file clears the bit
+        ' first - File.SetAttribute faReadOnly, False - or deletes it with force:=True.
+        If FileExists(filePath) Then
+            Dim existingAttr As Long
+            existingAttr = GetFileAttributesW(StrPtr(FSTShared.ApiPath(filePath)))
+            If existingAttr <> INVALID_FILE_ATTRIBUTES Then
+                If (existingAttr And FILE_ATTRIBUTE_READONLY) <> 0 Then
+                    Err.Raise 70, "WriteStream", "Permission denied (file is read-only): " & filePath
+                End If
+            End If
+        End If
+
         ' Decide whether there is anything to write. This safely covers BOTH an
         ' unallocated array and an allocated zero-length one (e.g. from writing
         ' an empty string) - either would make Put raise.
@@ -1575,10 +1642,6 @@ ReadFailed:
         Close #fn
         On Error GoTo 0
 
-        ' Clear any read-only attribute on an existing target so it can be replaced
-        If FileExists(filePath) Then
-            SetFileAttributesW StrPtr(FSTShared.ApiPath(filePath)), FILE_ATTRIBUTE_NORMAL
-        End If
         ' Atomic swap (temp is on the same volume, so this is a true rename)
         If MoveFileExW(StrPtr(FSTShared.ApiPath(tempPath)), StrPtr(FSTShared.ApiPath(filePath)), MOVEFILE_REPLACE_EXISTING) = 0 Then
             ' Capture LastDllError BEFORE the cleanup call - DeleteFileW would
@@ -1708,7 +1771,7 @@ OpenFailed:
 
     [Description("Returns a Drives collection of all logical drives present on the system.")]
     Public Function GetDrives() As Drives
-        Dim c As New Collection
+        Dim c As Collection: Set c = New Collection
         Dim mask As Long, i As Long, letter As String
         mask = GetLogicalDrives()                                    ' bit 0 = A:, bit 25 = Z:
         For i = 0 To 25
@@ -1717,7 +1780,7 @@ OpenFailed:
                 AddKeyed c, GetDrive(letter & ":"), letter            ' keyed so Drives("C") works
             End If
         Next
-        Dim out As New Drives
+        Dim out As Drives: Set out = New Drives
         out.Internal_Init c
         Set GetDrives = out
     End Function
@@ -1747,7 +1810,7 @@ OpenFailed:
         Set GetStandardStream = ts
     End Function
     
-    [Description("Rewrites a text file in place in the target encoding and newline style (source auto-detected). toAttributes enforces a target attribute set (settable bits only); NoChange (the default) preserves the file's current attributes. Skips the write when content is already in target form. Refuses binary files. Returns True if the file was modified.")]
+    [Description("Rewrites a text file in place in the target encoding and newline style (source auto-detected). toAttributes enforces a target attribute set (settable bits only); NoChange (the default) preserves the file's current attributes, including ReadOnly. Skips the write when content is already in target form. Refuses binary files. Returns True if the file was modified.")]
     Public Function NormalizeTextFile(ByVal filePath As String, _
         Optional ByVal toEncoding As TextEncoding = encUtf8, _
         Optional ByVal toNewLine As NewlineType = nlWindows, _
@@ -1800,8 +1863,30 @@ OpenFailed:
 
         ' Idempotency: byte-exact compare, rewrite only if different
         Dim changed As Boolean
+        Dim clearedReadOnly As Boolean
         If Not TextCodec.BytesEqual(raw, outBytes) Then
+            ' WriteStream REFUSES a read-only target - it is a low-level "put these
+            ' bytes here" primitive and cannot know whether the caller meant to replace
+            ' a protected file, so refusing is right there.
+            '
+            ' Normalization is a different contract: the caller NAMED this file and
+            ' asked for an in-place rewrite, and preserving its attributes across that
+            ' rewrite is what srcAttr exists for - ReadOnly being the main one worth
+            ' preserving (Hidden/System/Archive never blocked a write anyway). So clear
+            ' the bit for the duration of the temp-swap and restore it below.
+            '
+            ' The read-only bit guards against INCIDENTAL overwrites; an explicit
+            ' normalize is not incidental. Same reasoning as DeleteFile's force flag.
+            If (srcAttr And FILE_ATTRIBUTE_READONLY) <> 0 Then
+                SetPathAttributes filePath, srcAttr And Not FILE_ATTRIBUTE_READONLY
+                clearedReadOnly = True
+            End If
+
+            ' From here the file may be temporarily unprotected, so every exit path
+            ' MUST restore it - hence the handler rather than a bare call.
+            On Error GoTo RestoreAndReraise
             WriteStream outBytes, filePath           ' atomic replace (resets attributes)
+            On Error GoTo 0
             changed = True
         End If
 
@@ -1810,6 +1895,10 @@ OpenFailed:
             ' Enforce: drive the settable attributes to the sanitized target. Compare
             ' only the settable bits, so filesystem-managed bits (ReparsePoint, etc.)
             ' neither trigger a spurious change nor block idempotency.
+            '
+            ' NOTE this also lands the restore when we cleared ReadOnly above: the
+            ' enforce target is absolute, so whatever we temporarily cleared is
+            ' superseded by tgt rather than needing a separate put-back.
             Dim tgt As Long
             tgt = SanitizeAttrs(toAttributes)                 ' what SetPathAttributes will apply
             If (GetFileAttributesW(StrPtr(FSTShared.ApiPath(filePath))) And FSTShared.SETTABLE_ATTRS) <> tgt Then
@@ -1818,9 +1907,28 @@ OpenFailed:
             End If
         ElseIf changed And srcAttr <> 0 Then
             SetPathAttributes filePath, srcAttr               ' preserve: restore what the rewrite cleared
+        ElseIf clearedReadOnly Then
+            ' Defensive: we cleared ReadOnly but the write did not report a change and
+            ' the preserve branch above did not fire (srcAttr = 0 is impossible here
+            ' since ReadOnly was set, so this is unreachable in practice). Restore
+            ' anyway rather than leave the file unprotected on any path.
+            SetPathAttributes filePath, srcAttr
         End If
 
         NormalizeTextFile = changed
+        Exit Function
+
+RestoreAndReraise:
+        ' The rewrite failed after we cleared ReadOnly. Put the original attributes
+        ' back before re-raising - a failed normalize must not leave the file silently
+        ' unprotected. Restore errors are swallowed deliberately: the caller needs the
+        ' ORIGINAL failure, not a secondary one from the cleanup.
+        Dim ne As Long, nd As String, ns As String
+        ne = Err.Number: nd = Err.Description: ns = Err.Source
+        On Error Resume Next
+        If clearedReadOnly Then SetPathAttributes filePath, srcAttr
+        On Error GoTo 0
+        Err.Raise ne, ns, nd
     End Function
         
     [Description("Reads a text file and reports its line-ending style: nlWindows / nlUnix / nlMacintosh for a consistent file, nlMixed if it contains more than one, or nlUnknown if it has none. Reads the whole file, so the result (including mixed) is exact.")]
@@ -2070,7 +2178,7 @@ OpenFailed:
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
         Dim name As String
-        Dim folders As New Collection
+        Dim folders As Collection: Set folders = New Collection
         Dim searchPath As String
         Dim e As Long
         
@@ -2192,7 +2300,7 @@ OpenFailed:
         baseFolder = GetParentFolderName(pattern)          ' the pattern's folder, minus the mask
 
         ' --- Phase 1: snapshot matching file names, then close the handle ---
-        Dim names As New Collection
+        Dim names As Collection: Set names = New Collection
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
 
@@ -2251,9 +2359,18 @@ OpenFailed:
         DeleteFolderRecursive folderPath, force
         If force Then SetFileAttributesW StrPtr(p), FILE_ATTRIBUTE_NORMAL
         If RemoveDirectoryW(StrPtr(p)) = 0 Then
-            ' Typically 145 (dir not empty - something was locked or undeletable)
-            ' or 5 (access denied). RaiseFromLastError maps it to a VB error.
-            RaiseFromLastError Err.LastDllError, "DeleteFolder", folderPath
+            Dim e As Long: e = Err.LastDllError
+            ' ERROR_DIR_NOT_EMPTY after a best-effort empty means something inside
+            ' resisted deletion - in practice a read-only file (force:=False leaves
+            ' its attribute alone, so DeleteFileW on it fails silently in
+            ' DeleteFolderRecursive). FSO reports that as 70, not 75: the folder is
+            ' not inaccessible, the caller lacks permission to remove its contents.
+            ' Map it explicitly so the common "delete a folder holding a read-only
+            ' file without force" case matches FSO.
+            If e = ERROR_DIR_NOT_EMPTY Then
+                Err.Raise 70, "DeleteFolder", "Permission denied: " & folderPath
+            End If
+            RaiseFromLastError e, "DeleteFolder", folderPath
         End If
     End Sub
         
@@ -2326,7 +2443,7 @@ OpenFailed:
         If basePath = "" Then basePath = ".\"               ' bare pattern -> current directory
 
         ' --- Phase 1: snapshot matching folder names, then close the handle ---
-        Dim names As New Collection
+        Dim names As Collection: Set names = New Collection
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
         
@@ -2713,7 +2830,7 @@ OpenFailed:
         destination = GetAbsolutePathName(destination)
 
         ' --- Phase 1: enumerate, collecting matching leaf names only ---
-        Dim names As New Collection
+        Dim names As Collection: Set names = New Collection
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
 
@@ -2780,7 +2897,7 @@ OpenFailed:
         destination = GetAbsolutePathName(destination)
 
         ' --- Phase 1: snapshot matching folder names, then close the handle ---
-        Dim names As New Collection
+        Dim names As Collection: Set names = New Collection
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
 
@@ -2835,7 +2952,7 @@ OpenFailed:
         destination = GetAbsolutePathName(destination)
 
         ' --- Phase 1: snapshot matching file names, then close the handle ---
-        Dim names As New Collection
+        Dim names As Collection: Set names = New Collection
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
 
@@ -3360,10 +3477,12 @@ Public Class Files
     [Description("Returns a specific File object by name or index.")]
     Public Property Get Item(ByVal nameOrIndex As Variant) As File
         On Error Resume Next
-        Set Item = mItems(nameOrIndex)          ' direct - does File need the intermediate?
+        Set Item = mItems(nameOrIndex)
         Dim e As Long: e = Err.Number
         On Error GoTo 0
-        If e <> 0 Then Err.Raise 5, "Files", "No item '" & nameOrIndex & "' in the collection"
+        ' 53 (file not found) rather than a generic 5 - matches FSO, and matches the
+        ' number this module already raises everywhere else for a missing file.
+        If e <> 0 Then Err.Raise 53, "Files", "No file '" & nameOrIndex & "' in the collection"
     End Property
     
     [Enumerator]
@@ -3623,7 +3742,8 @@ Public Class Folder
     [Description("A Files collection of every file in this folder (including hidden/system, FSO-style).")]
     Public Property Get Files() As Files
         EnsureCurrent
-        Dim out As New Files
+        Dim out As Files
+        Set out = New Files
         out.Internal_Init EnumChildren(mPath, wantFolders:=False, includeHidden:=True, includeSystem:=True)     ' wantFolders:=False
         Set Files = out
     End Property
@@ -3631,8 +3751,10 @@ Public Class Folder
     [Description("A Folders collection of every immediate subfolder.")]
     Public Property Get SubFolders() As Folders
         EnsureCurrent
-        Dim out As New Folders
-        out.Internal_Init EnumChildren(mPath, wantFolders:=True, includeHidden:=True, includeSystem:=True)      ' wantFolders:=True
+        Dim out As Folders
+        Set out = New Folders
+        ' mPath is passed so the collection's Add knows where to create.
+        out.Internal_Init EnumChildren(mPath, wantFolders:=True, includeHidden:=True, includeSystem:=True), mPath
         Set SubFolders = out
     End Property
     
@@ -3705,7 +3827,7 @@ Public Class Folder
     ' than N stats.
     Private Function EnumChildren(ByVal folderPath As String, ByVal wantFolders As Boolean, _
                                   ByVal includeHidden As Boolean, ByVal includeSystem As Boolean) As Collection
-        Dim out As New Collection
+        Dim out As Collection: Set out = New Collection
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
         Dim nm As String, full As String
@@ -3854,21 +3976,22 @@ End Class
 ' ==========================================================================
 ' Folders
 '
-' A read-only wrapper around a Collection of Folder objects.
-'
-' Thin by design: it exists so that callers get an FSO-shaped Count / Item /
-' For Each surface instead of a raw VBA Collection, and so the collection cannot
-' be added to or removed from after construction.
+' A collection of Folder objects with an FSO-shaped Count / Item / Add /
+' For Each surface.
 '
 ' Built by Folder.SubFolders, which enumerates IMMEDIATE children only (no
 ' recursion) and keys each entry by FOLDER NAME ("bin"), so both SubFolders("bin")
 ' and SubFolders(1) work. Never New'd directly - Init is Friend.
 '
-' SNAPSHOT. The membership is fixed at the moment Folder.SubFolders was called.
-' Read the property again to re-enumerate. The Folder objects inside are
-' individually live (each re-stats itself on every property read), so a folder
-' deleted after enumeration will not vanish from the collection - it will raise 76
-' when you touch it.
+' SNAPSHOT, with one exception. The membership is fixed at the moment
+' Folder.SubFolders was called; read the property again to re-enumerate. The one
+' thing that mutates it is Add, which creates a folder on disk AND appends it here
+' so Count and Item reflect it without a re-enumeration (FSO behaves the same way).
+' Folders created by any other means still require a fresh SubFolders call.
+'
+' The Folder objects inside are individually live (each re-stats itself on every
+' property read), so a folder deleted after enumeration will not vanish from the
+' collection - it will raise 76 when you touch it.
 '
 ' Includes hidden and system folders, matching FSO.
 '
@@ -3877,14 +4000,19 @@ End Class
 ' MIT License - Copyright (c) 2026, GCUser99 (https://github.com/GCUser99)
 ' ==========================================================================
 [Hidden(False)]
-[Description("A read-only collection of Folder objects, enumerable with For Each.")]
+[Description("A collection of Folder objects, enumerable with For Each. Add creates a new subfolder.")]
 Public Class Folders
     Option Explicit
     
     Private mItems As Collection
-
-    Friend Sub Internal_Init(ByVal items As Collection)
+    ' The folder these were enumerated FROM. Carried solely so Add knows where to
+    ' create. Empty only if a future caller inits without one - Add raises 5 then,
+    ' rather than guessing a location.
+    Private mParentPath As String
+    
+    Friend Sub Internal_Init(ByVal items As Collection, ByVal parentPath As String)
         Set mItems = items
+        mParentPath = parentPath
     End Sub
     
     [Description("Returns the number of Folder objects available.")]
@@ -3899,8 +4027,38 @@ Public Class Folders
         Set Item = mItems(nameOrIndex)
         Dim e As Long: e = Err.Number
         On Error GoTo 0
-        If e <> 0 Then Err.Raise 5, "Folders", "No item '" & nameOrIndex & "' in the collection"
+        ' 76 (path not found) rather than a generic 5 - matches FSO, and matches the
+        ' number this module already raises everywhere else for a missing folder.
+        If e <> 0 Then Err.Raise 76, "Folders", "No folder '" & nameOrIndex & "' in the collection"
     End Property
+    
+    ' FSO parity: Folders.Add creates a subfolder of the enumerated folder and
+    ' returns it, raising 58 if it already exists (CreateFolder does that for us).
+    '
+    ' DELIBERATELY STRICTER THAN A BARE CreateFolder: folderName must be a NAME, not
+    ' a path. "sub\deeper" would otherwise create a nested folder that is not a
+    ' member of THIS collection, leaving Count and the returned object disagreeing
+    ' about what was added. Reserved chars, control chars and device names are still
+    ' rejected downstream by CreateFolder's GuardLeafName (-> 52).
+    [Description("Creates a new subfolder of the folder these were enumerated from, adds it to this collection, and returns it. name must be a bare name, not a path. Raises 58 if it already exists.")]
+    Public Function Add(ByVal name As String) As Folder
+        If Len(mParentPath) = 0 Then
+            Err.Raise 5, "Folders.Add", "This collection has no parent folder to add to."
+        End If
+        If InStr(name, "\") > 0 Or InStr(name, "/") > 0 Then
+            Err.Raise 5, "Folders.Add", "name must be a bare name, not a path: " & name
+        End If
+
+        Dim f As Folder
+        Set f = FileSystemTools.CreateFolder(FileSystemTools.BuildPath(mParentPath, name))
+
+        ' Keyed by the name as given, matching how SubFolders keys its entries, so
+        ' Folders("newname") finds it immediately. AddKeyed degrades to an unkeyed
+        ' add on a clash rather than raising - the folder is already created either way.
+        FSTShared.AddKeyed mItems, f, name
+
+        Set Add = f
+    End Function
 
     [Enumerator]
     [Hidden(True)]
@@ -3908,7 +4066,6 @@ Public Class Folders
         Set NewEnum = mItems.[_NewEnum]
     End Function
 End Class
-
 ' ==========================================================================
 ' Drive
 '
@@ -4334,7 +4491,9 @@ Public Class Drives
         Set Item = mItems(key)
         Dim e As Long: e = Err.Number
         On Error GoTo 0
-        If e <> 0 Then Err.Raise 5, "Drives", "No drive '" & letterOrIndex & "' in the collection"
+        ' 68 (device unavailable) rather than a generic 5 - matches FSO, and matches
+        ' the number GetDrive raises for a drive that does not exist.
+        If e <> 0 Then Err.Raise 68, "Drives", "No drive '" & letterOrIndex & "' in the collection"
     End Property
     
     [Enumerator]
@@ -8100,6 +8259,7 @@ Private Module WinAPI
     Public Const ERROR_MORE_DATA       As Long = 234    ' buffer too small; lpnLength holds the need
     Public Const ERROR_CONNECTION_UNAVAIL As Long = 1201 ' mapping exists but is currently disconnected
     Public Const ERROR_NO_MORE_FILES As Long = 18
+    Public Const ERROR_DIR_NOT_EMPTY As Long = 145
         
     Public Const MAX_PATH As Long = 260
         

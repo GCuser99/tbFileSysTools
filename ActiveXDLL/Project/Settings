@@ -48,13 +48,29 @@
                         "versionMajor": 0,
                         "versionMinor": 0,
                         "versionRevision": 1
+                },
+                {
+                        "autoCtlExt": true,
+                        "id": "{1FCDB98D-617D-4995-9736-2ED0E4746A10}",
+                        "licence": "CC0 1.0 Universal",
+                        "name": "[IMPORTED] Windows Development Library for twinBASIC v9.5.744",
+                        "path32": "/Packages/WinDevLib",
+                        "path64": "/Packages/WinDevLib",
+                        "publishedDate": "09-OCT-2026",
+                        "publishedTime": "13:06:28",
+                        "publisher": "fafalone",
+                        "symbolId": "WinDevLib",
+                        "versionBuild": "744",
+                        "versionMajor": "9",
+                        "versionMinor": "5",
+                        "versionRevision": "0"
                 }
         ],
         "project.settingsVersion": 1,
         "project.useProjectIdForTypeLibraryId": true,
-        "project.versionBuild": 1,
+        "project.versionBuild": 0,
         "project.versionMajor": 1,
-        "project.versionMinor": 8,
+        "project.versionMinor": 9,
         "project.versionRevision": 0,
         "project.warnings": {
                 "errors": [],

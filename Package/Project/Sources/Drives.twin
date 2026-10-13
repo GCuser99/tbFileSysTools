@@ -60,7 +60,9 @@ Public Class Drives
         Set Item = mItems(key)
         Dim e As Long: e = Err.Number
         On Error GoTo 0
-        If e <> 0 Then Err.Raise 5, "Drives", "No drive '" & letterOrIndex & "' in the collection"
+        ' 68 (device unavailable) rather than a generic 5 - matches FSO, and matches
+        ' the number GetDrive raises for a drive that does not exist.
+        If e <> 0 Then Err.Raise 68, "Drives", "No drive '" & letterOrIndex & "' in the collection"
     End Property
     
     [Enumerator]

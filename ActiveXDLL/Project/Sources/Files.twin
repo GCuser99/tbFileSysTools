@@ -45,10 +45,12 @@ Public Class Files
     [Description("Returns a specific File object by name or index.")]
     Public Property Get Item(ByVal nameOrIndex As Variant) As File
         On Error Resume Next
-        Set Item = mItems(nameOrIndex)          ' direct - does File need the intermediate?
+        Set Item = mItems(nameOrIndex)
         Dim e As Long: e = Err.Number
         On Error GoTo 0
-        If e <> 0 Then Err.Raise 5, "Files", "No item '" & nameOrIndex & "' in the collection"
+        ' 53 (file not found) rather than a generic 5 - matches FSO, and matches the
+        ' number this module already raises everywhere else for a missing file.
+        If e <> 0 Then Err.Raise 53, "Files", "No file '" & nameOrIndex & "' in the collection"
     End Property
     
     [Enumerator]

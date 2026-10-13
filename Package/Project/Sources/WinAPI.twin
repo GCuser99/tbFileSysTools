@@ -561,6 +561,7 @@ Private Module WinAPI
     Public Const ERROR_MORE_DATA       As Long = 234    ' buffer too small; lpnLength holds the need
     Public Const ERROR_CONNECTION_UNAVAIL As Long = 1201 ' mapping exists but is currently disconnected
     Public Const ERROR_NO_MORE_FILES As Long = 18
+    Public Const ERROR_DIR_NOT_EMPTY As Long = 145
         
     Public Const MAX_PATH As Long = 260
         

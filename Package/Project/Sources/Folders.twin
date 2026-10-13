@@ -5,21 +5,22 @@
 ' ==========================================================================
 ' Folders
 '
-' A read-only wrapper around a Collection of Folder objects.
-'
-' Thin by design: it exists so that callers get an FSO-shaped Count / Item /
-' For Each surface instead of a raw VBA Collection, and so the collection cannot
-' be added to or removed from after construction.
+' A collection of Folder objects with an FSO-shaped Count / Item / Add /
+' For Each surface.
 '
 ' Built by Folder.SubFolders, which enumerates IMMEDIATE children only (no
 ' recursion) and keys each entry by FOLDER NAME ("bin"), so both SubFolders("bin")
 ' and SubFolders(1) work. Never New'd directly - Init is Friend.
 '
-' SNAPSHOT. The membership is fixed at the moment Folder.SubFolders was called.
-' Read the property again to re-enumerate. The Folder objects inside are
-' individually live (each re-stats itself on every property read), so a folder
-' deleted after enumeration will not vanish from the collection - it will raise 76
-' when you touch it.
+' SNAPSHOT, with one exception. The membership is fixed at the moment
+' Folder.SubFolders was called; read the property again to re-enumerate. The one
+' thing that mutates it is Add, which creates a folder on disk AND appends it here
+' so Count and Item reflect it without a re-enumeration (FSO behaves the same way).
+' Folders created by any other means still require a fresh SubFolders call.
+'
+' The Folder objects inside are individually live (each re-stats itself on every
+' property read), so a folder deleted after enumeration will not vanish from the
+' collection - it will raise 76 when you touch it.
 '
 ' Includes hidden and system folders, matching FSO.
 '
@@ -28,14 +29,19 @@
 ' MIT License - Copyright (c) 2026, GCUser99 (https://github.com/GCUser99)
 ' ==========================================================================
 [Hidden(False)]
-[Description("A read-only collection of Folder objects, enumerable with For Each.")]
+[Description("A collection of Folder objects, enumerable with For Each. Add creates a new subfolder.")]
 Public Class Folders
     Option Explicit
     
     Private mItems As Collection
-
-    Friend Sub Internal_Init(ByVal items As Collection)
+    ' The folder these were enumerated FROM. Carried solely so Add knows where to
+    ' create. Empty only if a future caller inits without one - Add raises 5 then,
+    ' rather than guessing a location.
+    Private mParentPath As String
+    
+    Friend Sub Internal_Init(ByVal items As Collection, ByVal parentPath As String)
         Set mItems = items
+        mParentPath = parentPath
     End Sub
     
     [Description("Returns the number of Folder objects available.")]
@@ -50,8 +56,38 @@ Public Class Folders
         Set Item = mItems(nameOrIndex)
         Dim e As Long: e = Err.Number
         On Error GoTo 0
-        If e <> 0 Then Err.Raise 5, "Folders", "No item '" & nameOrIndex & "' in the collection"
+        ' 76 (path not found) rather than a generic 5 - matches FSO, and matches the
+        ' number this module already raises everywhere else for a missing folder.
+        If e <> 0 Then Err.Raise 76, "Folders", "No folder '" & nameOrIndex & "' in the collection"
     End Property
+    
+    ' FSO parity: Folders.Add creates a subfolder of the enumerated folder and
+    ' returns it, raising 58 if it already exists (CreateFolder does that for us).
+    '
+    ' DELIBERATELY STRICTER THAN A BARE CreateFolder: folderName must be a NAME, not
+    ' a path. "sub\deeper" would otherwise create a nested folder that is not a
+    ' member of THIS collection, leaving Count and the returned object disagreeing
+    ' about what was added. Reserved chars, control chars and device names are still
+    ' rejected downstream by CreateFolder's GuardLeafName (-> 52).
+    [Description("Creates a new subfolder of the folder these were enumerated from, adds it to this collection, and returns it. name must be a bare name, not a path. Raises 58 if it already exists.")]
+    Public Function Add(ByVal name As String) As Folder
+        If Len(mParentPath) = 0 Then
+            Err.Raise 5, "Folders.Add", "This collection has no parent folder to add to."
+        End If
+        If InStr(name, "\") > 0 Or InStr(name, "/") > 0 Then
+            Err.Raise 5, "Folders.Add", "name must be a bare name, not a path: " & name
+        End If
+
+        Dim f As Folder
+        Set f = FileSystemTools.CreateFolder(FileSystemTools.BuildPath(mParentPath, name))
+
+        ' Keyed by the name as given, matching how SubFolders keys its entries, so
+        ' Folders("newname") finds it immediately. AddKeyed degrades to an unkeyed
+        ' add on a clash rather than raising - the folder is already created either way.
+        FSTShared.AddKeyed mItems, f, name
+
+        Set Add = f
+    End Function
 
     [Enumerator]
     [Hidden(True)]

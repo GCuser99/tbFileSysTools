@@ -252,7 +252,8 @@ Public Class Folder
     [Description("A Files collection of every file in this folder (including hidden/system, FSO-style).")]
     Public Property Get Files() As Files
         EnsureCurrent
-        Dim out As New Files
+        Dim out As Files
+        Set out = New Files
         out.Internal_Init EnumChildren(mPath, wantFolders:=False, includeHidden:=True, includeSystem:=True)     ' wantFolders:=False
         Set Files = out
     End Property
@@ -260,8 +261,10 @@ Public Class Folder
     [Description("A Folders collection of every immediate subfolder.")]
     Public Property Get SubFolders() As Folders
         EnsureCurrent
-        Dim out As New Folders
-        out.Internal_Init EnumChildren(mPath, wantFolders:=True, includeHidden:=True, includeSystem:=True)      ' wantFolders:=True
+        Dim out As Folders
+        Set out = New Folders
+        ' mPath is passed so the collection's Add knows where to create.
+        out.Internal_Init EnumChildren(mPath, wantFolders:=True, includeHidden:=True, includeSystem:=True), mPath
         Set SubFolders = out
     End Property
     
@@ -334,7 +337,7 @@ Public Class Folder
     ' than N stats.
     Private Function EnumChildren(ByVal folderPath As String, ByVal wantFolders As Boolean, _
                                   ByVal includeHidden As Boolean, ByVal includeSystem As Boolean) As Collection
-        Dim out As New Collection
+        Dim out As Collection: Set out = New Collection
         Dim ffd As WIN32_FIND_DATAW
         Dim hFind As LongPtr
         Dim nm As String, full As String

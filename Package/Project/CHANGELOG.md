@@ -1,5 +1,16 @@
 # Change Log
 
+[v1.9.0.0, 13 Oct 2026]
+
+ - Added Folders.Add, which creates a subfolder of the enumerated folder and adds it to the collection (FSO parity). The name must be a bare name, not a path.
+ - GetFileVersion now raises error 53 for a file that does not exist, instead of returning an empty string. An existing file with no version resource still returns an empty string, as before.
+ - StringToTextFile, ArrayToTextFile and WriteStream now raise error 70 when the target file is read-only, instead of silently clearing the attribute and replacing the file.
+ - Files, Folders and Drives now raise the same error numbers as Scripting. FileSystemObject when a named item is not in the collectio. A numeric index out of range still raises 5.
+ - DeleteFolder now raises error 70, rather than 75, when the folder holds a read-only file and force is not specified, matching Scripting.FileSystemObject.
+ - GetSpecialFolder now returns a Folder object rather than a path String, matching Scripting.FileSystemObject.
+ - Added GetSpecialFolderPath for callers that want the path explicitly, or that need it for a folder which may not exist.
+ - Replaced As-New auto-instancing declares with explicit form.
+ 
 [v1.8.0.0, 14 Sept 2026]
 
  - Added Windows XP compatibility fallbacks for locale-invariant path comparison, GetSpecialFolder method, and folder/file enumeration.

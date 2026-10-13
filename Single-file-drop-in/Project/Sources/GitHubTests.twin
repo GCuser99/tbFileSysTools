@@ -12,9 +12,13 @@ Module GitHubTests
 
         On Error GoTo Fatal
         
-        Dim fso As New tbFileSysTools.FileSystemObject
+        Dim fso As tbFileSysTools.FileSystemObject
+        Set fso = New tbFileSysTools.FileSystemObject
+        ' GetSpecialFolderPath, not GetSpecialFolder: the latter returns a Folder
+        ' object (FSO-compatible), which would coerce to its path here via the default
+        ' property - but being explicit is clearer and does not rely on the coercion.
         root = fso.BuildPath( _
-                   fso.GetSpecialFolder(TemporaryFolder), _
+                   fso.GetSpecialFolderPath(TemporaryFolder), _
                    "tbfst_smoketest")
 
         ' Clean slate.
@@ -227,6 +231,43 @@ Module GitHubTests
                     "FindInTextFiles  (found " & hits.Count & " of 3 across encodings + subfolder)"
         ok = ok And pass
 
+        '--- 13. Attributes: set, test, and preserve across a normalize --------
+        ' SetAttribute/HasAttribute change and test ONE bit without disturbing the
+        ' others - an addition over Scripting.FileSystemObject, which exposes only the
+        ' whole mask. NormalizeTextFile then rewrites the file and puts the attribute
+        ' back: the write helpers refuse a read-only target, but an explicit in-place
+        ' normalize clears and restores it, because preserving attributes across the
+        ' rewrite is what it is for.
+        p = fso.BuildPath(root, "attrs.txt")
+        fso.StringToTextFile "x" & vbLf & "y", p, encUtf8
+        Dim af As tbFileSysTools.File
+        Set af = fso.GetFile(p)
+        af.SetAttribute faReadOnly, True
+        pass = af.HasAttribute(faReadOnly)
+        fso.NormalizeTextFile p, encUtf8, nlWindows       ' rewrites; attribute preserved
+        pass = pass And fso.GetFile(p).HasAttribute(faReadOnly)
+        fso.GetFile(p).SetAttribute faReadOnly, False     ' so teardown can delete it
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & _
+                    "Attributes  (set, tested, preserved across normalize)"
+        ok = ok And pass
+
+        '--- 14. Folders.Add: create a subfolder through the collection --------
+        ' The collection MUTATES - Add creates the folder on disk and appends it here,
+        ' so Count and Item reflect it without re-enumerating (FSO behaves the same).
+        Dim subs As tbFileSysTools.Folders
+        Set subs = fso.GetFolder(root).SubFolders
+        Dim before As Long: before = subs.Count
+        Dim added As tbFileSysTools.Folder
+        Set added = subs.Add("added_by_collection")
+        pass = (subs.Count = before + 1) _
+               And fso.FolderExists(added.Path) _
+               And (subs("added_by_collection").Name = "added_by_collection")
+        Debug.Assert pass
+        Debug.Print "  " & IIf(pass, "[PASS] ", "[FAIL] ") & _
+                    "Folders.Add  (collection grew from " & before & " to " & subs.Count & ")"
+        ok = ok And pass
+
         '--- clean up and report ----------------------------------------------
         On Error Resume Next
         fso.DeleteFolder root, True, True
@@ -244,8 +285,10 @@ Module GitHubTests
     Fatal:
         Debug.Print "  *** UNEXPECTED ERROR " & Err.Number & ": " & Err.Description
         Debug.Print "  RESULT: FAILED - copy this output into a GitHub issue."
+        ' root may be unset if the failure happened before it was assigned (New
+        ' FileSystemObject, or GetSpecialFolderPath) - do not call DeleteFolder "".
         On Error Resume Next
-        fso.DeleteFolder root, True, True
+        If Len(root) > 0 Then fso.DeleteFolder root, True, True
         On Error GoTo 0
         Debug.Print String$(60, "=")
     End Sub
